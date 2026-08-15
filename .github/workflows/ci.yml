@@ -1,0 +1,76 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+env:
+  DATABASE_URL: postgres://drawing_club:drawing_club@localhost:5432/drawing_club
+  NEXTAUTH_SECRET: ci-placeholder-secret
+  NEXTAUTH_URL: http://localhost:3000
+  JOB_TRIGGER_SECRET: ci-placeholder-secret
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: drawing_club
+          POSTGRES_PASSWORD: drawing_club
+          POSTGRES_DB: drawing_club
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U drawing_club"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Run migrations
+        run: pnpm exec node-pg-migrate up
+
+      - name: Unit tests
+        run: pnpm test
+
+      - name: Build
+        run: pnpm build
+
+      - name: Install Playwright browsers
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Seed E2E data
+        run: pnpm exec tsx scripts/seed.ts
+
+      - name: End-to-end tests
+        run: pnpm exec playwright test
+
+      - uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() }}
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 14
