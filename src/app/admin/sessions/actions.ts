@@ -1,9 +1,10 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { pool } from "@/lib/db/pool";
-import { auth } from "@/auth";
-import { getUserAuthContext } from "@/lib/auth/roles";
+import { requireAdmin } from "@/lib/auth/requireAdmin";
+import { writeAuditLog } from "@/lib/audit/log";
 
 export interface CreateSessionState {
   error?: string;
@@ -15,16 +16,8 @@ export async function createSessionAction(
   _prevState: CreateSessionState,
   formData: FormData,
 ): Promise<CreateSessionState> {
-  // Next.js Server Functions are POSTs to the page they're defined on, not a
-  // separately-matched route — Proxy's RBAC gate (src/proxy.ts) covers the
-  // page render but each Server Function must re-check auth itself
-  // (node_modules/next/dist/docs/.../proxy.md, "Execution order").
-  const session = await auth();
-  if (!session?.user?.id) redirect("/auth/login?redirect=/admin/sessions/new");
-  const ctx = await getUserAuthContext(session.user.id);
-  if (!ctx || !ctx.roles.includes("ADMIN")) {
-    return { error: "Not authorized." };
-  }
+  const ctx = await requireAdmin();
+  if (!ctx) return { error: "Not authorized." };
 
   const sessionType = String(formData.get("sessionType") ?? "");
   if (!(SESSION_TYPES as readonly string[]).includes(sessionType)) {
@@ -59,11 +52,22 @@ export async function createSessionAction(
     hostUserId = hostRow.rows[0].id;
   }
 
-  await pool.query(
+  const inserted = await pool.query<{ id: string }>(
     `INSERT INTO sessions (session_type, description, start_time, end_time, max_capacity, host_user_id, is_ticketed)
-     VALUES ($1, $2, $3, $4, $5, $6, true)`,
+     VALUES ($1, $2, $3, $4, $5, $6, true)
+     RETURNING id`,
     [sessionType, description || null, startTime, endTime, maxCapacity, hostUserId],
   );
 
+  await writeAuditLog({
+    actorId: ctx.id,
+    actionType: "SESSION_CREATED",
+    metadata: { sessionId: inserted.rows[0].id, sessionType, startTime, maxCapacity, hostUserId },
+  });
+
+  // Reachable via a prefetched <Link> in AdminNav — without this, the
+  // client Router Cache can serve the pre-creation list after the redirect
+  // (see src/app/admin/users/[id]/actions.ts's revalidateUserPages).
+  revalidatePath("/admin/sessions");
   redirect("/admin/sessions");
 }

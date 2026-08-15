@@ -1,4 +1,5 @@
 import { pool } from "@/lib/db/pool";
+import { AdminNav } from "@/components/AdminNav";
 
 interface SessionRow {
   id: string;
@@ -24,6 +25,7 @@ export default async function AdminSessionsPage() {
 
   return (
     <main>
+      <AdminNav />
       <h1>Sessions</h1>
       <p>
         <a href="/admin/sessions/new">+ Create one-off session</a>

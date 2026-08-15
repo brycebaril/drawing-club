@@ -1,5 +1,6 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { bookSession, cancelBooking, joinWaitlist } from "@/lib/booking/actions";
@@ -16,6 +17,10 @@ async function requireUserId(sessionId: string): Promise<string> {
 }
 
 function backToSession(sessionId: string, errorReason?: string) {
+  // Reachable via a prefetched <Link> on /dashboard — see
+  // src/app/admin/users/[id]/actions.ts's revalidateUserPages for why this
+  // matters (Router Cache can otherwise serve pre-mutation booking status).
+  revalidatePath("/app/schedule");
   const params = new URLSearchParams({ session_id: sessionId });
   if (errorReason) params.set("bookingError", errorReason);
   redirect(`/app/schedule?${params.toString()}`);

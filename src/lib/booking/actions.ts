@@ -1,3 +1,4 @@
+import type { PoolClient } from "pg";
 import { pool } from "@/lib/db/pool";
 import { getUserAuthContext } from "@/lib/auth/roles";
 import { getSettingNumber } from "@/lib/settings";
@@ -101,6 +102,29 @@ export async function bookSession(userId: string, sessionId: string): Promise<Bo
 
 export type CancelBookingResult = { ok: true } | { ok: false; reason: "not-found" | "not-cancellable" };
 
+/**
+ * Shared by the user-initiated cancel path and the admin-forced release
+ * path (Phase 4's ban/suspend auto-cancellation) — must run inside an
+ * already-open transaction that holds a lock on the session row, so the
+ * capacity count and the release are atomic together.
+ */
+async function releaseBookedPass(
+  client: PoolClient,
+  sessionId: string,
+  passId: string,
+  maxCapacity: number,
+): Promise<boolean> {
+  const countRow = await client.query<{ count: string }>(
+    `SELECT count(*) FROM passes WHERE session_id = $1 AND status = 'Used'`,
+    [sessionId],
+  );
+  const wasFull = Number(countRow.rows[0].count) >= maxCapacity;
+
+  await client.query(`UPDATE passes SET status = 'Available', session_id = NULL WHERE id = $1`, [passId]);
+
+  return wasFull;
+}
+
 export async function cancelBooking(userId: string, sessionId: string): Promise<CancelBookingResult> {
   const cutoffHours = await getSettingNumber("CANCELLATION_CUTOFF_HOURS");
 
@@ -119,7 +143,7 @@ export async function cancelBooking(userId: string, sessionId: string): Promise<
     }
 
     const sessionRow = await client.query<{ start_time: Date; max_capacity: number }>(
-      `SELECT start_time, max_capacity FROM sessions WHERE id = $1`,
+      `SELECT start_time, max_capacity FROM sessions WHERE id = $1 FOR UPDATE`,
       [sessionId],
     );
     if (sessionRow.rowCount === 0) {
@@ -133,15 +157,7 @@ export async function cancelBooking(userId: string, sessionId: string): Promise<
       return { ok: false, reason: "not-cancellable" };
     }
 
-    const countRow = await client.query<{ count: string }>(
-      `SELECT count(*) FROM passes WHERE session_id = $1 AND status = 'Used'`,
-      [sessionId],
-    );
-    shouldNotifyWaitlist = Number(countRow.rows[0].count) >= maxCapacity;
-
-    await client.query(`UPDATE passes SET status = 'Available', session_id = NULL WHERE id = $1`, [
-      passRow.rows[0].id,
-    ]);
+    shouldNotifyWaitlist = await releaseBookedPass(client, sessionId, passRow.rows[0].id, maxCapacity);
 
     await client.query("COMMIT");
   } catch (error) {
@@ -158,6 +174,54 @@ export async function cancelBooking(userId: string, sessionId: string): Promise<
   }
 
   return { ok: true };
+}
+
+/**
+ * Admin-forced release (Phase 4: ban/suspend cancels a user's upcoming
+ * bookings) — same release logic as cancelBooking, but skips the cutoff
+ * check entirely, since the user's own cancellation window doesn't apply
+ * to an account-status action initiated by an admin.
+ */
+export async function releaseAllFutureBookingsForUser(userId: string): Promise<void> {
+  const upcoming = await pool.query<{ session_id: string; pass_id: string }>(
+    `SELECT p.session_id, p.id AS pass_id
+     FROM passes p
+     JOIN sessions s ON s.id = p.session_id
+     WHERE p.owner_id = $1 AND p.status = 'Used' AND s.start_time > now()`,
+    [userId],
+  );
+
+  for (const row of upcoming.rows) {
+    const client = await pool.connect();
+    let shouldNotifyWaitlist = false;
+    try {
+      await client.query("BEGIN");
+      const sessionRow = await client.query<{ max_capacity: number }>(
+        `SELECT max_capacity FROM sessions WHERE id = $1 FOR UPDATE`,
+        [row.session_id],
+      );
+      if (sessionRow.rowCount === 0) {
+        await client.query("ROLLBACK");
+        continue;
+      }
+      shouldNotifyWaitlist = await releaseBookedPass(
+        client,
+        row.session_id,
+        row.pass_id,
+        sessionRow.rows[0].max_capacity,
+      );
+      await client.query("COMMIT");
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
+    }
+
+    if (shouldNotifyWaitlist) {
+      await broadcastWaitlistOpening(row.session_id);
+    }
+  }
 }
 
 /**

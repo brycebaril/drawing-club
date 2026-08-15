@@ -1,9 +1,11 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { pool } from "@/lib/db/pool";
 import { getUserAuthContext } from "@/lib/auth/roles";
+import { writeAuditLog } from "@/lib/audit/log";
 
 export interface GrantTestPassState {
   error?: string;
@@ -34,5 +36,16 @@ export async function grantTestPassAction(
     [ctx.id],
   );
 
+  await writeAuditLog({
+    actorId: ctx.id,
+    actionType: "PASS_GRANTED",
+    targetUserId: ctx.id,
+    metadata: { source: "dev-stub-checkout", effectivePrice: 0 },
+  });
+
+  // Reachable via a prefetched <Link> on /dashboard — see
+  // src/app/admin/users/[id]/actions.ts's revalidateUserPages for why this
+  // matters (Router Cache can otherwise serve the pre-grant balance).
+  revalidatePath("/app/wallet");
   redirect("/app/wallet");
 }

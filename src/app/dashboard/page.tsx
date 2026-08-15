@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { auth, signOut } from "@/auth";
 import { getUserAuthContext } from "@/lib/auth/roles";
@@ -23,15 +24,23 @@ export default async function DashboardPage() {
       <nav>
         <ul>
           <li>
-            <a href="/app/schedule">Schedule</a>
+            <Link href="/app/schedule">Schedule</Link>
           </li>
           <li>
-            <a href="/app/wallet">Wallet</a>
+            <Link href="/app/wallet">Wallet</Link>
           </li>
           {ctx.roles.includes("ADMIN") && (
-            <li>
-              <a href="/admin/sessions">Admin: Sessions</a>
-            </li>
+            <>
+              <li>
+                <Link href="/admin/sessions">Admin: Sessions</Link>
+              </li>
+              <li>
+                <Link href="/admin/users">Admin: Users</Link>
+              </li>
+              <li>
+                <Link href="/admin/audit-logs">Admin: Audit Logs</Link>
+              </li>
+            </>
           )}
         </ul>
       </nav>
