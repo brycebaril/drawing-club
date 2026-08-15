@@ -4,11 +4,18 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project status
 
-This repository currently contains **design and planning documents only** — no application code, no build tooling, and no commits yet (working tree is unstaged on `main`). There is nothing to build, lint, or test at this stage. The stack has been decided (below) but not yet scaffolded — check whether tooling has actually been added to the repo before assuming any command exists.
+Phase 1 (repo scaffold, schema, local dev, CI) and Phase 2 (auth + RBAC) are done. Real feature routes (schedule, wallet, ops, admin) haven't been built yet — only a placeholder `/dashboard`.
 
-When implementation begins, this file should be updated with real build/lint/test commands and the actual architecture as it's built.
+**Stack:** TypeScript / Next.js (App Router), pnpm, PostgreSQL via raw SQL (`pg`, no ORM — see `ArchitectureDocument.md` §2), `node-pg-migrate` for schema migrations, Auth.js v5 (`next-auth@beta`, Credentials provider, JWT sessions), Stripe (not yet integrated), hosted on AWS via Amplify Hosting (not yet provisioned).
 
-**Chosen stack:** TypeScript / Next.js (App Router) full-stack app, PostgreSQL, Auth.js (Credentials provider), Stripe for payments, hosted on AWS via Amplify Hosting. Full rationale in `docs/ArchitectureDocument.md`. Local development is planned around Docker Compose Postgres + Stripe CLI webhook forwarding (`ArchitectureDocument.md` §5) — once the app is scaffolded, this file's commands section should point at the real `docker compose up` / `npm run dev` / `npm run test` / `npm run test:e2e` invocations.
+**Commands:** `docker compose up -d` (local Postgres) → `pnpm install` → `pnpm migrate` → `pnpm seed` → `pnpm dev`. Also: `pnpm lint`, `pnpm typecheck`, `pnpm test` (Vitest), `pnpm test:e2e` (Playwright), `pnpm migrate:create <name>` (new migration).
+
+**Auth/RBAC implementation notes** (see `src/auth.ts`, `src/proxy.ts`, `src/lib/auth/*`):
+- RBAC is enforced in `src/proxy.ts` — Next.js **renamed "Middleware" to "Proxy" in v16**; same mechanism, new file/export name (`export default` in `proxy.ts`, not `middleware.ts`). Docs still say "middleware" in places since that's the conceptual role — don't recreate a `middleware.ts` file if you see the old name.
+- Proxy defaults to the **Node.js runtime** in Next 16 (no opt-in, and setting a `runtime` export in a Proxy file throws). This is what lets `src/proxy.ts` query Postgres directly on every request for fresh status/role checks instead of trusting cached JWT claims.
+- Auth.js Credentials provider only supports **JWT session strategy** (not database sessions) — consistent with no-ORM anyway, since DB sessions need an adapter.
+- MFA is a two-step client flow: `POST /api/auth/check-credentials` validates password and reports whether a TOTP step is needed, *before* the real `signIn()` call — Auth.js's `authorize()` can't express "need more info" on its own, so don't try to collapse this into one step.
+- `/api/*` is entirely excluded from `src/proxy.ts`'s matcher — API routes need their own auth handling (JSON 401s, bearer tokens), not an HTML-login-page redirect.
 
 ## What this project is
 

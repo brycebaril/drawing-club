@@ -53,17 +53,17 @@ jobs:
       - name: Run migrations
         run: pnpm exec node-pg-migrate up
 
+      - name: Seed test data
+        run: pnpm exec tsx scripts/seed.ts
+
       - name: Unit tests
-        run: pnpm test
+        run: pnpm exec vitest run
 
       - name: Build
         run: pnpm build
 
       - name: Install Playwright browsers
         run: pnpm exec playwright install --with-deps chromium
-
-      - name: Seed E2E data
-        run: pnpm exec tsx scripts/seed.ts
 
       - name: End-to-end tests
         run: pnpm exec playwright test

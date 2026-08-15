@@ -1,0 +1,72 @@
+import type { Role } from "./roles";
+
+interface RouteRule {
+  pattern: string;
+  /** Allowed regardless of auth state, including unauthenticated visitors. */
+  public?: true;
+  /** Only reachable by unauthenticated visitors (e.g. login/register). */
+  guestOnly?: true;
+  /** Any of these roles grants access. ADMIN is implicitly allowed everywhere. */
+  allow?: Role[];
+}
+
+/**
+ * Transcribes SiteOutline.md §4's Route Access Matrix. Ordered
+ * most-specific-first since the first matching rule wins.
+ *
+ * Not modeled here (left to route handlers per docs/SecurityDocument.md §3):
+ * resource-scoped checks, e.g. VOL_HOST at /ops/check-in/:session_id being
+ * restricted to sessions they're actually assigned to host.
+ */
+const AUTHENTICATED_ROLES: Role[] = ["ACCT", "MBR", "VOL_HOST", "VOL_MKT", "VOL_MBR", "VOL_CTRL"];
+
+const ROUTE_RULES: RouteRule[] = [
+  { pattern: "/auth/login", guestOnly: true },
+  { pattern: "/auth/register", guestOnly: true },
+  { pattern: "/auth/verify-email", public: true }, // reachable whether or not the clicker still has a session
+  { pattern: "/auth/mfa-setup", allow: AUTHENTICATED_ROLES }, // forced here by middleware when mfaRequired && !mfaEnabled
+  { pattern: "/app/wallet/claim", public: true }, // guests redirected to login by the page itself, not middleware
+  { pattern: "/app/*", allow: AUTHENTICATED_ROLES },
+  { pattern: "/dashboard", allow: AUTHENTICATED_ROLES },
+  { pattern: "/ops/check-in/*", allow: ["VOL_HOST", "VOL_MBR"] },
+  { pattern: "/ops/cms", allow: ["VOL_MKT"] },
+  { pattern: "/ops/cms/*", allow: ["VOL_MKT"] },
+  { pattern: "/ops/model-booking", allow: ["VOL_MBR"] },
+  { pattern: "/ops/model-booking/*", allow: ["VOL_MBR"] },
+  { pattern: "/ops/financials", allow: ["VOL_CTRL"] },
+  { pattern: "/ops/financials/*", allow: ["VOL_CTRL"] },
+  { pattern: "/admin/*", allow: [] }, // ADMIN-only via the implicit rule below
+  { pattern: "/", public: true },
+  { pattern: "/about", public: true },
+  { pattern: "/schedule", public: true },
+  { pattern: "/news", public: true },
+  { pattern: "/news/*", public: true },
+  { pattern: "/contact", public: true },
+];
+
+function matchesPattern(pathname: string, pattern: string): boolean {
+  if (pattern.endsWith("/*")) {
+    const prefix = pattern.slice(0, -2);
+    return pathname === prefix || pathname.startsWith(`${prefix}/`);
+  }
+  return pathname === pattern;
+}
+
+function findRule(pathname: string): RouteRule | undefined {
+  return ROUTE_RULES.find((rule) => matchesPattern(pathname, rule.pattern));
+}
+
+/**
+ * @param roles null for an unauthenticated visitor (GUEST); otherwise the
+ * authenticated user's resolved role set from getUserAuthContext().
+ */
+export function isAllowed(pathname: string, roles: Role[] | null): boolean {
+  const rule = findRule(pathname);
+  if (!rule) return false; // fail closed: unknown routes require an explicit rule
+
+  if (rule.public) return true;
+  if (rule.guestOnly) return roles === null;
+  if (roles === null) return false;
+  if (roles.includes("ADMIN")) return true;
+  return (rule.allow ?? []).some((allowedRole) => roles.includes(allowedRole));
+}
