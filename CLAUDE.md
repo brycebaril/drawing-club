@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project status
 
-Phase 1 (repo scaffold, schema, local dev, CI) and Phase 2 (auth + RBAC) are done. Real feature routes (schedule, wallet, ops, admin) haven't been built yet — only a placeholder `/dashboard`.
+Phase 1 (scaffold/schema/CI), Phase 2 (auth + RBAC), and Phase 3 (core booking loop) are done. Built so far: registration/login/MFA, one-off session creation (`/admin/sessions`), the schedule grid with book/cancel/waitlist (`/app/schedule`), and a minimal pass wallet with a dev-only test-pass grant standing in for Stripe (`/app/wallet`). Not yet built: recurring/multi-week/non-ticketed session creation, real Stripe payments, transferable pass gift/claim, CMS, public marketing pages, ops workspaces (check-in, model booking, financials), admin reporting.
 
 **Stack:** TypeScript / Next.js (App Router), pnpm, PostgreSQL via raw SQL (`pg`, no ORM — see `ArchitectureDocument.md` §2), `node-pg-migrate` for schema migrations, Auth.js v5 (`next-auth@beta`, Credentials provider, JWT sessions), Stripe (not yet integrated), hosted on AWS via Amplify Hosting (not yet provisioned).
 
@@ -16,6 +16,12 @@ Phase 1 (repo scaffold, schema, local dev, CI) and Phase 2 (auth + RBAC) are don
 - Auth.js Credentials provider only supports **JWT session strategy** (not database sessions) — consistent with no-ORM anyway, since DB sessions need an adapter.
 - MFA is a two-step client flow: `POST /api/auth/check-credentials` validates password and reports whether a TOTP step is needed, *before* the real `signIn()` call — Auth.js's `authorize()` can't express "need more info" on its own, so don't try to collapse this into one step.
 - `/api/*` is entirely excluded from `src/proxy.ts`'s matcher — API routes need their own auth handling (JSON 401s, bearer tokens), not an HTML-login-page redirect.
+- **Server Functions (`"use server"` actions) must re-check auth themselves — Proxy alone doesn't cover them.** Next.js's own docs are explicit about this: a Server Function is a POST to the page it's defined on, not a separately-matched route, so a Proxy matcher change can silently stop protecting it. Every mutation in this repo (`src/app/admin/sessions/actions.ts`, `src/app/app/schedule/actions.ts`, `src/app/app/wallet/actions.ts`) derives the acting user from `await auth()` server-side and re-validates role/ownership — never trust a client-supplied user id from form data.
+
+**Booking implementation notes** (see `src/lib/booking/*`, `src/lib/settings.ts`):
+- The schedule grid's window size resolves an ambiguity between Design Doc §3.1 ("rolling 14-day window") and §5.2 (Members get a *longer* booking window than Account Holders): the grid always renders at the longest tier's width (`BOOKING_WINDOW_MEMBER_DAYS`), and each session's bookability is gated per-viewer against their own window (`src/lib/booking/sessionStatus.ts`'s `viewerBookingWindowDays`) — so an Account Holder sees further-out sessions on the grid but locked (`TooFarFuture`), which doubles as a membership upsell. Admins are unrestricted. Revisit this if it turns out not to match intent.
+- `bookSession`/`cancelBooking` (`src/lib/booking/actions.ts`) row-lock the session (`FOR UPDATE`) and pick a pass with `FOR UPDATE SKIP LOCKED` inside a transaction, specifically so concurrent bookings can't oversell the last spot. Reuse this locking pattern for any future mutation touching session capacity (e.g. multi-week seat booking).
+- `Waitlist_Entries` needed a uniqueness constraint on `(session_id, user_id)` that the original schema was missing — added in a follow-up migration rather than editing the original one. If you find another schema gap like this, same approach: new migration, don't rewrite history.
 
 ## What this project is
 

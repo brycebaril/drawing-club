@@ -1,25 +1,6 @@
 import { expect, test } from "@playwright/test";
-import { Pool } from "pg";
 import { Secret, TOTP } from "otpauth";
-import { hashPassword } from "@/lib/auth/password";
-
-const pool = new Pool({ connectionString: process.env.DATABASE_URL });
-
-async function createTestUser(opts: {
-  username: string;
-  baseRole?: "AccountHolder" | "Admin";
-  password?: string;
-}) {
-  const password = opts.password ?? "e2e-test-password-123";
-  const passwordHash = await hashPassword(password);
-  const result = await pool.query<{ id: string }>(
-    `INSERT INTO users (username, password_hash, email, email_verified_at, base_role, status)
-     VALUES ($1, $2, $3, now(), $4, 'Active')
-     RETURNING id`,
-    [opts.username, passwordHash, `${opts.username}@example.test`, opts.baseRole ?? "AccountHolder"],
-  );
-  return { id: result.rows[0].id, username: opts.username, password };
-}
+import { createTestUser, loginAsUser, pool } from "./helpers";
 
 test.afterAll(() => pool.end());
 
@@ -72,12 +53,7 @@ test("an Admin without MFA enrolled is forced through setup before reaching the 
 
 test("a banned account's existing session loses access on the next request", async ({ page }) => {
   const user = await createTestUser({ username: `e2ebanme${Date.now()}` });
-
-  await page.goto("/auth/login");
-  await page.getByLabel("Username").fill(user.username);
-  await page.getByLabel("Password").fill(user.password);
-  await page.getByRole("button", { name: "Log in" }).click();
-  await page.waitForURL("**/dashboard");
+  await loginAsUser(page, user);
 
   await pool.query(`UPDATE users SET status = 'Banned' WHERE id = $1`, [user.id]);
 

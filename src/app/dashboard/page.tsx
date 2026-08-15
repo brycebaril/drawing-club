@@ -20,6 +20,21 @@ export default async function DashboardPage() {
       <p>Logged in as {ctx.username}</p>
       <p>Roles: {ctx.roles.join(", ")}</p>
       <p>Email verified: {ctx.emailVerified ? "yes" : "no"}</p>
+      <nav>
+        <ul>
+          <li>
+            <a href="/app/schedule">Schedule</a>
+          </li>
+          <li>
+            <a href="/app/wallet">Wallet</a>
+          </li>
+          {ctx.roles.includes("ADMIN") && (
+            <li>
+              <a href="/admin/sessions">Admin: Sessions</a>
+            </li>
+          )}
+        </ul>
+      </nav>
       <form
         action={async () => {
           "use server";
