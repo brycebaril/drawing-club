@@ -5,12 +5,13 @@ import { redirect } from "next/navigation";
 import { pool } from "@/lib/db/pool";
 import { requireAdmin } from "@/lib/auth/requireAdmin";
 import { writeAuditLog } from "@/lib/audit/log";
+import { SESSION_TYPES } from "@/lib/sessions/shared";
+import { resolveHostUsername } from "@/lib/sessions/host";
+import { generateSessionsForRule } from "@/lib/recurrence/generate";
 
 export interface CreateSessionState {
   error?: string;
 }
-
-const SESSION_TYPES = ["L", "R", "G", "P", "S", "X", "Gallery", "Party"] as const;
 
 export async function createSessionAction(
   _prevState: CreateSessionState,
@@ -40,17 +41,9 @@ export async function createSessionAction(
     return { error: "Capacity must be a positive whole number." };
   }
 
-  const hostUsername = String(formData.get("hostUsername") ?? "").trim();
-  let hostUserId: string | null = null;
-  if (hostUsername) {
-    const hostRow = await pool.query<{ id: string }>(`SELECT id FROM users WHERE username = $1`, [
-      hostUsername,
-    ]);
-    if (hostRow.rowCount === 0) {
-      return { error: `No user found with username "${hostUsername}".` };
-    }
-    hostUserId = hostRow.rows[0].id;
-  }
+  const hostResult = await resolveHostUsername(String(formData.get("hostUsername") ?? ""));
+  if (!hostResult.ok) return { error: hostResult.error };
+  const hostUserId = hostResult.hostUserId;
 
   const inserted = await pool.query<{ id: string }>(
     `INSERT INTO sessions (session_type, description, start_time, end_time, max_capacity, host_user_id, is_ticketed)
@@ -70,4 +63,100 @@ export async function createSessionAction(
   // (see src/app/admin/users/[id]/actions.ts's revalidateUserPages).
   revalidatePath("/admin/sessions");
   redirect("/admin/sessions");
+}
+
+export interface CreateRecurrenceRuleState {
+  error?: string;
+}
+
+export async function createRecurrenceRuleAction(
+  _prevState: CreateRecurrenceRuleState,
+  formData: FormData,
+): Promise<CreateRecurrenceRuleState> {
+  const ctx = await requireAdmin();
+  if (!ctx) return { error: "Not authorized." };
+
+  const sessionType = String(formData.get("sessionType") ?? "");
+  if (!(SESSION_TYPES as readonly string[]).includes(sessionType)) {
+    return { error: "Choose a valid session type." };
+  }
+
+  const description = String(formData.get("description") ?? "").trim();
+
+  const dayOfWeek = Number(formData.get("dayOfWeek"));
+  if (!Number.isInteger(dayOfWeek) || dayOfWeek < 0 || dayOfWeek > 6) {
+    return { error: "Choose a valid day of week." };
+  }
+
+  const startTimeOfDay = String(formData.get("startTimeOfDay") ?? "");
+  const endTimeOfDay = String(formData.get("endTimeOfDay") ?? "");
+  if (!/^\d{2}:\d{2}$/.test(startTimeOfDay) || !/^\d{2}:\d{2}$/.test(endTimeOfDay)) {
+    return { error: "Enter valid start and end times." };
+  }
+  if (endTimeOfDay <= startTimeOfDay) {
+    return { error: "End time must be after start time." };
+  }
+
+  const maxCapacityRaw = String(formData.get("maxCapacity") ?? "").trim();
+  let maxCapacity: number | null = null;
+  if (maxCapacityRaw) {
+    maxCapacity = Number(maxCapacityRaw);
+    if (!Number.isInteger(maxCapacity) || maxCapacity < 1) {
+      return { error: "Capacity must be a positive whole number, or left blank for the default." };
+    }
+  }
+
+  const hostResult = await resolveHostUsername(String(formData.get("hostUsername") ?? ""));
+  if (!hostResult.ok) return { error: hostResult.error };
+
+  const startDateRaw = String(formData.get("startDate") ?? "");
+  const startDate = new Date(startDateRaw);
+  if (Number.isNaN(startDate.getTime())) {
+    return { error: "Enter a valid start date." };
+  }
+
+  const endDateRaw = String(formData.get("endDate") ?? "").trim();
+  let endDate: Date | null = null;
+  if (endDateRaw) {
+    endDate = new Date(endDateRaw);
+    if (Number.isNaN(endDate.getTime())) {
+      return { error: "Enter a valid end date, or leave it blank for a perpetual series." };
+    }
+    if (endDate < startDate) {
+      return { error: "End date must be on or after the start date." };
+    }
+  }
+
+  const inserted = await pool.query<{ id: string }>(
+    `INSERT INTO recurrence_rules
+       (session_type, description, day_of_week, start_time_of_day, end_time_of_day,
+        max_capacity, default_host_user_id, start_date, end_date, created_by)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+     RETURNING id`,
+    [
+      sessionType,
+      description || null,
+      dayOfWeek,
+      startTimeOfDay,
+      endTimeOfDay,
+      maxCapacity,
+      hostResult.hostUserId,
+      startDate,
+      endDate,
+      ctx.id,
+    ],
+  );
+  const ruleId = inserted.rows[0].id;
+
+  const created = await generateSessionsForRule(ruleId);
+
+  await writeAuditLog({
+    actorId: ctx.id,
+    actionType: "RECURRENCE_RULE_CREATED",
+    metadata: { ruleId, sessionType, dayOfWeek, startTimeOfDay, endTimeOfDay, startDate, endDate, sessionsGenerated: created },
+  });
+
+  revalidatePath("/admin/sessions");
+  revalidatePath("/admin/sessions/recurring");
+  redirect("/admin/sessions/recurring");
 }

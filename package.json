@@ -12,6 +12,7 @@
     "migrate:down": "dotenv -e .env -- node-pg-migrate down",
     "migrate:create": "node-pg-migrate create --",
     "seed": "dotenv -e .env -- tsx scripts/seed.ts",
+    "rollforward": "dotenv -e .env -- tsx scripts/rollforward.ts",
     "test": "dotenv -e .env -- vitest run",
     "test:e2e": "dotenv -e .env -- playwright test"
   },

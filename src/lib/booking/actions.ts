@@ -225,6 +225,58 @@ export async function releaseAllFutureBookingsForUser(userId: string): Promise<v
 }
 
 /**
+ * Admin session cancellation (Phase 5: one-off and recurring-occurrence
+ * cancellation share this) — releases every booked pass on the session
+ * (any owner, not just one user), notifies the waitlist once if it was
+ * full, and marks the session Canceled. A no-op if the session doesn't
+ * exist or is already Canceled.
+ */
+export async function releaseAllBookingsForSession(sessionId: string): Promise<void> {
+  const client = await pool.connect();
+  let shouldNotifyWaitlist = false;
+  try {
+    await client.query("BEGIN");
+
+    const sessionRow = await client.query<{ max_capacity: number; status: string }>(
+      `SELECT max_capacity, status FROM sessions WHERE id = $1 FOR UPDATE`,
+      [sessionId],
+    );
+    if (sessionRow.rowCount === 0 || sessionRow.rows[0].status === "Canceled") {
+      await client.query("ROLLBACK");
+      return;
+    }
+    const { max_capacity: maxCapacity } = sessionRow.rows[0];
+
+    const passRows = await client.query<{ id: string }>(
+      `SELECT id FROM passes WHERE session_id = $1 AND status = 'Used' FOR UPDATE`,
+      [sessionId],
+    );
+    // Computed once, before releasing anything — releasing passes one at a
+    // time would make "was full" false by the second release.
+    shouldNotifyWaitlist = (passRows.rowCount ?? 0) >= maxCapacity;
+
+    for (const pass of passRows.rows) {
+      await client.query(`UPDATE passes SET status = 'Available', session_id = NULL WHERE id = $1`, [
+        pass.id,
+      ]);
+    }
+
+    await client.query(`UPDATE sessions SET status = 'Canceled' WHERE id = $1`, [sessionId]);
+
+    await client.query("COMMIT");
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
+
+  if (shouldNotifyWaitlist) {
+    await broadcastWaitlistOpening(sessionId);
+  }
+}
+
+/**
  * Design Doc §6.4: broadcasts to everyone on the waitlist who hasn't
  * already been notified about *an* opening (not just this one) — repeat
  * alerts for every subsequent cancellation aren't the intent, per the

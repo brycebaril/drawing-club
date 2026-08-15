@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { pool } from "@/lib/db/pool";
 import { AdminNav } from "@/components/AdminNav";
 
@@ -10,12 +11,13 @@ interface SessionRow {
   max_capacity: number;
   host_username: string | null;
   booked_count: string;
+  recurrence_rule_id: string | null;
 }
 
 export default async function AdminSessionsPage() {
   const result = await pool.query<SessionRow>(
     `SELECT s.id, s.session_type, s.description, s.start_time, s.end_time, s.max_capacity,
-            u.username AS host_username,
+            u.username AS host_username, s.recurrence_rule_id,
             (SELECT count(*) FROM passes p WHERE p.session_id = s.id AND p.status = 'Used') AS booked_count
      FROM sessions s
      LEFT JOIN users u ON u.id = s.host_user_id
@@ -28,7 +30,9 @@ export default async function AdminSessionsPage() {
       <AdminNav />
       <h1>Sessions</h1>
       <p>
-        <a href="/admin/sessions/new">+ Create one-off session</a>
+        <Link href="/admin/sessions/new">+ Create one-off session</Link> ·{" "}
+        <Link href="/admin/sessions/new-recurring">+ Create recurring session</Link> ·{" "}
+        <Link href="/admin/sessions/recurring">Recurring rules</Link>
       </p>
       <table>
         <thead>
@@ -38,6 +42,7 @@ export default async function AdminSessionsPage() {
             <th>End</th>
             <th>Booked / Capacity</th>
             <th>Host</th>
+            <th></th>
           </tr>
         </thead>
         <tbody>
@@ -50,6 +55,10 @@ export default async function AdminSessionsPage() {
                 {row.booked_count} / {row.max_capacity}
               </td>
               <td>{row.host_username ?? "Open — needs a host"}</td>
+              <td>
+                {row.recurrence_rule_id && "Recurring · "}
+                <Link href={`/admin/sessions/${row.id}`}>Manage</Link>
+              </td>
             </tr>
           ))}
         </tbody>
