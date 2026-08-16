@@ -24,7 +24,8 @@
     "pg": "^8.23.0",
     "qrcode": "^1.5.4",
     "react": "19.2.8",
-    "react-dom": "19.2.8"
+    "react-dom": "19.2.8",
+    "stripe": "^22.5.0"
   },
   "devDependencies": {
     "@playwright/test": "^1.62.1",

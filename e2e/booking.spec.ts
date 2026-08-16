@@ -17,8 +17,14 @@ test("a member books a session, cancels it, and the pass returns to their balanc
 
   await page.goto("/app/wallet");
   await expect(page.getByText("Available passes: 0")).toBeVisible();
-  await page.getByRole("button", { name: "Get a test pass" }).click();
-  await page.waitForURL("**/app/wallet");
+  // Passes are now purchased through real Stripe Checkout (Phase 8) rather
+  // than a dev-only grant button — set the fixture up directly, same as
+  // every other spec file's pass provisioning.
+  await pool.query(
+    `INSERT INTO passes (owner_id, status, effective_price) VALUES ($1, 'Available', 0)`,
+    [member.id],
+  );
+  await page.reload();
   await expect(page.getByText("Available passes: 1")).toBeVisible();
 
   await page.goto(`/app/schedule?session_id=${sessionId}`);
