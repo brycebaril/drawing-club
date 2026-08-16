@@ -23,3 +23,19 @@ export async function getSettingNumber(key: string): Promise<number> {
   }
   return parsed;
 }
+
+/** Reads a String System Setting (Design Doc §12.1) — same shape as getSettingNumber, for free-text config. */
+export async function getSettingString(key: string): Promise<string> {
+  const result = await pool.query<{ value: string; data_type: string }>(
+    `SELECT value, data_type FROM system_settings WHERE key = $1`,
+    [key],
+  );
+  if (result.rowCount === 0) {
+    throw new Error(`Missing system_settings row for key "${key}"`);
+  }
+  const { value, data_type: dataType } = result.rows[0];
+  if (dataType !== "String") {
+    throw new Error(`system_settings "${key}" is not a String (data_type=${dataType})`);
+  }
+  return value;
+}
