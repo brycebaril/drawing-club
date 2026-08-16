@@ -1,8 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { createOneOffSessionAsAdmin, createTestUser, loginAsUser, pool } from "./helpers";
 
-test.afterAll(() => pool.end());
-
 test("a member books a session, cancels it, and the pass returns to their balance", async ({
   page,
 }) => {

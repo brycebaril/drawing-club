@@ -3,6 +3,12 @@ import { Pool } from "pg";
 import { Secret, TOTP } from "otpauth";
 import { hashPassword } from "@/lib/auth/password";
 
+// Module-level singleton shared by every spec file that imports it.
+// Deliberately never closed here or in any spec file's afterAll — Playwright
+// reuses worker processes across test files, so a file that calls
+// `pool.end()` in its own afterAll can poison a *different* file that later
+// shares that same worker process ("Cannot use a pool after calling end on
+// the pool"). Connections close naturally when the worker process exits.
 export const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
 export async function createTestUser(opts: {

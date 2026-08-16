@@ -2,8 +2,6 @@ import { expect, test } from "@playwright/test";
 import { Secret, TOTP } from "otpauth";
 import { createTestUser, loginAsUser, pool } from "./helpers";
 
-test.afterAll(() => pool.end());
-
 test("registering creates an account and signs the user in", async ({ page }) => {
   const username = `e2euser${Date.now()}`;
   await page.goto("/auth/register");

@@ -226,8 +226,9 @@ export async function releaseAllFutureBookingsForUser(userId: string): Promise<v
 
 /**
  * Admin session cancellation (Phase 5: one-off and recurring-occurrence
- * cancellation share this) — releases every booked pass on the session
- * (any owner, not just one user), notifies the waitlist once if it was
+ * cancellation share this; Phase 6: series occurrences too) — releases
+ * every booked pass on the session (any owner, not just one user), clears
+ * any seat_reservations rows for it, notifies the waitlist once if it was
  * full, and marks the session Canceled. A no-op if the session doesn't
  * exist or is already Canceled.
  */
@@ -261,6 +262,11 @@ export async function releaseAllBookingsForSession(sessionId: string): Promise<v
       ]);
     }
 
+    // No-op for ordinary (non-series) sessions — cleans up any numbered-seat
+    // assignments a canceled series occurrence held, so they don't linger
+    // pointing at a Canceled session (Phase 6).
+    await client.query(`DELETE FROM seat_reservations WHERE session_id = $1`, [sessionId]);
+
     await client.query(`UPDATE sessions SET status = 'Canceled' WHERE id = $1`, [sessionId]);
 
     await client.query("COMMIT");
@@ -282,7 +288,7 @@ export async function releaseAllBookingsForSession(sessionId: string): Promise<v
  * alerts for every subsequent cancellation aren't the intent, per the
  * notified_at field's original design (docs/DesignDocument.md §13).
  */
-async function broadcastWaitlistOpening(sessionId: string): Promise<void> {
+export async function broadcastWaitlistOpening(sessionId: string): Promise<void> {
   const entries = await pool.query<{ id: string; email: string; username: string }>(
     `SELECT w.id, u.email, u.username
      FROM waitlist_entries w

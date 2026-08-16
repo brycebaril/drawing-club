@@ -1,8 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { createOneOffSessionAsAdmin, createTestUser, loginAsUser, pool } from "./helpers";
 
-test.afterAll(() => pool.end());
-
 test("banning a user releases their upcoming bookings, notifies the waitlist, and blocks login", async ({
   page,
 }) => {

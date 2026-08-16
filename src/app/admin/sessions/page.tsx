@@ -12,12 +12,13 @@ interface SessionRow {
   host_username: string | null;
   booked_count: string;
   recurrence_rule_id: string | null;
+  series_id: string | null;
 }
 
 export default async function AdminSessionsPage() {
   const result = await pool.query<SessionRow>(
     `SELECT s.id, s.session_type, s.description, s.start_time, s.end_time, s.max_capacity,
-            u.username AS host_username, s.recurrence_rule_id,
+            u.username AS host_username, s.recurrence_rule_id, s.series_id,
             (SELECT count(*) FROM passes p WHERE p.session_id = s.id AND p.status = 'Used') AS booked_count
      FROM sessions s
      LEFT JOIN users u ON u.id = s.host_user_id
@@ -32,7 +33,9 @@ export default async function AdminSessionsPage() {
       <p>
         <Link href="/admin/sessions/new">+ Create one-off session</Link> ·{" "}
         <Link href="/admin/sessions/new-recurring">+ Create recurring session</Link> ·{" "}
-        <Link href="/admin/sessions/recurring">Recurring rules</Link>
+        <Link href="/admin/sessions/recurring">Recurring rules</Link> ·{" "}
+        <Link href="/admin/sessions/new-series">+ Create multi-week series</Link> ·{" "}
+        <Link href="/admin/sessions/series">Multi-week series</Link>
       </p>
       <table>
         <thead>
@@ -57,6 +60,7 @@ export default async function AdminSessionsPage() {
               <td>{row.host_username ?? "Open — needs a host"}</td>
               <td>
                 {row.recurrence_rule_id && "Recurring · "}
+                {row.series_id && "Series · "}
                 <Link href={`/admin/sessions/${row.id}`}>Manage</Link>
               </td>
             </tr>

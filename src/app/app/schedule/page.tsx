@@ -4,10 +4,9 @@ import { pool } from "@/lib/db/pool";
 import { getUserAuthContext } from "@/lib/auth/roles";
 import { getSettingNumber } from "@/lib/settings";
 import { computeSessionStatus, type SessionStatus } from "@/lib/booking/sessionStatus";
+import { SLOTS, slotFor, startOfDay, dayIndex } from "@/lib/sessions/shared";
 import { bookSessionAction, cancelBookingAction, joinWaitlistAction } from "./actions";
-
-const SLOTS = ["Morning", "Afternoon", "Evening"] as const;
-type Slot = (typeof SLOTS)[number];
+import { SeriesPanel } from "./SeriesPanel";
 
 interface SessionRow {
   id: string;
@@ -18,30 +17,13 @@ interface SessionRow {
   max_capacity: number;
   host_username: string | null;
   booked_count: number;
-}
-
-function slotFor(date: Date): Slot {
-  const hour = date.getHours();
-  if (hour < 14) return "Morning";
-  if (hour < 18) return "Afternoon";
-  return "Evening";
-}
-
-function startOfDay(date: Date): Date {
-  const copy = new Date(date);
-  copy.setHours(0, 0, 0, 0);
-  return copy;
-}
-
-function dayIndex(gridStart: Date, date: Date): number {
-  const msPerDay = 24 * 60 * 60 * 1000;
-  return Math.floor((startOfDay(date).getTime() - gridStart.getTime()) / msPerDay);
+  series_id: string | null;
 }
 
 export default async function SchedulePage({
   searchParams,
 }: {
-  searchParams: Promise<{ session_id?: string; bookingError?: string }>;
+  searchParams: Promise<{ session_id?: string; bookingError?: string; seat?: string }>;
 }) {
   const session = await auth();
   if (!session?.user?.id) redirect("/auth/login?redirect=/app/schedule");
@@ -64,7 +46,7 @@ export default async function SchedulePage({
 
   const sessionsResult = await pool.query<SessionRow>(
     `SELECT s.id, s.session_type, s.description, s.start_time, s.end_time, s.max_capacity,
-            u.username AS host_username,
+            u.username AS host_username, s.series_id,
             COALESCE(bc.booked_count, 0)::int AS booked_count
      FROM sessions s
      LEFT JOIN users u ON u.id = s.host_user_id
@@ -107,8 +89,9 @@ export default async function SchedulePage({
     return d;
   });
 
-  const { session_id: selectedId, bookingError } = await searchParams;
+  const { session_id: selectedId, bookingError, seat } = await searchParams;
   const selectedSession = selectedId ? sessions.find((s) => s.id === selectedId) : undefined;
+  const selectedSeat = seat ? Number(seat) : null;
 
   return (
     <main>
@@ -163,25 +146,34 @@ export default async function SchedulePage({
         </table>
       </div>
 
-      {selectedSession && (
-        <SessionDetails
-          session={selectedSession}
-          status={computeSessionStatus({
-            session: {
-              startTime: new Date(selectedSession.start_time),
-              maxCapacity: selectedSession.max_capacity,
-            },
-            roles: ctx.roles,
-            bookedCount: selectedSession.booked_count,
-            viewerHasBooking: bookedSessionIds.has(selectedSession.id),
-            viewerOnWaitlist: waitlistedSessionIds.has(selectedSession.id),
-            cancellationCutoffHours: cutoffHours,
-            bookingWindowAccountDays: accountDays,
-            bookingWindowMemberDays: memberDays,
-          })}
-          bookingError={bookingError}
-        />
-      )}
+      {selectedSession &&
+        (selectedSession.series_id ? (
+          <SeriesPanel
+            seriesId={selectedSession.series_id}
+            clickedSessionId={selectedSession.id}
+            viewerId={ctx.id}
+            selectedSeat={selectedSeat}
+            bookingError={bookingError}
+          />
+        ) : (
+          <SessionDetails
+            session={selectedSession}
+            status={computeSessionStatus({
+              session: {
+                startTime: new Date(selectedSession.start_time),
+                maxCapacity: selectedSession.max_capacity,
+              },
+              roles: ctx.roles,
+              bookedCount: selectedSession.booked_count,
+              viewerHasBooking: bookedSessionIds.has(selectedSession.id),
+              viewerOnWaitlist: waitlistedSessionIds.has(selectedSession.id),
+              cancellationCutoffHours: cutoffHours,
+              bookingWindowAccountDays: accountDays,
+              bookingWindowMemberDays: memberDays,
+            })}
+            bookingError={bookingError}
+          />
+        ))}
     </main>
   );
 }

@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { bookSession, cancelBooking, joinWaitlist } from "@/lib/booking/actions";
+import { bookSeriesSeat, cancelSeriesSeatDate } from "@/lib/series/actions";
 
 // Server Functions are POSTs to the page they're defined on — Proxy's RBAC
 // gate covers the page render but not these individually, so each derives
@@ -45,4 +46,32 @@ export async function joinWaitlistAction(formData: FormData) {
   const userId = await requireUserId(sessionId);
   const result = await joinWaitlist(userId, sessionId);
   backToSession(sessionId, result.ok ? undefined : result.reason);
+}
+
+function backToSeries(clickedSessionId: string, seatNumber?: number, errorReason?: string) {
+  revalidatePath("/app/schedule");
+  const params = new URLSearchParams({ session_id: clickedSessionId });
+  if (seatNumber) params.set("seat", String(seatNumber));
+  if (errorReason) params.set("bookingError", errorReason);
+  redirect(`/app/schedule?${params.toString()}`);
+}
+
+export async function bookSeriesSeatAction(formData: FormData) {
+  const seriesId = String(formData.get("seriesId"));
+  const clickedSessionId = String(formData.get("clickedSessionId"));
+  const seatNumber = Number(formData.get("seatNumber"));
+  const sessionIds = formData.getAll("sessionIds").map(String);
+
+  const userId = await requireUserId(clickedSessionId);
+  const result = await bookSeriesSeat(userId, seriesId, seatNumber, sessionIds);
+  backToSeries(clickedSessionId, seatNumber, result.ok ? undefined : result.reason);
+}
+
+export async function cancelSeriesSeatDateAction(formData: FormData) {
+  const sessionId = String(formData.get("sessionId"));
+  const clickedSessionId = String(formData.get("clickedSessionId"));
+
+  const userId = await requireUserId(clickedSessionId);
+  const result = await cancelSeriesSeatDate(userId, sessionId);
+  backToSeries(clickedSessionId, undefined, result.ok ? undefined : result.reason);
 }

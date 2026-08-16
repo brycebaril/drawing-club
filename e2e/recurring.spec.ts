@@ -2,8 +2,6 @@ import { expect, test } from "@playwright/test";
 import { createTestUser, loginAsUser, pool } from "./helpers";
 import { generateSessionsForRule } from "@/lib/recurrence/generate";
 
-test.afterAll(() => pool.end());
-
 function toDateInput(date: Date): string {
   const pad = (n: number) => String(n).padStart(2, "0");
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
