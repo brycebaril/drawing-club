@@ -55,6 +55,18 @@ export async function loginAsUser(
 ): Promise<void> {
   // /auth/login is guest-only (src/lib/auth/rbac.ts) — clear any previous
   // user's session first, or the page redirects straight past the form.
+  // Navigating to about:blank first discards the previous page's in-flight
+  // requests (production-mode <Link> prefetches, SessionProvider's mount-time
+  // session fetch — neither excluded by src/proxy.ts's matcher) before
+  // clearing cookies; without it, a call sequenced right after a hard
+  // page.goto() with no further interaction (e.g. recurring.spec.ts's second
+  // login) can race one of those still-in-flight requests against
+  // clearCookies(), leaving the browser looking authenticated when
+  // /auth/login's request is evaluated — server-side it just 307s straight
+  // back to /dashboard (src/proxy.ts's guest-only guard), so the login form
+  // never renders and every subsequent locator call in this function hangs
+  // until the test's own timeout.
+  await page.goto("about:blank");
   await page.context().clearCookies();
   await page.goto("/auth/login");
   await page.getByLabel("Username").fill(user.username);

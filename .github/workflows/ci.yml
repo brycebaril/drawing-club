@@ -11,6 +11,12 @@ env:
   NEXTAUTH_SECRET: ci-placeholder-secret
   NEXTAUTH_URL: http://localhost:3000
   JOB_TRIGGER_SECRET: ci-placeholder-secret
+  # Not real keys — just enough for src/lib/stripe/client.ts to construct
+  # without throwing (it's imported eagerly by the wallet actions and the
+  # webhook route, so `pnpm build` fails outright without these set) and for
+  # e2e/payments.spec.ts's webhook tests to sign requests locally.
+  STRIPE_SECRET_KEY: sk_test_ci-placeholder-not-a-real-key
+  STRIPE_WEBHOOK_SECRET: whsec_ci-placeholder-not-a-real-secret
 
 jobs:
   ci:
