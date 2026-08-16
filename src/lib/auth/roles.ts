@@ -31,18 +31,19 @@ export interface UserAuthContext {
 }
 
 export async function getUserAuthContext(userId: string): Promise<UserAuthContext | null> {
-  const userResult = await pool.query(
-    `SELECT id, username, status, email_verified_at, mfa_enabled, base_role, membership_expires_at
-     FROM users WHERE id = $1`,
-    [userId],
-  );
+  // Neither query depends on the other's result, so run them concurrently —
+  // this function is on the hottest path in the app (src/proxy.ts calls it
+  // fresh on every non-API request).
+  const [userResult, volunteerResult] = await Promise.all([
+    pool.query(
+      `SELECT id, username, status, email_verified_at, mfa_enabled, base_role, membership_expires_at
+       FROM users WHERE id = $1`,
+      [userId],
+    ),
+    pool.query(`SELECT role FROM volunteer_roles WHERE user_id = $1`, [userId]),
+  ]);
   if (userResult.rowCount === 0) return null;
   const user = userResult.rows[0];
-
-  const volunteerResult = await pool.query(
-    `SELECT role FROM volunteer_roles WHERE user_id = $1`,
-    [userId],
-  );
 
   const roles: Role[] = ["ACCT"];
   if (user.membership_expires_at && new Date(user.membership_expires_at) > new Date()) {

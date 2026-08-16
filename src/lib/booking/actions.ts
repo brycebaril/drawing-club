@@ -1,10 +1,38 @@
 import type { PoolClient } from "pg";
 import { pool } from "@/lib/db/pool";
-import { getUserAuthContext } from "@/lib/auth/roles";
+import { getUserAuthContext, type UserAuthContext } from "@/lib/auth/roles";
 import { getSettingNumber } from "@/lib/settings";
 import { isCancellable } from "@/lib/cancellation";
 import { sendEmail } from "@/lib/email/sender";
 import { viewerBookingWindowDays } from "./sessionStatus";
+
+export type ViewerEligibilityResult =
+  | { ok: true; ctx: UserAuthContext }
+  | { ok: false; reason: "not-found" | "not-verified" };
+
+/**
+ * Shared by every booking-adjacent mutation (bookSession, bookSeriesSeat,
+ * joinWaitlist): resolves the acting user and checks the two invariants
+ * every one of them needs — an Active account with a verified email.
+ * Previously duplicated in bookSession and bookSeriesSeat (and joinWaitlist
+ * skipped it entirely, a real gap — see CLAUDE.md).
+ */
+export async function resolveViewerEligibility(userId: string): Promise<ViewerEligibilityResult> {
+  const ctx = await getUserAuthContext(userId);
+  if (!ctx || ctx.status !== "Active") return { ok: false, reason: "not-found" };
+  if (!ctx.emailVerified) return { ok: false, reason: "not-verified" };
+  return { ok: true, ctx };
+}
+
+/** The instant beyond which `roles` can't yet book, per the configured per-tier booking windows. */
+export async function resolveBookingWindowEnd(roles: UserAuthContext["roles"]): Promise<Date> {
+  const [accountDays, memberDays] = await Promise.all([
+    getSettingNumber("BOOKING_WINDOW_ACCOUNT_DAYS"),
+    getSettingNumber("BOOKING_WINDOW_MEMBER_DAYS"),
+  ]);
+  const windowDays = viewerBookingWindowDays(roles, accountDays, memberDays);
+  return new Date(Date.now() + windowDays * 24 * 60 * 60 * 1000);
+}
 
 export type BookSessionResult =
   | { ok: true }
@@ -22,31 +50,35 @@ export type BookSessionResult =
  * both row-locked so concurrent bookings can't oversell the last spot.
  */
 export async function bookSession(userId: string, sessionId: string): Promise<BookSessionResult> {
-  const ctx = await getUserAuthContext(userId);
-  if (!ctx || ctx.status !== "Active") return { ok: false, reason: "not-found" };
-  if (!ctx.emailVerified) return { ok: false, reason: "not-verified" };
-
-  const [accountDays, memberDays] = await Promise.all([
-    getSettingNumber("BOOKING_WINDOW_ACCOUNT_DAYS"),
-    getSettingNumber("BOOKING_WINDOW_MEMBER_DAYS"),
-  ]);
+  const eligibility = await resolveViewerEligibility(userId);
+  if (!eligibility.ok) return eligibility;
+  const windowEnd = await resolveBookingWindowEnd(eligibility.ctx.roles);
 
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
 
-    const sessionRow = await client.query<{ max_capacity: number; start_time: Date }>(
-      `SELECT max_capacity, start_time FROM sessions WHERE id = $1 FOR UPDATE`,
-      [sessionId],
-    );
-    if (sessionRow.rowCount === 0) {
+    const sessionRow = await client.query<{
+      max_capacity: number;
+      start_time: Date;
+      status: string;
+      series_id: string | null;
+    }>(`SELECT max_capacity, start_time, status, series_id FROM sessions WHERE id = $1 FOR UPDATE`, [
+      sessionId,
+    ]);
+    if (
+      sessionRow.rowCount === 0 ||
+      sessionRow.rows[0].status !== "Scheduled" ||
+      sessionRow.rows[0].series_id !== null
+    ) {
+      // A Canceled session shouldn't accept new bookings, and a series
+      // occurrence must go through bookSeriesSeat (numbered-seat capacity),
+      // not this general-admission path.
       await client.query("ROLLBACK");
       return { ok: false, reason: "not-found" };
     }
     const session = sessionRow.rows[0];
 
-    const windowDays = viewerBookingWindowDays(ctx.roles, accountDays, memberDays);
-    const windowEnd = new Date(Date.now() + windowDays * 24 * 60 * 60 * 1000);
     if (new Date(session.start_time) > windowEnd) {
       await client.query("ROLLBACK");
       return { ok: false, reason: "too-far" };
@@ -70,12 +102,13 @@ export async function bookSession(userId: string, sessionId: string): Promise<Bo
       return { ok: false, reason: "full" };
     }
 
-    // FIFO: oldest available pass first. Skip rows another concurrent
-    // booking already has locked rather than blocking on them.
+    // FIFO: oldest available pass first (by grant time, not id — a
+    // gen_random_uuid() has no chronological order). Skip rows another
+    // concurrent booking already has locked rather than blocking on them.
     const passRow = await client.query<{ id: string }>(
       `SELECT id FROM passes
        WHERE owner_id = $1 AND status = 'Available'
-       ORDER BY id
+       ORDER BY created_at, id
        LIMIT 1
        FOR UPDATE SKIP LOCKED`,
       [userId],
@@ -158,6 +191,16 @@ export async function cancelBooking(userId: string, sessionId: string): Promise<
     }
 
     shouldNotifyWaitlist = await releaseBookedPass(client, sessionId, passRow.rows[0].id, maxCapacity);
+
+    // No-op unless this booking was actually a numbered series seat (bookSession
+    // itself now refuses series sessions, but a pre-existing series booking can
+    // still reach this generic path rather than cancelSeriesSeatDateAction) —
+    // otherwise the seat stays permanently blocked for everyone even though no
+    // one holds a live pass for it.
+    await client.query(`DELETE FROM seat_reservations WHERE session_id = $1 AND user_id = $2`, [
+      sessionId,
+      userId,
+    ]);
 
     await client.query("COMMIT");
   } catch (error) {
@@ -335,9 +378,14 @@ export async function broadcastWaitlistOpening(sessionId: string): Promise<void>
   }
 }
 
-export type JoinWaitlistResult = { ok: true } | { ok: false; reason: "already-on-waitlist" };
+export type JoinWaitlistResult =
+  | { ok: true }
+  | { ok: false; reason: "already-on-waitlist" | "not-found" | "not-verified" };
 
 export async function joinWaitlist(userId: string, sessionId: string): Promise<JoinWaitlistResult> {
+  const eligibility = await resolveViewerEligibility(userId);
+  if (!eligibility.ok) return eligibility;
+
   try {
     await pool.query(`INSERT INTO waitlist_entries (session_id, user_id) VALUES ($1, $2)`, [
       sessionId,

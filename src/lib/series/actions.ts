@@ -1,12 +1,12 @@
 import { pool } from "@/lib/db/pool";
-import { getUserAuthContext } from "@/lib/auth/roles";
 import { getSettingNumber } from "@/lib/settings";
 import { isCancellable } from "@/lib/cancellation";
 import {
   releaseAllBookingsForSession,
   broadcastWaitlistOpening,
+  resolveViewerEligibility,
+  resolveBookingWindowEnd,
 } from "@/lib/booking/actions";
-import { viewerBookingWindowDays } from "@/lib/booking/sessionStatus";
 import { selectSessionIdsToCancel, type CancelableSession } from "@/lib/recurrence/actions";
 
 export type BookSeriesSeatResult =
@@ -40,16 +40,9 @@ export async function bookSeriesSeat(
 ): Promise<BookSeriesSeatResult> {
   if (sessionIds.length === 0) return { ok: false, reason: "no-dates" };
 
-  const ctx = await getUserAuthContext(userId);
-  if (!ctx || ctx.status !== "Active") return { ok: false, reason: "not-found" };
-  if (!ctx.emailVerified) return { ok: false, reason: "not-verified" };
-
-  const [accountDays, memberDays] = await Promise.all([
-    getSettingNumber("BOOKING_WINDOW_ACCOUNT_DAYS"),
-    getSettingNumber("BOOKING_WINDOW_MEMBER_DAYS"),
-  ]);
-  const windowDays = viewerBookingWindowDays(ctx.roles, accountDays, memberDays);
-  const windowEnd = new Date(Date.now() + windowDays * 24 * 60 * 60 * 1000);
+  const eligibility = await resolveViewerEligibility(userId);
+  if (!eligibility.ok) return eligibility;
+  const windowEnd = await resolveBookingWindowEnd(eligibility.ctx.roles);
 
   const membership = await pool.query<{ id: string; start_time: Date }>(
     `SELECT id, start_time FROM sessions WHERE id = ANY($1::uuid[]) AND series_id = $2`,
@@ -61,23 +54,29 @@ export async function bookSeriesSeat(
     .sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime())
     .map((r) => r.id);
 
-  // Design decision: one seat per member per series — a member who already
-  // holds a different seat number anywhere in this series can't pick a
-  // second one.
-  const existingSeat = await pool.query<{ seat_number: number }>(
-    `SELECT DISTINCT sr.seat_number
-     FROM seat_reservations sr
-     JOIN sessions s ON s.id = sr.session_id
-     WHERE s.series_id = $1 AND sr.user_id = $2`,
-    [seriesId, userId],
-  );
-  if (existingSeat.rows.some((row) => row.seat_number !== seatNumber)) {
-    return { ok: false, reason: "different-seat-already-held" };
-  }
-
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
+
+    // Design decision: one seat per member per series — a member who
+    // already holds a different seat number anywhere in this series can't
+    // pick a second one. Re-checked here (inside the transaction, right
+    // before any locking/inserting begins) rather than only before it opens
+    // — no schema constraint backs this invariant (seat_reservations is
+    // only unique on (session_id, seat_number)), so this narrows but
+    // doesn't fully close the race against a second concurrent request
+    // touching a disjoint set of sessions in the same series.
+    const existingSeat = await client.query<{ seat_number: number }>(
+      `SELECT DISTINCT sr.seat_number
+       FROM seat_reservations sr
+       JOIN sessions s ON s.id = sr.session_id
+       WHERE s.series_id = $1 AND sr.user_id = $2`,
+      [seriesId, userId],
+    );
+    if (existingSeat.rows.some((row) => row.seat_number !== seatNumber)) {
+      await client.query("ROLLBACK");
+      return { ok: false, reason: "different-seat-already-held" };
+    }
 
     for (const sessionId of orderedIds) {
       const sessionRow = await client.query<{ start_time: Date; status: string }>(
@@ -111,12 +110,13 @@ export async function bookSeriesSeat(
         return { ok: false, reason: "already-booked" };
       }
 
-      // FIFO: oldest available pass first, skip rows another concurrent
-      // booking already has locked (same pattern as bookSession).
+      // FIFO: oldest available pass first (by grant time), skip rows
+      // another concurrent booking already has locked (same pattern as
+      // bookSession).
       const passRow = await client.query<{ id: string }>(
         `SELECT id FROM passes
          WHERE owner_id = $1 AND status = 'Available'
-         ORDER BY id
+         ORDER BY created_at, id
          LIMIT 1
          FOR UPDATE SKIP LOCKED`,
         [userId],

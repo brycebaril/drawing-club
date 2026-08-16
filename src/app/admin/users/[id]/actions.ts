@@ -215,14 +215,22 @@ export async function removeVolunteerRoleAction(formData: FormData): Promise<voi
   const userId = String(formData.get("userId") ?? "");
   const role = String(formData.get("role") ?? "");
 
-  await pool.query(`DELETE FROM volunteer_roles WHERE user_id = $1 AND role = $2`, [userId, role]);
+  const deleted = await pool.query(`DELETE FROM volunteer_roles WHERE user_id = $1 AND role = $2`, [
+    userId,
+    role,
+  ]);
 
-  await writeAuditLog({
-    actorId: ctx.id,
-    actionType: "VOLUNTEER_ROLE_REMOVED",
-    targetUserId: userId,
-    metadata: { role },
-  });
+  // Only log a real state change — a stale page or a double-submit hitting
+  // a role that's already gone shouldn't add a false entry to the (append-
+  // only, compliance-relevant) audit trail.
+  if ((deleted.rowCount ?? 0) > 0) {
+    await writeAuditLog({
+      actorId: ctx.id,
+      actionType: "VOLUNTEER_ROLE_REMOVED",
+      targetUserId: userId,
+      metadata: { role },
+    });
+  }
 
   revalidateUserPages(userId);
   redirect(`/admin/users/${userId}`);
