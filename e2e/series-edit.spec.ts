@@ -117,4 +117,54 @@ test("series editing: seat-count guard, add more dates, instance editor", async 
     expect(session1Row.rows[0].max_capacity).toBe(4);
     expect(session1Row.rows[0].host_user_id).toBeNull();
   }).toPass({ timeout: 5000 });
+
+  // A later series-metadata edit bumps session1 (still at the old seat
+  // count) to the new one, but does NOT clobber session2's individually
+  // overridden capacity back down — regression check for the "series save
+  // clobbers instance overrides" bug found in review.
+  await page.goto(`/admin/sessions/series/${seriesId}`);
+  await page.getByLabel("Seat count").fill("5");
+  await page.getByRole("button", { name: "Save changes" }).click();
+  await page.waitForURL(`**/admin/sessions/series/${seriesId}`);
+
+  await expect(async () => {
+    const session1Row = await pool.query<{ max_capacity: number }>(
+      `SELECT max_capacity FROM sessions WHERE id = $1`,
+      [session1.id],
+    );
+    expect(session1Row.rows[0].max_capacity).toBe(5);
+
+    const session2Row = await pool.query<{ max_capacity: number }>(
+      `SELECT max_capacity FROM sessions WHERE id = $1`,
+      [session2.id],
+    );
+    expect(session2Row.rows[0].max_capacity).toBe(7);
+  }).toPass({ timeout: 5000 });
+
+  // Instance editor: capacity can't drop below what's already booked.
+  // Reserve a second seat on session1 so it has 2 booked passes.
+  const seatHolder2 = await createTestUser({ username: `e2eseriesediteditm2${Date.now()}` });
+  await pool.query(`UPDATE users SET membership_expires_at = now() + interval '60 days' WHERE id = $1`, [
+    seatHolder2.id,
+  ]);
+  await pool.query(`INSERT INTO passes (owner_id, status, effective_price) VALUES ($1, 'Available', 0)`, [
+    seatHolder2.id,
+  ]);
+  const bookResult2 = await bookSeriesSeat(seatHolder2.id, seriesId, 1, [session1.id]);
+  expect(bookResult2).toEqual({ ok: true });
+
+  await page.goto(`/admin/sessions/${session1.id}`);
+  await page.getByLabel(/^Capacity/).fill("1");
+  await page.getByRole("button", { name: "Save changes" }).click();
+  await expect(page.getByText(/Capacity can't be less than the 2 pass\(es\) already booked/)).toBeVisible();
+
+  // Instance editor: a Canceled session can't be edited — the edit form
+  // disappears from the page entirely once canceled (the UI-reachable half
+  // of the fix; the server-side "AND status = 'Scheduled'"/status check in
+  // updateSessionDetailsAction is the other half, guarding a direct POST
+  // that bypasses this UI, which isn't reachable through the browser here).
+  await page.getByRole("button", { name: "Cancel this occurrence only" }).click();
+  await page.waitForURL(`**/admin/sessions/${session1.id}`);
+  await expect(page.getByText(/Status: Canceled/)).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Edit this occurrence" })).toHaveCount(0);
 });

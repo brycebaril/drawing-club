@@ -290,13 +290,19 @@ export async function releaseAllBookingsForSession(sessionId: string): Promise<v
 
   // Outside the transaction, same reasoning as cancelBooking's own email
   // step: delivery shouldn't hold the DB lock or roll back an
-  // already-successful release.
+  // already-successful release. Each send is isolated — one bad address
+  // shouldn't stop the rest of the bookers from being notified, or skip
+  // the waitlist broadcast below.
   for (const booker of releasedBookers) {
-    await sendEmail({
-      to: booker.email,
-      subject: "Your booking was canceled",
-      body: `Hi ${booker.username},\n\nAn admin canceled ${sessionType} — ${sessionStartTime?.toLocaleString() ?? "a session"} you were booked into. Your pass has been returned to your balance.`,
-    });
+    try {
+      await sendEmail({
+        to: booker.email,
+        subject: "Your booking was canceled",
+        body: `Hi ${booker.username},\n\nAn admin canceled ${sessionType} — ${sessionStartTime?.toLocaleString() ?? "a session"} you were booked into. Your pass has been returned to your balance.`,
+      });
+    } catch (error) {
+      console.error(`Failed to email canceled-booking notice to ${booker.email}:`, error);
+    }
   }
 
   if (shouldNotifyWaitlist) {

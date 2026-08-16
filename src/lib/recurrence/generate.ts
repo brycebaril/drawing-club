@@ -1,6 +1,6 @@
 import { pool } from "@/lib/db/pool";
 import { getSettingNumber } from "@/lib/settings";
-import { clampRangeStart, combineDateAndTime, computeOccurrenceDates } from "./dates";
+import { clampRangeStart, combineDateAndTime, computeOccurrenceDates, excludeStartedDates } from "./dates";
 
 /**
  * No scheduler infra exists yet (EventBridge is still unprovisioned AWS
@@ -110,6 +110,13 @@ export async function generateSessionsForRule(ruleId: string): Promise<number> {
  * to refill. Callers are expected to have already canceled any
  * `Scheduled` sessions in `[fromDate, horizon]` before calling this, or
  * duplicate dates could result.
+ *
+ * `excludeStartedDates` guards a specific case: an "entire rule" edit
+ * anchors both cancellation and regeneration at the exact `now()` instant,
+ * but `computeOccurrenceDates` only reasons in whole calendar days — without
+ * this filter, editing a rule on a day it already ran (same day-of-week,
+ * today's occurrence already passed) would leave that already-happened
+ * session alone *and* insert a duplicate for today under the new schedule.
  */
 export async function regenerateSessionsForRule(ruleId: string, fromDate: Date): Promise<number> {
   const rule = await loadRule(ruleId);
@@ -120,7 +127,11 @@ export async function regenerateSessionsForRule(ruleId: string, fromDate: Date):
 
   if (rangeStart > rangeEnd) return 0;
 
-  const dates = computeOccurrenceDates(rule.day_of_week, rangeStart, rangeEnd);
+  const dates = excludeStartedDates(
+    computeOccurrenceDates(rule.day_of_week, rangeStart, rangeEnd),
+    rule.start_time_of_day,
+    fromDate,
+  );
   return insertSessionsForDates(ruleId, rule, dates);
 }
 

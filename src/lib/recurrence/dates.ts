@@ -39,3 +39,17 @@ export function combineDateAndTime(date: Date, timeOfDay: string): Date {
 export function clampRangeStart(candidate: Date, ruleStartDate: Date): Date {
   return candidate < ruleStartDate ? new Date(ruleStartDate) : new Date(candidate);
 }
+
+/**
+ * Drops any candidate date whose combined `timeOfDay` instant already falls
+ * at or before `after` — `computeOccurrenceDates` only reasons about whole
+ * calendar days, so on its own it can't tell "today, but the slot already
+ * happened" from "today, still upcoming." Regenerating with an exact `now()`
+ * anchor (an "entire rule" edit) needs this to avoid re-inserting a
+ * duplicate for a day whose occurrence already ran; regenerating with a
+ * midnight-anchored date (a "this-and-future" edit's picked date) is
+ * unaffected, since every same-day instant is after that day's midnight.
+ */
+export function excludeStartedDates(dates: Date[], timeOfDay: string, after: Date): Date[] {
+  return dates.filter((date) => combineDateAndTime(date, timeOfDay) > after);
+}

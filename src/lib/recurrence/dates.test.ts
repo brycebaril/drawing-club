@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { clampRangeStart, combineDateAndTime, computeOccurrenceDates } from "./dates";
+import { clampRangeStart, combineDateAndTime, computeOccurrenceDates, excludeStartedDates } from "./dates";
 
 function isoDates(dates: Date[]): string[] {
   return dates.map((d) => d.toISOString().slice(0, 10));
@@ -60,5 +60,33 @@ describe("clampRangeStart", () => {
   it("passes the candidate through when it exactly equals the rule's start date", () => {
     const clamped = clampRangeStart(new Date("2026-01-01T00:00:00"), new Date("2026-01-01T00:00:00"));
     expect(clamped.toISOString().slice(0, 10)).toBe("2026-01-01");
+  });
+});
+
+describe("excludeStartedDates", () => {
+  const dates = [
+    new Date("2026-01-05T00:00:00"),
+    new Date("2026-01-12T00:00:00"),
+    new Date("2026-01-19T00:00:00"),
+  ];
+
+  it("drops today's date when its time-of-day slot has already passed 'after'", () => {
+    // Editing a rule at 2pm on Jan 5, after that day's 10am slot already ran.
+    const after = new Date("2026-01-05T14:00:00");
+    const result = excludeStartedDates(dates, "10:00:00", after);
+    expect(result.map((d) => d.toISOString().slice(0, 10))).toEqual(["2026-01-12", "2026-01-19"]);
+  });
+
+  it("keeps today's date when its time-of-day slot is still upcoming", () => {
+    // Editing a rule at 9am on Jan 5, before that day's 10am slot runs.
+    const after = new Date("2026-01-05T09:00:00");
+    const result = excludeStartedDates(dates, "10:00:00", after);
+    expect(result.map((d) => d.toISOString().slice(0, 10))).toEqual(["2026-01-05", "2026-01-12", "2026-01-19"]);
+  });
+
+  it("is a no-op when 'after' is midnight (a this-and-future edit's picked date) — every same-day slot is later", () => {
+    const after = new Date("2026-01-05T00:00:00");
+    const result = excludeStartedDates(dates, "10:00:00", after);
+    expect(result.map((d) => d.toISOString().slice(0, 10))).toEqual(["2026-01-05", "2026-01-12", "2026-01-19"]);
   });
 });

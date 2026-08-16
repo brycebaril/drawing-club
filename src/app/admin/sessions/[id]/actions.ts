@@ -134,12 +134,29 @@ export async function updateSessionDetailsAction(
     description: string | null;
     max_capacity: number;
     host_user_id: string | null;
-  }>(`SELECT session_type, description, max_capacity, host_user_id FROM sessions WHERE id = $1`, [sessionId]);
+    status: string;
+  }>(`SELECT session_type, description, max_capacity, host_user_id, status FROM sessions WHERE id = $1`, [
+    sessionId,
+  ]);
   if (beforeResult.rowCount === 0) return { error: "Session not found." };
-  const before = beforeResult.rows[0];
+  const { status, ...before } = beforeResult.rows[0];
+  if (status === "Canceled") return { error: "This session has been canceled and can't be edited." };
+
+  // Booking's own capacity check (bookSession) only blocks *new* bookings
+  // once count >= max_capacity — it never notices an admin dropping
+  // max_capacity below the count already booked. Guard it here instead.
+  const bookedCountResult = await pool.query<{ count: string }>(
+    `SELECT count(*) FROM passes WHERE session_id = $1 AND status = 'Used'`,
+    [sessionId],
+  );
+  const bookedCount = Number(bookedCountResult.rows[0].count);
+  if (maxCapacity < bookedCount) {
+    return { error: `Capacity can't be less than the ${bookedCount} pass(es) already booked.` };
+  }
 
   await pool.query(
-    `UPDATE sessions SET session_type = $1, description = $2, max_capacity = $3, host_user_id = $4 WHERE id = $5`,
+    `UPDATE sessions SET session_type = $1, description = $2, max_capacity = $3, host_user_id = $4
+     WHERE id = $5 AND status = 'Scheduled'`,
     [sessionType, description || null, maxCapacity, hostResult.hostUserId, sessionId],
   );
 

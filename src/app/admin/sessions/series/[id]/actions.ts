@@ -60,13 +60,18 @@ export async function updateSeriesMetadataAction(
 
   await pool.query(`UPDATE series SET name = $1, seat_count = $2 WHERE id = $3`, [name, seatCount, seriesId]);
 
-  // Keeps displayed capacity consistent with the series' seat count — past
-  // and canceled sessions are left untouched (matches how cancellation
-  // never rewrites history elsewhere in this app).
-  await pool.query(`UPDATE sessions SET max_capacity = $1 WHERE series_id = $2 AND status = 'Scheduled'`, [
-    seatCount,
-    seriesId,
-  ]);
+  // Keeps displayed capacity consistent with the series' seat count — but
+  // only for sessions still at the *old* seat count. A session an admin
+  // already gave its own capacity via the single-session instance editor
+  // (src/app/admin/sessions/[id]/actions.ts) is no longer at that old
+  // value, so it's left alone rather than silently clobbered by an
+  // unrelated edit (e.g. just fixing the series name). Past and canceled
+  // sessions are untouched either way, matching how cancellation never
+  // rewrites history elsewhere in this app.
+  await pool.query(
+    `UPDATE sessions SET max_capacity = $1 WHERE series_id = $2 AND status = 'Scheduled' AND max_capacity = $3`,
+    [seatCount, seriesId, before.seat_count],
+  );
 
   await writeAuditLog({
     actorId: ctx.id,
