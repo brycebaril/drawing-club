@@ -8,6 +8,7 @@ import {
   cancelSeriesEntireSeriesAction,
   cancelSeriesThisAndFutureAction,
 } from "./actions";
+import { SessionDetailsEditForm } from "./SessionDetailsEditForm";
 
 interface SessionDetail {
   id: string;
@@ -122,7 +123,24 @@ export default async function AdminSessionDetailPage({
 
       {!isCanceled && (
         <>
+          <h2>Edit this occurrence</h2>
+          <SessionDetailsEditForm
+            sessionId={session.id}
+            sessionType={session.session_type}
+            description={session.description ?? ""}
+            maxCapacity={session.max_capacity}
+            hostUsername={session.host_username ?? ""}
+          />
+        </>
+      )}
+
+      {!isCanceled && (
+        <>
           <h2>Cancel</h2>
+          <p role="alert">
+            Canceling releases any booked passes back to their owners&apos; balances and emails the affected
+            members.
+          </p>
           {isRecurring ? (
             <>
               <form action={cancelOccurrenceAction}>

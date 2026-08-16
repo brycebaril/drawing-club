@@ -5,10 +5,10 @@ import { redirect } from "next/navigation";
 import { pool } from "@/lib/db/pool";
 import { requireAdmin } from "@/lib/auth/requireAdmin";
 import { writeAuditLog } from "@/lib/audit/log";
-import { SESSION_TYPES, SLOTS, SLOT_TIMES, slotFor, parseDateOnly, type Slot } from "@/lib/sessions/shared";
+import { SESSION_TYPES, parseDateOnly } from "@/lib/sessions/shared";
 import { resolveHostUsername } from "@/lib/sessions/host";
 import { generateSessionsForRule } from "@/lib/recurrence/generate";
-import { combineDateAndTime } from "@/lib/recurrence/dates";
+import { parseSlotValues, checkSlotConflicts } from "@/lib/sessions/slots";
 
 export interface CreateSessionState {
   error?: string;
@@ -111,7 +111,10 @@ export async function createRecurrenceRuleAction(
   if (!hostResult.ok) return { error: hostResult.error };
 
   const startDateRaw = String(formData.get("startDate") ?? "");
-  const startDate = new Date(startDateRaw);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(startDateRaw)) {
+    return { error: "Enter a valid start date." };
+  }
+  const startDate = parseDateOnly(startDateRaw);
   if (Number.isNaN(startDate.getTime())) {
     return { error: "Enter a valid start date." };
   }
@@ -119,7 +122,10 @@ export async function createRecurrenceRuleAction(
   const endDateRaw = String(formData.get("endDate") ?? "").trim();
   let endDate: Date | null = null;
   if (endDateRaw) {
-    endDate = new Date(endDateRaw);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(endDateRaw)) {
+      return { error: "Enter a valid end date, or leave it blank for a perpetual series." };
+    }
+    endDate = parseDateOnly(endDateRaw);
     if (Number.isNaN(endDate.getTime())) {
       return { error: "Enter a valid end date, or leave it blank for a perpetual series." };
     }
@@ -166,13 +172,6 @@ export interface CreateSeriesState {
   error?: string;
 }
 
-interface ParsedSlot {
-  date: Date;
-  slot: Slot;
-  startTime: Date;
-  endTime: Date;
-}
-
 export async function createSeriesAction(
   _prevState: CreateSeriesState,
   formData: FormData,
@@ -198,33 +197,9 @@ export async function createSeriesAction(
   const hostResult = await resolveHostUsername(String(formData.get("hostUsername") ?? ""));
   if (!hostResult.ok) return { error: hostResult.error };
 
-  const slotValues = formData.getAll("slots").map(String);
-  if (slotValues.length === 0) {
-    return { error: "Pick at least one date/slot for the series." };
-  }
-
-  const parsedSlots: ParsedSlot[] = [];
-  for (const value of slotValues) {
-    const [dateStr, slotName] = value.split("|");
-    if (!(SLOTS as readonly string[]).includes(slotName)) {
-      return { error: `Invalid slot "${slotName}".` };
-    }
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
-      return { error: `Invalid date "${dateStr}".` };
-    }
-    const date = parseDateOnly(dateStr);
-    if (Number.isNaN(date.getTime())) {
-      return { error: `Invalid date "${dateStr}".` };
-    }
-    const times = SLOT_TIMES[slotName as Slot];
-    parsedSlots.push({
-      date,
-      slot: slotName as Slot,
-      startTime: combineDateAndTime(date, times.start),
-      endTime: combineDateAndTime(date, times.end),
-    });
-  }
-  parsedSlots.sort((a, b) => a.startTime.getTime() - b.startTime.getTime());
+  const slotsResult = parseSlotValues(formData.getAll("slots").map(String));
+  if (!slotsResult.ok) return { error: slotsResult.error };
+  const parsedSlots = slotsResult.slots;
 
   const client = await pool.connect();
   let seriesId = "";
@@ -232,25 +207,10 @@ export async function createSeriesAction(
   try {
     await client.query("BEGIN");
 
-    // Re-validate against concurrent bookings — the picker's occupied-slot
-    // display could be stale by the time this submits.
-    for (const slot of parsedSlots) {
-      const dayStart = new Date(slot.date);
-      dayStart.setHours(0, 0, 0, 0);
-      const dayEnd = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000);
-      const existing = await client.query<{ start_time: Date; session_type: string }>(
-        `SELECT start_time, session_type FROM sessions
-         WHERE status = 'Scheduled' AND start_time >= $1 AND start_time < $2
-         FOR UPDATE`,
-        [dayStart, dayEnd],
-      );
-      const conflict = existing.rows.find((row) => slotFor(new Date(row.start_time)) === slot.slot);
-      if (conflict) {
-        await client.query("ROLLBACK");
-        return {
-          error: `${slot.date.toLocaleDateString()} (${slot.slot}) was just booked by something else (${conflict.session_type}) — reload and try again.`,
-        };
-      }
+    const conflictError = await checkSlotConflicts(client, parsedSlots);
+    if (conflictError) {
+      await client.query("ROLLBACK");
+      return { error: conflictError };
     }
 
     const seriesResult = await client.query<{ id: string }>(

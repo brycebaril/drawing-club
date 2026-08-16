@@ -34,3 +34,8 @@ export function combineDateAndTime(date: Date, timeOfDay: string): Date {
   combined.setHours(hours, minutes, seconds ?? 0, 0);
   return combined;
 }
+
+/** Never generate/regenerate before a rule's own start_date, regardless of the candidate range start. */
+export function clampRangeStart(candidate: Date, ruleStartDate: Date): Date {
+  return candidate < ruleStartDate ? new Date(ruleStartDate) : new Date(candidate);
+}

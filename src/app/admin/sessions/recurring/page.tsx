@@ -68,8 +68,10 @@ export default async function RecurringRulesPage() {
                 <td>{rule.upcoming_count}</td>
                 <td>{isEnded ? "Ended" : "Active"}</td>
                 <td>
+                  <Link href={`/admin/sessions/recurring/${rule.id}`}>Edit</Link>
                   {!isEnded && (
                     <>
+                      {" "}
                       <form action={generateMoreSessionsAction}>
                         <input type="hidden" name="ruleId" value={rule.id} />
                         <button type="submit">Generate more sessions</button>

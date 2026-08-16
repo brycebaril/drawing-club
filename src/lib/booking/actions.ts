@@ -226,20 +226,24 @@ export async function releaseAllFutureBookingsForUser(userId: string): Promise<v
 
 /**
  * Admin session cancellation (Phase 5: one-off and recurring-occurrence
- * cancellation share this; Phase 6: series occurrences too) — releases
- * every booked pass on the session (any owner, not just one user), clears
- * any seat_reservations rows for it, notifies the waitlist once if it was
- * full, and marks the session Canceled. A no-op if the session doesn't
- * exist or is already Canceled.
+ * cancellation share this; Phase 6: series occurrences too; Phase 7: the
+ * edit-driven cancel-and-regenerate path too) — releases every booked pass
+ * on the session (any owner, not just one user), clears any
+ * seat_reservations rows for it, emails each released booker, notifies the
+ * waitlist once if it was full, and marks the session Canceled. A no-op if
+ * the session doesn't exist or is already Canceled.
  */
 export async function releaseAllBookingsForSession(sessionId: string): Promise<void> {
   const client = await pool.connect();
   let shouldNotifyWaitlist = false;
+  let releasedBookers: { email: string; username: string }[] = [];
+  let sessionType = "";
+  let sessionStartTime: Date | null = null;
   try {
     await client.query("BEGIN");
 
-    const sessionRow = await client.query<{ max_capacity: number; status: string }>(
-      `SELECT max_capacity, status FROM sessions WHERE id = $1 FOR UPDATE`,
+    const sessionRow = await client.query<{ max_capacity: number; status: string; session_type: string; start_time: Date }>(
+      `SELECT max_capacity, status, session_type, start_time FROM sessions WHERE id = $1 FOR UPDATE`,
       [sessionId],
     );
     if (sessionRow.rowCount === 0 || sessionRow.rows[0].status === "Canceled") {
@@ -247,14 +251,21 @@ export async function releaseAllBookingsForSession(sessionId: string): Promise<v
       return;
     }
     const { max_capacity: maxCapacity } = sessionRow.rows[0];
+    sessionType = sessionRow.rows[0].session_type;
+    sessionStartTime = new Date(sessionRow.rows[0].start_time);
 
-    const passRows = await client.query<{ id: string }>(
-      `SELECT id FROM passes WHERE session_id = $1 AND status = 'Used' FOR UPDATE`,
+    const passRows = await client.query<{ id: string; email: string; username: string }>(
+      `SELECT p.id, u.email, u.username
+       FROM passes p
+       JOIN users u ON u.id = p.owner_id
+       WHERE p.session_id = $1 AND p.status = 'Used'
+       FOR UPDATE OF p`,
       [sessionId],
     );
     // Computed once, before releasing anything — releasing passes one at a
     // time would make "was full" false by the second release.
     shouldNotifyWaitlist = (passRows.rowCount ?? 0) >= maxCapacity;
+    releasedBookers = passRows.rows.map((row) => ({ email: row.email, username: row.username }));
 
     for (const pass of passRows.rows) {
       await client.query(`UPDATE passes SET status = 'Available', session_id = NULL WHERE id = $1`, [
@@ -275,6 +286,17 @@ export async function releaseAllBookingsForSession(sessionId: string): Promise<v
     throw error;
   } finally {
     client.release();
+  }
+
+  // Outside the transaction, same reasoning as cancelBooking's own email
+  // step: delivery shouldn't hold the DB lock or roll back an
+  // already-successful release.
+  for (const booker of releasedBookers) {
+    await sendEmail({
+      to: booker.email,
+      subject: "Your booking was canceled",
+      body: `Hi ${booker.username},\n\nAn admin canceled ${sessionType} — ${sessionStartTime?.toLocaleString() ?? "a session"} you were booked into. Your pass has been returned to your balance.`,
+    });
   }
 
   if (shouldNotifyWaitlist) {

@@ -74,11 +74,15 @@ export default async function SeriesListPage() {
                 </td>
                 <td>{isEnded ? "Ended" : "Active"}</td>
                 <td>
+                  <Link href={`/admin/sessions/series/${series.id}`}>Edit</Link>
                   {!isEnded && (
-                    <form action={cancelSeriesFromListAction}>
-                      <input type="hidden" name="seriesId" value={series.id} />
-                      <button type="submit">Cancel entire series</button>
-                    </form>
+                    <>
+                      {" "}
+                      <form action={cancelSeriesFromListAction}>
+                        <input type="hidden" name="seriesId" value={series.id} />
+                        <button type="submit">Cancel entire series</button>
+                      </form>
+                    </>
                   )}
                 </td>
               </tr>

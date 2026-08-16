@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { combineDateAndTime, computeOccurrenceDates } from "./dates";
+import { clampRangeStart, combineDateAndTime, computeOccurrenceDates } from "./dates";
 
 function isoDates(dates: Date[]): string[] {
   return dates.map((d) => d.toISOString().slice(0, 10));
@@ -43,5 +43,22 @@ describe("combineDateAndTime", () => {
     expect(combined.getDate()).toBe(5);
     expect(combined.getHours()).toBe(18);
     expect(combined.getMinutes()).toBe(30);
+  });
+});
+
+describe("clampRangeStart", () => {
+  it("passes the candidate through unchanged when it's already on or after the rule's start date", () => {
+    const clamped = clampRangeStart(new Date("2026-02-01T00:00:00"), new Date("2026-01-01T00:00:00"));
+    expect(clamped.toISOString().slice(0, 10)).toBe("2026-02-01");
+  });
+
+  it("clamps forward to the rule's start date when the candidate is earlier", () => {
+    const clamped = clampRangeStart(new Date("2025-12-01T00:00:00"), new Date("2026-01-01T00:00:00"));
+    expect(clamped.toISOString().slice(0, 10)).toBe("2026-01-01");
+  });
+
+  it("passes the candidate through when it exactly equals the rule's start date", () => {
+    const clamped = clampRangeStart(new Date("2026-01-01T00:00:00"), new Date("2026-01-01T00:00:00"));
+    expect(clamped.toISOString().slice(0, 10)).toBe("2026-01-01");
   });
 });

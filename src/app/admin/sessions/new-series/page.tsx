@@ -3,6 +3,7 @@ import { AdminNav } from "@/components/AdminNav";
 import { getSettingNumber } from "@/lib/settings";
 import { slotFor, startOfDay, dayIndex, toDateOnly, parseDateOnly } from "@/lib/sessions/shared";
 import { SeriesSlotPickerForm } from "./SeriesSlotPickerForm";
+import { AddSeriesSlotsForm } from "./AddSeriesSlotsForm";
 
 const WINDOW_DAYS = 56;
 const ONE_DAY_MS = 24 * 60 * 60 * 1000;
@@ -15,9 +16,9 @@ interface OccupiedRow {
 export default async function NewSeriesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ start?: string }>;
+  searchParams: Promise<{ start?: string; seriesId?: string }>;
 }) {
-  const { start } = await searchParams;
+  const { start, seriesId } = await searchParams;
   const parsedStart = start ? parseDateOnly(start) : new Date();
   const gridStart = startOfDay(Number.isNaN(parsedStart.getTime()) ? new Date() : parsedStart);
   const gridEnd = new Date(gridStart.getTime() + WINDOW_DAYS * ONE_DAY_MS);
@@ -38,24 +39,40 @@ export default async function NewSeriesPage({
 
   const defaultSeatCount = await getSettingNumber("SESSION_DEFAULT_CAPACITY");
 
+  const seriesIdParam = seriesId ? `&seriesId=${seriesId}` : "";
   const prevStart = toDateOnly(new Date(gridStart.getTime() - WINDOW_DAYS * ONE_DAY_MS));
   const nextStart = toDateOnly(new Date(gridStart.getTime() + WINDOW_DAYS * ONE_DAY_MS));
+
+  let existingSeriesName: string | null = null;
+  if (seriesId) {
+    const seriesResult = await pool.query<{ name: string }>(`SELECT name FROM series WHERE id = $1`, [seriesId]);
+    if (seriesResult.rowCount === 0) {
+      existingSeriesName = null;
+    } else {
+      existingSeriesName = seriesResult.rows[0].name;
+    }
+  }
 
   return (
     <main>
       <AdminNav />
-      <h1>Create a multi-week series</h1>
+      <h1>{existingSeriesName ? `Add dates to "${existingSeriesName}"` : "Create a multi-week series"}</h1>
       <p>
-        Pick any open slots below — consecutive or not, any week — then group them into a series.
-        Each checked slot becomes one session, sharing the numbered seat map you set below.
+        Pick any open slots below — consecutive or not, any week —{" "}
+        {existingSeriesName ? "to add to this series." : "then group them into a series."} Each checked slot
+        becomes one session{existingSeriesName ? "" : ", sharing the numbered seat map you set below"}.
         Already-booked slots are shown but can&apos;t be picked.
       </p>
       <p>
-        <a href={`?start=${prevStart}`}>&larr; Previous {WINDOW_DAYS / 7} weeks</a>
+        <a href={`?start=${prevStart}${seriesIdParam}`}>&larr; Previous {WINDOW_DAYS / 7} weeks</a>
         {" · "}
-        <a href={`?start=${nextStart}`}>Next {WINDOW_DAYS / 7} weeks &rarr;</a>
+        <a href={`?start=${nextStart}${seriesIdParam}`}>Next {WINDOW_DAYS / 7} weeks &rarr;</a>
       </p>
-      <SeriesSlotPickerForm days={days} occupied={occupied} defaultSeatCount={defaultSeatCount} />
+      {seriesId && existingSeriesName ? (
+        <AddSeriesSlotsForm seriesId={seriesId} days={days} occupied={occupied} />
+      ) : (
+        <SeriesSlotPickerForm days={days} occupied={occupied} defaultSeatCount={defaultSeatCount} />
+      )}
     </main>
   );
 }
