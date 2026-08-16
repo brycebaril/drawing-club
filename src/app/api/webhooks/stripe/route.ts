@@ -5,6 +5,7 @@ import { pool } from "@/lib/db/pool";
 import { stripe } from "@/lib/stripe/client";
 import { writeAuditLog, type AuditLogEntry } from "@/lib/audit/log";
 import { isPurchasableItem } from "@/lib/payments/pricing";
+import { getSettingNumber } from "@/lib/settings";
 
 /**
  * Single entry point for all Stripe events (ArchitectureDocument.md §7).
@@ -174,12 +175,24 @@ async function fulfillCheckoutSession(
     );
     await client.query(`UPDATE users SET membership_expires_at = $1 WHERE id = $2`, [validUntil, userId]);
 
+    // Design Doc §6.2's membership-perk bonus passes — transferable, so a
+    // member actually has something to gift (the only other source is an
+    // admin manual grant). §6.6: bonus passes record effective_price $0.00.
+    const bonusPassCount = await getSettingNumber("MEMBERSHIP_BONUS_PASSES");
+    for (let i = 0; i < bonusPassCount; i++) {
+      await client.query(
+        `INSERT INTO passes (owner_id, status, is_transferable, effective_price, transaction_id)
+         VALUES ($1, 'Available', true, 0, $2)`,
+        [userId, transactionId],
+      );
+    }
+
     return {
       auditLog: {
         actorId: userId,
         actionType: "MEMBERSHIP_RENEWED",
         targetUserId: userId,
-        metadata: { transactionId, amountPaid, validUntil: validUntil.toISOString() },
+        metadata: { transactionId, amountPaid, validUntil: validUntil.toISOString(), bonusPassCount },
       },
     };
   }

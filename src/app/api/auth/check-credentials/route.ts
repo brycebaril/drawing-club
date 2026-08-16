@@ -21,7 +21,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ valid: false }, { status: 400 });
   }
 
-  const ip = getClientIp(request);
+  const ip = getClientIp(request.headers);
 
   if (await isLoginRateLimited(username, ip)) {
     return NextResponse.json({ valid: false, rateLimited: true }, { status: 429 });

@@ -29,7 +29,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           return null;
         }
 
-        const ip = getClientIp(request);
+        const ip = getClientIp(request.headers);
 
         if (await isLoginRateLimited(username, ip)) {
           return null;
