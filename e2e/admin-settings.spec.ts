@@ -28,17 +28,24 @@ test("Admin edits an Integer setting and the change is audit-logged", async ({ p
     expect(row.rows[0].value).toBe(newValue);
   }).toPass({ timeout: 5000 });
 
-  const auditRow = await pool.query<{ metadata: { key: string; oldValue: string; newValue: string } }>(
-    `SELECT metadata FROM system_audit_logs
-     WHERE action_type = 'SETTING_UPDATED' AND actor_id = $1
-     ORDER BY created_at DESC LIMIT 1`,
-    [admin.id],
-  );
-  expect(auditRow.rows[0].metadata).toEqual({
-    key: "SESSION_DEFAULT_CAPACITY",
-    oldValue,
-    newValue,
-  });
+  // The settings-value UPDATE and the audit-log INSERT are two separate
+  // writes in the same request; a fresh query from this test's own pool
+  // connection can briefly lag behind either one becoming visible, so this
+  // needs the same toPass polling as the value check above, not a one-shot
+  // query.
+  await expect(async () => {
+    const auditRow = await pool.query<{ metadata: { key: string; oldValue: string; newValue: string } }>(
+      `SELECT metadata FROM system_audit_logs
+       WHERE action_type = 'SETTING_UPDATED' AND actor_id = $1
+       ORDER BY created_at DESC LIMIT 1`,
+      [admin.id],
+    );
+    expect(auditRow.rows[0]?.metadata).toEqual({
+      key: "SESSION_DEFAULT_CAPACITY",
+      oldValue,
+      newValue,
+    });
+  }).toPass({ timeout: 5000 });
 
   // Restore, so this test doesn't shift shared seeded state for any other
   // test/run relying on the default capacity.

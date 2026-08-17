@@ -25,7 +25,7 @@ export default async function AdminTransactionsPage({
             t.refunded_amount, t.payout_status, t.created_at
      FROM transactions t
      LEFT JOIN users u ON u.id = t.user_id
-     WHERE $1::text IS NULL OR t.charge_status = $1
+     WHERE $1::text IS NULL OR t.charge_status::text = $1
      ORDER BY t.created_at DESC
      LIMIT 200`,
     [chargeStatus || null],

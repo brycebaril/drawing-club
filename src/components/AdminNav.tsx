@@ -14,6 +14,9 @@ export function AdminNav() {
           <Link href="/admin/transactions">Transactions</Link>
         </li>
         <li>
+          <Link href="/admin/passes">Passes</Link>
+        </li>
+        <li>
           <Link href="/admin/audit-logs">Audit Logs</Link>
         </li>
         <li>
