@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { Role } from "@/lib/auth/roles";
 import { LogoutForm } from "./LogoutForm";
+import { NotificationBanner } from "./NotificationBanner";
 
 /**
  * Unlike AdminNav (unconditional — every /admin/* page already requires
@@ -14,36 +15,39 @@ export function OpsNav({ roles }: { roles: Role[] }) {
   const isAdmin = roles.includes("ADMIN");
 
   return (
-    <nav>
-      <ul>
-        {(isAdmin || roles.includes("VOL_MBR")) && (
+    <>
+      <nav>
+        <ul>
+          {(isAdmin || roles.includes("VOL_MBR")) && (
+            <li>
+              <Link href="/ops/model-booking">Model Booking</Link>
+            </li>
+          )}
+          {(isAdmin || roles.includes("VOL_MKT")) && (
+            <li>
+              <Link href="/ops/cms">CMS</Link>
+            </li>
+          )}
+          {(isAdmin || roles.includes("VOL_CTRL")) && (
+            <li>
+              <Link href="/ops/financials">Financials</Link>
+            </li>
+          )}
           <li>
-            <Link href="/ops/model-booking">Model Booking</Link>
+            <Link href="/dashboard">Dashboard</Link>
           </li>
-        )}
-        {(isAdmin || roles.includes("VOL_MKT")) && (
           <li>
-            <Link href="/ops/cms">CMS</Link>
+            <Link href="/app/schedule">Schedule</Link>
           </li>
-        )}
-        {(isAdmin || roles.includes("VOL_CTRL")) && (
           <li>
-            <Link href="/ops/financials">Financials</Link>
+            <Link href="/app/wallet">Wallet</Link>
           </li>
-        )}
-        <li>
-          <Link href="/dashboard">Dashboard</Link>
-        </li>
-        <li>
-          <Link href="/app/schedule">Schedule</Link>
-        </li>
-        <li>
-          <Link href="/app/wallet">Wallet</Link>
-        </li>
-        <li>
-          <LogoutForm />
-        </li>
-      </ul>
-    </nav>
+          <li>
+            <LogoutForm />
+          </li>
+        </ul>
+      </nav>
+      <NotificationBanner />
+    </>
   );
 }

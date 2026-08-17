@@ -6,21 +6,12 @@ import { createBatchAction, type CreateBatchState } from "../actions";
 export function BatchForm() {
   const [state, formAction, pending] = useActionState<CreateBatchState, FormData>(createBatchAction, {});
 
-  if (state.codes) {
+  if (state.success) {
     return (
-      <div>
-        <p role="alert">
-          Batch created for {state.organizationName} — {state.codes.length} claim code(s), shown once. Copy
-          these now; they can&apos;t be shown again (a lost code can be reissued later from the passes list).
-        </p>
-        <ul>
-          {state.codes.map((code) => (
-            <li key={code}>
-              <code>{code}</code>
-            </li>
-          ))}
-        </ul>
-      </div>
+      <p role="status">
+        Batch created for {state.organizationName} — all passes are already in {state.ownerUsername}
+        &apos;s wallet, ready to share.
+      </p>
     );
   }
 
@@ -30,6 +21,9 @@ export function BatchForm() {
 
       <label htmlFor="organizationName">Organization name</label>
       <input id="organizationName" name="organizationName" required />
+
+      <label htmlFor="ownerUsername">Owner username</label>
+      <input id="ownerUsername" name="ownerUsername" required />
 
       <label htmlFor="quantity">Quantity (1–100)</label>
       <input id="quantity" name="quantity" type="text" required />

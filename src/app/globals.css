@@ -311,3 +311,27 @@ button:disabled {
   border: 1px solid var(--color-status-border);
   color: var(--color-status-text);
 }
+
+/* ---- Notification banner ---- */
+/* Distinct from [role=status]/[role=alert] on purpose — those are
+   transient, post-action confirmations inside the page's own content card.
+   This is a standing, unmissed-on-every-page prompt (e.g. "you have a pass
+   waiting"), so it renders full-width right under the nav instead. */
+
+.notification-banner {
+  background: var(--color-accent);
+  padding: var(--space-3) var(--space-4);
+}
+
+.notification-banner p {
+  max-width: 960px;
+  margin: 0 auto;
+  color: #fff;
+  font-weight: 500;
+}
+
+.notification-banner a {
+  color: #fff;
+  font-weight: 700;
+  text-decoration: underline;
+}

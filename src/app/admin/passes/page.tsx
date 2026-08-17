@@ -6,6 +6,7 @@ import { PassRowActions } from "./PassRowActions";
 interface PassRow {
   id: string;
   owner_username: string | null;
+  pending_recipient_username: string | null;
   is_transferable: boolean;
   status: string;
   effective_price: string;
@@ -22,8 +23,9 @@ interface BatchOption {
 
 const STATUSES = ["Available", "Assigned", "Used", "Revoked"] as const;
 
-function isUnclaimedInventory(pass: PassRow): boolean {
-  return pass.is_transferable && pass.owner_username === null && pass.status === "Assigned";
+/** Any unspent transferable pass is eligible for admin revocation — matches revokePassAction's own scope. */
+function isRevocable(pass: PassRow): boolean {
+  return pass.is_transferable && (pass.status === "Available" || pass.status === "Assigned");
 }
 
 export default async function AdminPassesPage({
@@ -34,10 +36,12 @@ export default async function AdminPassesPage({
   const { status, batchId } = await searchParams;
 
   const passesResult = await pool.query<PassRow>(
-    `SELECT p.id, u.username AS owner_username, p.is_transferable, p.status,
-            p.effective_price, p.created_at, pb.id AS batch_id, pb.organization_name
+    `SELECT p.id, owner.username AS owner_username, recipient.username AS pending_recipient_username,
+            p.is_transferable, p.status, p.effective_price, p.created_at,
+            pb.id AS batch_id, pb.organization_name
      FROM passes p
-     LEFT JOIN users u ON u.id = p.owner_id
+     LEFT JOIN users owner ON owner.id = p.owner_id
+     LEFT JOIN users recipient ON recipient.id = p.pending_recipient_id
      LEFT JOIN pass_batches pb ON pb.id = p.batch_id
      WHERE ($1::text IS NULL OR p.status::text = $1)
        AND ($2::uuid IS NULL OR p.batch_id = $2)
@@ -102,13 +106,16 @@ export default async function AdminPassesPage({
             {passesResult.rows.map((pass) => (
               <tr key={pass.id}>
                 <td>{pass.id.slice(0, 8)}</td>
-                <td>{pass.owner_username ?? "Unclaimed"}</td>
+                <td>
+                  {pass.owner_username ?? "—"}
+                  {pass.pending_recipient_username && ` (pending transfer to ${pass.pending_recipient_username})`}
+                </td>
                 <td>{pass.is_transferable ? "Yes" : "No"}</td>
                 <td>{pass.status}</td>
                 <td>{pass.organization_name ?? "—"}</td>
                 <td>${pass.effective_price}</td>
                 <td>{new Date(pass.created_at).toLocaleDateString()}</td>
-                <td>{isUnclaimedInventory(pass) ? <PassRowActions passId={pass.id} /> : "—"}</td>
+                <td>{isRevocable(pass) ? <PassRowActions passId={pass.id} /> : "—"}</td>
               </tr>
             ))}
           </tbody>

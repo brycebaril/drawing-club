@@ -5,33 +5,21 @@ import { redirect } from "next/navigation";
 import { pool } from "@/lib/db/pool";
 import { requireAdmin } from "@/lib/auth/requireAdmin";
 import { writeAuditLog } from "@/lib/audit/log";
-import { generateClaimCode, hashClaimCode } from "@/lib/payments/claimCode";
-
-/**
- * "Unredeemed" scopes to unclaimed inventory (owner_id NULL, still holding
- * its original claim code) — the exact shape a freshly batch-generated pass
- * has, mirroring sendGiftAction's own convention. A pass a member has
- * already claimed into their wallet is a different, still-unbuilt gap
- * (Phase 8's notes flag it for /admin/users/[id] specifically).
- */
-const UNCLAIMED_INVENTORY_WHERE =
-  "is_transferable = true AND owner_id IS NULL AND status = 'Assigned'";
 
 export interface CreateBatchState {
   error?: string;
-  codes?: string[];
+  success?: boolean;
   organizationName?: string;
+  ownerUsername?: string;
 }
 
 /**
- * Mirrors sendGiftAction's pass-creation shape (owner_id NULL, status
- * 'Assigned', claim_code = hash) looped under one new pass_batches row
- * instead of taking an existing pass from a member's wallet. Returns the
- * raw codes directly via useActionState state rather than redirecting —
- * unlike sendGiftAction (which had to redirect-with-query-param because the
- * gifted pass's own row vanished from a list query, unmounting the form
- * before its one code could be read), this form isn't list-driven and N
- * codes can't fit in a URL anyway.
+ * Every pass gets a real owner from the moment it's created — no claim
+ * step. The admin picks one existing account (the institution's point of
+ * contact) and all N passes land directly in that person's wallet as
+ * 'Available'; they then share individual passes onward to their people
+ * via the same mechanism any member uses (src/app/app/wallet/actions.ts's
+ * sharePassAction).
  */
 export async function createBatchAction(
   _prevState: CreateBatchState,
@@ -41,11 +29,15 @@ export async function createBatchAction(
   if (!ctx) return { error: "Not authorized." };
 
   const organizationName = String(formData.get("organizationName") ?? "").trim();
+  const ownerUsername = String(formData.get("ownerUsername") ?? "").trim();
   const quantity = Number(formData.get("quantity"));
   const effectivePrice = Number(formData.get("effectivePrice"));
 
   if (!organizationName) {
     return { error: "Organization name is required." };
+  }
+  if (!ownerUsername) {
+    return { error: "Owner username is required." };
   }
   if (!Number.isInteger(quantity) || quantity < 1 || quantity > 100) {
     return { error: "Quantity must be a whole number between 1 and 100." };
@@ -54,7 +46,14 @@ export async function createBatchAction(
     return { error: "Effective price must be a non-negative number." };
   }
 
-  const codes: string[] = [];
+  const ownerRow = await pool.query<{ id: string }>(`SELECT id FROM users WHERE username = $1`, [
+    ownerUsername,
+  ]);
+  if (ownerRow.rowCount === 0) {
+    return { error: "No member found with that username." };
+  }
+  const ownerId = ownerRow.rows[0].id;
+
   const client = await pool.connect();
   let batchId: string;
   try {
@@ -67,12 +66,10 @@ export async function createBatchAction(
     batchId = batchResult.rows[0].id;
 
     for (let i = 0; i < quantity; i++) {
-      const code = generateClaimCode();
-      codes.push(code);
       await client.query(
-        `INSERT INTO passes (batch_id, is_transferable, status, claim_code, effective_price)
-         VALUES ($1, true, 'Assigned', $2, $3)`,
-        [batchId, hashClaimCode(code), effectivePrice],
+        `INSERT INTO passes (batch_id, owner_id, is_transferable, status, effective_price)
+         VALUES ($1, $2, true, 'Available', $3)`,
+        [batchId, ownerId, effectivePrice],
       );
     }
 
@@ -87,54 +84,24 @@ export async function createBatchAction(
   await writeAuditLog({
     actorId: ctx.id,
     actionType: "PASS_BATCH_CREATED",
-    metadata: { batchId, organizationName, quantity, effectivePrice },
+    targetUserId: ownerId,
+    metadata: { batchId, organizationName, ownerUsername, quantity, effectivePrice },
   });
 
   revalidatePath("/admin/passes");
-  return { codes, organizationName };
-}
-
-export interface ReissueState {
-  error?: string;
-  newCode?: string;
-}
-
-export async function reissueClaimCodeAction(
-  _prevState: ReissueState,
-  formData: FormData,
-): Promise<ReissueState> {
-  const ctx = await requireAdmin();
-  if (!ctx) return { error: "Not authorized." };
-
-  const passId = String(formData.get("passId") ?? "");
-  const code = generateClaimCode();
-  const codeHash = hashClaimCode(code);
-
-  const updated = await pool.query(
-    `UPDATE passes SET claim_code = $1 WHERE id = $2 AND ${UNCLAIMED_INVENTORY_WHERE}`,
-    [codeHash, passId],
-  );
-  if (updated.rowCount === 0) {
-    return { error: "That pass isn't eligible for a code reissue." };
-  }
-
-  await writeAuditLog({
-    actorId: ctx.id,
-    actionType: "PASS_CLAIM_CODE_REISSUED",
-    metadata: { passId },
-  });
-
-  // No redirect — this row doesn't disappear from the list on reissue, so
-  // the form stays mounted and the returned code stays visible naturally,
-  // same reasoning as createBatchAction just without needing a workaround.
-  revalidatePath("/admin/passes");
-  return { newCode: code };
+  return { success: true, organizationName, ownerUsername };
 }
 
 export interface RevokeState {
   error?: string;
 }
 
+/**
+ * Any unspent transferable pass, not just unclaimed inventory — under the
+ * direct-ownership model every pass has an owner from creation, so
+ * "unclaimed" isn't a concept revocation can scope to anymore. Still
+ * admin-only, still reason-required and audit-logged.
+ */
 export async function revokePassAction(
   _prevState: RevokeState,
   formData: FormData,
@@ -149,7 +116,8 @@ export async function revokePassAction(
   }
 
   const updated = await pool.query(
-    `UPDATE passes SET status = 'Revoked' WHERE id = $1 AND ${UNCLAIMED_INVENTORY_WHERE}`,
+    `UPDATE passes SET status = 'Revoked'
+     WHERE id = $1 AND is_transferable = true AND status IN ('Available', 'Assigned')`,
     [passId],
   );
   if (updated.rowCount === 0) {

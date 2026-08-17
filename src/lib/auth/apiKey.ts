@@ -5,8 +5,9 @@ import type { ReportScope } from "@/lib/reporting/scopes";
 /**
  * Design Doc §10 / ArchitectureDocument.md §9: Stats API keys are a
  * separate credential surface from the member-facing Auth.js session flow,
- * hashed at rest — mirrors src/lib/payments/claimCode.ts's exact pattern
- * rather than importing it, since this isn't a payments concern.
+ * hashed at rest (randomBytes + SHA-256, same posture as password reset/
+ * verification tokens) — a standalone implementation here since this isn't
+ * a payments concern.
  */
 export function generateApiKey(): string {
   return randomBytes(24).toString("base64url");

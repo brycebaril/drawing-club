@@ -1,11 +1,11 @@
 import { redirect } from "next/navigation";
-import Link from "next/link";
 import { auth } from "@/auth";
 import { pool } from "@/lib/db/pool";
 import { getUserAuthContext } from "@/lib/auth/roles";
 import { PurchaseButtons } from "./PurchaseButtons";
-import { GiftForm } from "./GiftForm";
-import { RevokeGiftButton } from "./RevokeGiftButton";
+import { ShareForm } from "./ShareForm";
+import { CancelTransferButton } from "./CancelTransferButton";
+import { AcceptDeclineButtons } from "./AcceptDeclineButtons";
 import { AppNav } from "@/components/AppNav";
 
 interface PassRow {
@@ -15,15 +15,22 @@ interface PassRow {
   is_transferable: boolean;
 }
 
-interface PendingGiftRow {
+interface OutgoingTransferRow {
   id: string;
-  claim_note: string | null;
+  share_note: string | null;
+  recipient_username: string;
+}
+
+interface IncomingTransferRow {
+  id: string;
+  share_note: string | null;
+  sender_username: string | null;
 }
 
 export default async function WalletPage({
   searchParams,
 }: {
-  searchParams: Promise<{ checkout?: string; claimed?: string; giftLink?: string }>;
+  searchParams: Promise<{ checkout?: string }>;
 }) {
   const session = await auth();
   if (!session?.user?.id) redirect("/auth/login?redirect=/app/wallet");
@@ -31,7 +38,7 @@ export default async function WalletPage({
   const ctx = await getUserAuthContext(session.user.id);
   if (!ctx) redirect("/auth/login");
 
-  const { checkout, claimed, giftLink } = await searchParams;
+  const { checkout } = await searchParams;
 
   const passResult = await pool.query<PassRow>(
     `SELECT id, status, effective_price, is_transferable FROM passes
@@ -41,9 +48,21 @@ export default async function WalletPage({
   const standardPasses = passResult.rows.filter((p) => !p.is_transferable);
   const transferablePasses = passResult.rows.filter((p) => p.is_transferable);
 
-  const pendingGiftsResult = await pool.query<PendingGiftRow>(
-    `SELECT id, claim_note FROM passes
-     WHERE sender_user_id = $1 AND status = 'Assigned' AND claimed_at IS NULL ORDER BY id`,
+  const outgoingResult = await pool.query<OutgoingTransferRow>(
+    `SELECT p.id, p.share_note, u.username AS recipient_username
+     FROM passes p
+     JOIN users u ON u.id = p.pending_recipient_id
+     WHERE p.owner_id = $1 AND p.pending_recipient_id IS NOT NULL
+     ORDER BY p.id`,
+    [ctx.id],
+  );
+
+  const incomingResult = await pool.query<IncomingTransferRow>(
+    `SELECT p.id, p.share_note, u.username AS sender_username
+     FROM passes p
+     LEFT JOIN users u ON u.id = p.sender_user_id
+     WHERE p.pending_recipient_id = $1
+     ORDER BY p.id`,
     [ctx.id],
   );
 
@@ -54,95 +73,111 @@ export default async function WalletPage({
       <AppNav roles={ctx.roles} />
       <main>
         <h1>Wallet</h1>
-      {checkout === "success" && (
-        <p role="status">
-          Payment received — your purchase is being processed and will appear below shortly.
-        </p>
-      )}
-      {checkout === "cancelled" && <p role="status">Checkout cancelled — nothing was charged.</p>}
-      {claimed === "1" && <p role="status">Pass claimed and added to your wallet.</p>}
-      {giftLink && (
-        <p role="status">
-          Gift sent! Claim link (shown once — copy it now): <code>{giftLink}</code>
-        </p>
-      )}
-      {!ctx.emailVerified && <p role="alert">Verify your email before you can get or use passes.</p>}
-
-      <h2>Standard passes</h2>
-      <p>Available passes: {standardPasses.length}</p>
-      {standardPasses.length > 0 && (
-        <table>
-          <thead>
-            <tr>
-              <th>Status</th>
-              <th>Price paid</th>
-            </tr>
-          </thead>
-          <tbody>
-            {standardPasses.map((pass) => (
-              <tr key={pass.id}>
-                <td>{pass.status}</td>
-                <td>${pass.effective_price}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
-
-      <h2>Transferable passes</h2>
-      <p>Available: {transferablePasses.length}</p>
-      {transferablePasses.length > 0 && (
-        <table>
-          <thead>
-            <tr>
-              <th>Price paid</th>
-              <th>Gift it</th>
-            </tr>
-          </thead>
-          <tbody>
-            {transferablePasses.map((pass) => (
-              <tr key={pass.id}>
-                <td>${pass.effective_price}</td>
-                <td>
-                  <GiftForm passId={pass.id} disabled={!ctx.emailVerified} />
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
-
-      {pendingGiftsResult.rowCount! > 0 && (
-        <>
-          <h2>Pending gifts</h2>
-          <p>
-            Gifts you&apos;ve sent that haven&apos;t been claimed yet. The claim link is only shown once,
-            right after sending — if you&apos;ve lost it, revoke and re-send instead.
+        {checkout === "success" && (
+          <p role="status">
+            Payment received — your purchase is being processed and will appear below shortly.
           </p>
+        )}
+        {checkout === "cancelled" && <p role="status">Checkout cancelled — nothing was charged.</p>}
+        {!ctx.emailVerified && <p role="alert">Verify your email before you can get or use passes.</p>}
+
+        {incomingResult.rowCount! > 0 && (
+          <>
+            <h2>Shared with you</h2>
+            <p>Passes other members want to share with you — accept to add to your wallet, or decline.</p>
+            <table>
+              <thead>
+                <tr>
+                  <th>From</th>
+                  <th>Note</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {incomingResult.rows.map((transfer) => (
+                  <tr key={transfer.id}>
+                    <td>{transfer.sender_username ?? "—"}</td>
+                    <td>{transfer.share_note ?? "—"}</td>
+                    <td>
+                      <AcceptDeclineButtons passId={transfer.id} />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </>
+        )}
+
+        <h2>Standard passes</h2>
+        <p>Available passes: {standardPasses.length}</p>
+        {standardPasses.length > 0 && (
           <table>
             <thead>
               <tr>
-                <th>Note</th>
-                <th></th>
+                <th>Status</th>
+                <th>Price paid</th>
               </tr>
             </thead>
             <tbody>
-              {pendingGiftsResult.rows.map((gift) => (
-                <tr key={gift.id}>
-                  <td>{gift.claim_note ?? "—"}</td>
+              {standardPasses.map((pass) => (
+                <tr key={pass.id}>
+                  <td>{pass.status}</td>
+                  <td>${pass.effective_price}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+
+        <h2>Transferable passes</h2>
+        <p>Available: {transferablePasses.length}</p>
+        {transferablePasses.length > 0 && (
+          <table>
+            <thead>
+              <tr>
+                <th>Price paid</th>
+                <th>Share it</th>
+              </tr>
+            </thead>
+            <tbody>
+              {transferablePasses.map((pass) => (
+                <tr key={pass.id}>
+                  <td>${pass.effective_price}</td>
                   <td>
-                    <RevokeGiftButton passId={gift.id} />
+                    <ShareForm passId={pass.id} disabled={!ctx.emailVerified} />
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
-        </>
-      )}
+        )}
 
-      <p>
-        Have a claim code? <Link href="/app/wallet/claim">Claim a pass</Link>
-      </p>
+        {outgoingResult.rowCount! > 0 && (
+          <>
+            <h2>Pending — you&apos;re sharing</h2>
+            <p>Passes you&apos;ve offered to someone who hasn&apos;t responded yet.</p>
+            <table>
+              <thead>
+                <tr>
+                  <th>To</th>
+                  <th>Note</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {outgoingResult.rows.map((transfer) => (
+                  <tr key={transfer.id}>
+                    <td>{transfer.recipient_username}</td>
+                    <td>{transfer.share_note ?? "—"}</td>
+                    <td>
+                      <CancelTransferButton passId={transfer.id} />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </>
+        )}
 
         <h2>Buy passes</h2>
         <PurchaseButtons isMember={isMember} disabled={!ctx.emailVerified} />

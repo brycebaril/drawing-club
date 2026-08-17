@@ -1,100 +1,83 @@
 import { expect, test } from "@playwright/test";
 import { createTestUser, loginAsUser, pool } from "./helpers";
 
-test("Admin generates a batch and a member claims one of the codes", async ({ page }) => {
+test("admin generates a batch with an owner, passes land directly in that owner's wallet, and the owner shares one onward", async ({
+  page,
+}) => {
+  const owner = await createTestUser({ username: `e2epassesowner${Date.now()}` });
   const admin = await createTestUser({ username: `e2epassesbatch${Date.now()}`, baseRole: "Admin" });
   await loginAsUser(page, admin);
 
   const orgName = `Acme Studios ${Date.now()}`;
   await page.goto("/admin/passes/new-batch");
   await page.getByLabel("Organization name").fill(orgName);
+  await page.getByLabel("Owner username").fill(owner.username);
   await page.getByLabel("Quantity (1–100)").fill("2");
   await page.getByLabel("Effective price per pass").fill("15.00");
   await page.getByRole("button", { name: "Generate batch" }).click();
 
-  await expect(page.getByText(`Batch created for ${orgName}`)).toBeVisible();
-  const codes = await page.locator("li code").allTextContents();
-  expect(codes).toHaveLength(2);
+  await expect(
+    page.getByText(`Batch created for ${orgName} — all passes are already in ${owner.username}'s wallet`),
+  ).toBeVisible();
 
-  const batchRow = await pool.query<{ count: string }>(
-    `SELECT count(*) FROM passes p JOIN pass_batches pb ON pb.id = p.batch_id WHERE pb.organization_name = $1`,
+  const batchRows = await pool.query<{ id: string; status: string; owner_id: string }>(
+    `SELECT p.id, p.status, p.owner_id FROM passes p JOIN pass_batches pb ON pb.id = p.batch_id WHERE pb.organization_name = $1`,
     [orgName],
   );
-  expect(Number(batchRow.rows[0].count)).toBe(2);
+  expect(batchRows.rowCount).toBe(2);
+  for (const row of batchRows.rows) {
+    expect(row.status).toBe("Available");
+    expect(row.owner_id).toBe(owner.id);
+  }
 
-  const member = await createTestUser({ username: `e2epassesclaimer${Date.now()}` });
-  await loginAsUser(page, member);
-  await page.goto("/app/wallet/claim");
-  await page.getByLabel("Claim code").fill(codes[0]);
-  await page.getByRole("button", { name: "Claim & Add Pass to My Account" }).click();
+  // The owner immediately shares one onward via the same mechanism any
+  // member uses — proving batches and peer sharing are one mechanism.
+  const recipient = await createTestUser({ username: `e2epassesownerrecip${Date.now()}` });
+  await loginAsUser(page, owner);
+  await page.goto("/app/wallet");
+  // Batch quantity is 2, so two identical Share forms render — scope to one.
+  await page.getByPlaceholder("Recipient username").first().fill(recipient.username);
+  await page.getByRole("button", { name: "Share" }).first().click();
+  await page.waitForURL("**/app/wallet");
 
   await expect(async () => {
-    const claimed = await pool.query<{ count: string }>(
-      `SELECT count(*) FROM passes WHERE owner_id = $1`,
-      [member.id],
+    const shared = await pool.query<{ count: string }>(
+      `SELECT count(*) FROM passes WHERE id = ANY($1) AND pending_recipient_id = $2`,
+      [batchRows.rows.map((r) => r.id), recipient.id],
     );
-    expect(Number(claimed.rows[0].count)).toBe(1);
+    expect(Number(shared.rows[0].count)).toBe(1);
   }).toPass({ timeout: 5000 });
 });
 
-test("reissuing a claim code invalidates the old code and the new one claims successfully", async ({
-  page,
-}) => {
-  const admin = await createTestUser({ username: `e2epassesreissue${Date.now()}`, baseRole: "Admin" });
+test("batch creation requires an existing owner username", async ({ page }) => {
+  const admin = await createTestUser({ username: `e2epassesnoowner${Date.now()}`, baseRole: "Admin" });
   await loginAsUser(page, admin);
 
-  const orgName = `Reissue Test Org ${Date.now()}`;
   await page.goto("/admin/passes/new-batch");
-  await page.getByLabel("Organization name").fill(orgName);
+  await page.getByLabel("Organization name").fill(`No Owner Org ${Date.now()}`);
+  await page.getByLabel("Owner username").fill("no-such-member-anywhere");
   await page.getByLabel("Quantity (1–100)").fill("1");
   await page.getByLabel("Effective price per pass").fill("10.00");
   await page.getByRole("button", { name: "Generate batch" }).click();
-  await expect(page.getByText(`Batch created for ${orgName}`)).toBeVisible();
-  const oldCode = (await page.locator("li code").first().textContent())!;
 
-  const passRow = await pool.query<{ id: string }>(
-    `SELECT p.id FROM passes p JOIN pass_batches pb ON pb.id = p.batch_id WHERE pb.organization_name = $1`,
-    [orgName],
-  );
-  const passId = passRow.rows[0].id;
-
-  await page.goto("/admin/passes");
-  const row = page.locator("tr", { hasText: passId.slice(0, 8) });
-  await row.getByRole("button", { name: "Reissue code" }).click();
-  await expect(row.getByText("New code (shown once)")).toBeVisible();
-  const newCode = (await row.locator("code").last().textContent())!;
-  expect(newCode).not.toBe(oldCode);
-
-  const member = await createTestUser({ username: `e2epassesreissuemember${Date.now()}` });
-  await loginAsUser(page, member);
-
-  await page.goto("/app/wallet/claim");
-  await page.getByLabel("Claim code").fill(oldCode);
-  await page.getByRole("button", { name: "Claim & Add Pass to My Account" }).click();
-  await expect(page.getByRole("alert")).toBeVisible();
-
-  await page.goto("/app/wallet/claim");
-  await page.getByLabel("Claim code").fill(newCode);
-  await page.getByRole("button", { name: "Claim & Add Pass to My Account" }).click();
-
-  await expect(async () => {
-    const claimed = await pool.query<{ status: string }>(`SELECT status FROM passes WHERE id = $1`, [passId]);
-    expect(claimed.rows[0].status).toBe("Available");
-  }).toPass({ timeout: 5000 });
+  await expect(page.getByText("No member found with that username.")).toBeVisible();
 });
 
-test("revoking an unclaimed batch pass blocks it from ever being claimed", async ({ page }) => {
+test("revoking an available transferable pass blocks it from being shared or used again", async ({
+  page,
+}) => {
+  const owner = await createTestUser({ username: `e2epassesrevokeowner${Date.now()}` });
   const admin = await createTestUser({ username: `e2epassesrevoke${Date.now()}`, baseRole: "Admin" });
   await loginAsUser(page, admin);
 
   const orgName = `Revoke Test Org ${Date.now()}`;
   await page.goto("/admin/passes/new-batch");
   await page.getByLabel("Organization name").fill(orgName);
+  await page.getByLabel("Owner username").fill(owner.username);
   await page.getByLabel("Quantity (1–100)").fill("1");
   await page.getByLabel("Effective price per pass").fill("10.00");
   await page.getByRole("button", { name: "Generate batch" }).click();
   await expect(page.getByText(`Batch created for ${orgName}`)).toBeVisible();
-  const code = (await page.locator("li code").first().textContent())!;
 
   const passRow = await pool.query<{ id: string }>(
     `SELECT p.id FROM passes p JOIN pass_batches pb ON pb.id = p.batch_id WHERE pb.organization_name = $1`,
@@ -113,27 +96,31 @@ test("revoking an unclaimed batch pass blocks it from ever being claimed", async
     expect(revoked.rows[0].status).toBe("Revoked");
   }).toPass({ timeout: 5000 });
 
-  const member = await createTestUser({ username: `e2epassesrevokedclaimer${Date.now()}` });
-  await loginAsUser(page, member);
-  await page.goto("/app/wallet/claim");
-  await page.getByLabel("Claim code").fill(code);
-  await page.getByRole("button", { name: "Claim & Add Pass to My Account" }).click();
-  await expect(page.getByRole("alert")).toBeVisible();
+  // A revoked pass no longer shows a Revoke action and can't be shared.
+  await page.goto("/admin/passes");
+  await expect(page.locator("tr", { hasText: passId.slice(0, 8) })).toContainText("Revoked");
+
+  await loginAsUser(page, owner);
+  await page.goto("/app/wallet");
+  await expect(page.getByText("Available: 0")).toBeVisible();
+  await expect(page.getByPlaceholder("Recipient username")).not.toBeVisible();
 });
 
 test("the status and batch filters on /admin/passes narrow the list", async ({ page }) => {
+  const owner = await createTestUser({ username: `e2epassesfilterowner${Date.now()}` });
   const admin = await createTestUser({ username: `e2epassesfilter${Date.now()}`, baseRole: "Admin" });
   await loginAsUser(page, admin);
 
   const orgName = `Filter Test Org ${Date.now()}`;
   await page.goto("/admin/passes/new-batch");
   await page.getByLabel("Organization name").fill(orgName);
+  await page.getByLabel("Owner username").fill(owner.username);
   await page.getByLabel("Quantity (1–100)").fill("1");
   await page.getByLabel("Effective price per pass").fill("10.00");
   await page.getByRole("button", { name: "Generate batch" }).click();
   await expect(page.getByText(`Batch created for ${orgName}`)).toBeVisible();
 
-  await page.goto("/admin/passes?status=Assigned");
+  await page.goto("/admin/passes?status=Available");
   await expect(page.getByRole("cell", { name: orgName })).toBeVisible();
 
   await page.goto("/admin/passes?status=Used");
