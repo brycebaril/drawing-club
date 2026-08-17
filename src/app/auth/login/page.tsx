@@ -73,7 +73,12 @@ function LoginForm() {
   async function completeSignIn(credentials: { username: string; password: string; totpCode?: string }) {
     const result = await signIn("credentials", { ...credentials, redirect: false });
     if (result?.error) {
-      setError("Invalid username, password, or authenticator code.");
+      // By this point check-credentials has already confirmed username +
+      // password on the totp step, so a failure here is (almost always) a
+      // wrong/expired code — say so instead of the credentials-step's
+      // generic three-way message, which read as if the password might
+      // also be wrong even though this screen no longer asks for it.
+      setError(step === "totp" ? "Invalid authenticator code." : "Login failed. Please try again.");
       return;
     }
     router.push(redirectTarget);
