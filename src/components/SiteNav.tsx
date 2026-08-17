@@ -36,12 +36,17 @@ function opsLinksFor(roles: Role[], isAdmin: boolean): StaffLink[] {
  * links only covered 3 of AdminNav's 8) and never showed the public links
  * (Home/About/News/Contact) once a visitor was logged in.
  *
- * Two tiers: a primary nav that's always the same shape (public links plus
- * an auth-dependent tail) so public pages stay reachable regardless of
- * login state, and a second, visually distinct staff-nav for admin/ops
- * capabilities — an admin is a participant first, with admin capabilities
- * layered on top, not a different kind of user, so those options are kept
- * out of the primary nav entirely rather than just labeled differently.
+ * Public items stay a plain visible list; being authenticated with an
+ * Admin/Ops role adds one more trailing item — a hamburger disclosure
+ * holding those role-gated links, kept out of the visible list entirely
+ * rather than just styled differently, since an admin is a participant
+ * first with admin capabilities layered on top, not a different kind of
+ * user. Built with <details>/<summary> rather than a client component +
+ * useState — a native disclosure needs no JS at all, keeping SiteNav a
+ * plain Server Component (this app has no client-side nav interactivity
+ * anywhere else). Trade-off: it won't auto-close on an outside click the
+ * way a JS-driven dropdown would; toggling the summary again or navigating
+ * away (any link click) closes it.
  */
 export async function SiteNav() {
   const session = await auth();
@@ -49,7 +54,7 @@ export async function SiteNav() {
 
   const isAdmin = ctx?.roles.includes("ADMIN") ?? false;
   const opsLinks = ctx ? opsLinksFor(ctx.roles, isAdmin) : [];
-  const showStaffNav = isAdmin || opsLinks.length > 0;
+  const showStaffMenu = isAdmin || opsLinks.length > 0;
 
   return (
     <>
@@ -92,35 +97,42 @@ export async function SiteNav() {
               </li>
             </>
           )}
+          {showStaffMenu && (
+            <li className="staff-menu">
+              <details>
+                <summary role="button">☰ Staff</summary>
+                <div className="staff-menu-panel">
+                  {isAdmin && (
+                    <>
+                      <p className="nav-group-label">Admin</p>
+                      <ul>
+                        {ADMIN_LINKS.map((link) => (
+                          <li key={link.href}>
+                            <Link href={link.href}>{link.label}</Link>
+                          </li>
+                        ))}
+                      </ul>
+                    </>
+                  )}
+                  {opsLinks.length > 0 && (
+                    <>
+                      <p className="nav-group-label">Ops</p>
+                      <ul>
+                        {opsLinks.map((link) => (
+                          <li key={link.href}>
+                            <Link href={link.href}>{link.label}</Link>
+                          </li>
+                        ))}
+                      </ul>
+                    </>
+                  )}
+                </div>
+              </details>
+            </li>
+          )}
         </ul>
       </nav>
       <NotificationBanner />
-      {showStaffNav && (
-        <nav className="staff-nav">
-          <ul>
-            {isAdmin && (
-              <>
-                <li className="nav-group-label">Admin</li>
-                {ADMIN_LINKS.map((link) => (
-                  <li key={link.href}>
-                    <Link href={link.href}>{link.label}</Link>
-                  </li>
-                ))}
-              </>
-            )}
-            {opsLinks.length > 0 && (
-              <>
-                <li className="nav-group-label">Ops</li>
-                {opsLinks.map((link) => (
-                  <li key={link.href}>
-                    <Link href={link.href}>{link.label}</Link>
-                  </li>
-                ))}
-              </>
-            )}
-          </ul>
-        </nav>
-      )}
     </>
   );
 }

@@ -336,15 +336,58 @@ button:disabled {
   text-decoration: underline;
 }
 
-/* ---- Staff nav (admin/ops) ---- */
-/* Deliberately a second, visually distinct bar rather than folded into the
-   primary nav — an admin/volunteer is a participant first, with these
-   capabilities layered on top, so they're kept visibly separate from the
-   ordinary member links instead of just labeled differently. */
+/* ---- Staff menu (admin/ops hamburger) ---- */
+/* A <details>/<summary> disclosure, not a JS dropdown — the ordinary member
+   links stay a plain visible row, and Admin/Ops links live behind this one
+   extra trailing item instead of being folded into the visible list, since
+   an admin/volunteer is a participant first with these capabilities
+   layered on top. */
 
-.staff-nav {
-  background: var(--color-bg);
-  border-top: 1px solid var(--color-border);
+.staff-menu {
+  position: relative;
+}
+
+.staff-menu summary {
+  cursor: pointer;
+  font-weight: 500;
+  color: var(--color-text);
+  list-style: none;
+}
+
+.staff-menu summary::-webkit-details-marker {
+  display: none;
+}
+
+.staff-menu summary:hover,
+.staff-menu[open] summary {
+  color: var(--color-accent);
+}
+
+.staff-menu-panel {
+  position: absolute;
+  right: 0;
+  top: calc(100% + var(--space-2));
+  z-index: 20;
+  min-width: 12rem;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+  padding: var(--space-3);
+}
+
+.staff-menu-panel ul {
+  display: block;
+  margin: 0 0 var(--space-3);
+  max-width: none;
+}
+
+.staff-menu-panel ul:last-child {
+  margin-bottom: 0;
+}
+
+.staff-menu-panel li {
+  margin-bottom: var(--space-1);
 }
 
 .nav-group-label {
@@ -353,4 +396,9 @@ button:disabled {
   font-size: 0.75rem;
   font-weight: 600;
   letter-spacing: 0.03em;
+  margin-top: var(--space-2);
+}
+
+.staff-menu-panel .nav-group-label:first-child {
+  margin-top: 0;
 }

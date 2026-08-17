@@ -32,18 +32,24 @@ test("the nav reflects an existing session and keeps public pages reachable whil
   await page.waitForURL("**/about");
 });
 
-test("the staff nav (admin/ops links) is shown only to roles that hold it, not a plain member", async ({
+test("the staff menu (admin/ops links, behind a hamburger) is shown only to roles that hold it, not a plain member", async ({
   page,
 }) => {
   const admin = await createTestUser({ username: `e2enavstaffadmin${Date.now()}`, baseRole: "Admin" });
   await loginAsUser(page, admin);
   await page.goto("/dashboard");
+  const staffToggle = page.getByRole("button", { name: "☰ Staff" });
+  await expect(staffToggle).toBeVisible();
+  // Links live inside the closed <details> disclosure — not visible/clickable until opened.
+  await expect(page.getByRole("link", { name: "Sessions" })).toHaveCount(0);
+  await staffToggle.click();
   await expect(page.getByRole("link", { name: "Sessions" })).toBeVisible();
   await expect(page.getByRole("link", { name: "Settings" })).toBeVisible();
 
   const member = await createTestUser({ username: `e2enavstaffmember${Date.now()}` });
   await loginAsUser(page, member);
   await page.goto("/dashboard");
+  await expect(page.getByRole("button", { name: "☰ Staff" })).toHaveCount(0);
   await expect(page.getByRole("link", { name: "Sessions" })).toHaveCount(0);
   await expect(page.getByRole("link", { name: "Settings" })).toHaveCount(0);
 });
