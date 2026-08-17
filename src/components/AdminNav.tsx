@@ -17,6 +17,12 @@ export function AdminNav() {
           <Link href="/admin/audit-logs">Audit Logs</Link>
         </li>
         <li>
+          <Link href="/admin/dashboard">Reporting</Link>
+        </li>
+        <li>
+          <Link href="/admin/api-keys">API Keys</Link>
+        </li>
+        <li>
           <Link href="/dashboard">Dashboard</Link>
         </li>
       </ul>
