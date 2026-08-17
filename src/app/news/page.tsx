@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { pool } from "@/lib/db/pool";
+import { PublicNav } from "@/components/PublicNav";
 
 interface NewsListRow {
   slug: string;
@@ -23,25 +24,28 @@ export default async function NewsListPage() {
   );
 
   return (
-    <main>
-      <h1>News</h1>
-      {result.rowCount === 0 ? (
-        <p>No news yet.</p>
-      ) : (
-        <ul>
-          {result.rows.map((post) => (
-            <li key={post.slug}>
-              {/* eslint-disable-next-line @next/next/no-img-element -- arbitrary external URL (CMS images decision: URL field only, no next/image remotePatterns to configure) */}
-              {post.image_url && <img src={post.image_url} alt="" width={120} />}
-              <h2>
-                <Link href={`/news/${post.slug}`}>{post.title}</Link>
-              </h2>
-              <p>{new Date(post.publish_date).toLocaleDateString()}</p>
-              <p>{teaser(post)}</p>
-            </li>
-          ))}
-        </ul>
-      )}
-    </main>
+    <>
+      <PublicNav />
+      <main>
+        <h1>News</h1>
+        {result.rowCount === 0 ? (
+          <p>No news yet.</p>
+        ) : (
+          <ul>
+            {result.rows.map((post) => (
+              <li key={post.slug}>
+                {/* eslint-disable-next-line @next/next/no-img-element -- arbitrary external URL (CMS images decision: URL field only, no next/image remotePatterns to configure) */}
+                {post.image_url && <img src={post.image_url} alt="" width={120} />}
+                <h2>
+                  <Link href={`/news/${post.slug}`}>{post.title}</Link>
+                </h2>
+                <p>{new Date(post.publish_date).toLocaleDateString()}</p>
+                <p>{teaser(post)}</p>
+              </li>
+            ))}
+          </ul>
+        )}
+      </main>
+    </>
   );
 }

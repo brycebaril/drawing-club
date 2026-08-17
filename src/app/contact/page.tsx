@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { pool } from "@/lib/db/pool";
 import { Markdown } from "@/components/Markdown";
+import { PublicNav } from "@/components/PublicNav";
 import { ContactForm } from "./ContactForm";
 
 export default async function ContactPage() {
@@ -11,11 +12,14 @@ export default async function ContactPage() {
   const page = result.rows[0];
 
   return (
-    <main>
-      <h1>{page.title}</h1>
-      <Markdown content={page.content} />
-      <h2>Send us a message</h2>
-      <ContactForm />
-    </main>
+    <>
+      <PublicNav />
+      <main>
+        <h1>{page.title}</h1>
+        <Markdown content={page.content} />
+        <h2>Send us a message</h2>
+        <ContactForm />
+      </main>
+    </>
   );
 }

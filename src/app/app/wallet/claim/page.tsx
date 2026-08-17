@@ -4,6 +4,8 @@ import { getUserAuthContext } from "@/lib/auth/roles";
 import { pool } from "@/lib/db/pool";
 import { hashClaimCode } from "@/lib/payments/claimCode";
 import { ClaimForm } from "./ClaimForm";
+import { PublicNav } from "@/components/PublicNav";
+import { AppNav } from "@/components/AppNav";
 
 interface ClaimPreviewRow {
   claim_note: string | null;
@@ -20,12 +22,17 @@ export default async function ClaimPage({
   const { code } = await searchParams;
 
   if (!code) {
+    // Guest-reachable — no auth check happens until a code is present, so
+    // there's no viewer role set yet to hand AppNav.
     return (
-      <main>
-        <h1>Claim a pass</h1>
-        <p>Enter the claim code from your gift link or email.</p>
-        <ClaimForm />
-      </main>
+      <>
+        <PublicNav />
+        <main>
+          <h1>Claim a pass</h1>
+          <p>Enter the claim code from your gift link or email.</p>
+          <ClaimForm />
+        </main>
+      </>
     );
   }
 
@@ -52,21 +59,27 @@ export default async function ClaimPage({
 
   if (result.rowCount === 0 || result.rows[0].status !== "Assigned" || result.rows[0].claimed_at) {
     return (
-      <main>
-        <h1>Claim a pass</h1>
-        <p role="alert">This claim link is invalid or has already been used.</p>
-      </main>
+      <>
+        <AppNav roles={ctx.roles} />
+        <main>
+          <h1>Claim a pass</h1>
+          <p role="alert">This claim link is invalid or has already been used.</p>
+        </main>
+      </>
     );
   }
 
   const { claim_note: note, sender_username: senderUsername } = result.rows[0];
 
   return (
-    <main>
-      <h1>Claim a pass</h1>
-      <p>{senderUsername ?? "Someone"} sent you a session pass.</p>
-      {note && <p>&ldquo;{note}&rdquo;</p>}
-      <ClaimForm code={code} />
-    </main>
+    <>
+      <AppNav roles={ctx.roles} />
+      <main>
+        <h1>Claim a pass</h1>
+        <p>{senderUsername ?? "Someone"} sent you a session pass.</p>
+        {note && <p>&ldquo;{note}&rdquo;</p>}
+        <ClaimForm code={code} />
+      </main>
+    </>
   );
 }

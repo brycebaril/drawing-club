@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { pool } from "@/lib/db/pool";
 import { Markdown } from "@/components/Markdown";
+import { PublicNav } from "@/components/PublicNav";
 
 export default async function AboutPage() {
   const result = await pool.query<{ title: string; content: string }>(
@@ -10,9 +11,12 @@ export default async function AboutPage() {
   const page = result.rows[0];
 
   return (
-    <main>
-      <h1>{page.title}</h1>
-      <Markdown content={page.content} />
-    </main>
+    <>
+      <PublicNav />
+      <main>
+        <h1>{page.title}</h1>
+        <Markdown content={page.content} />
+      </main>
+    </>
   );
 }

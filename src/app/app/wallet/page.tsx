@@ -6,6 +6,7 @@ import { getUserAuthContext } from "@/lib/auth/roles";
 import { PurchaseButtons } from "./PurchaseButtons";
 import { GiftForm } from "./GiftForm";
 import { RevokeGiftButton } from "./RevokeGiftButton";
+import { AppNav } from "@/components/AppNav";
 
 interface PassRow {
   id: string;
@@ -49,8 +50,10 @@ export default async function WalletPage({
   const isMember = ctx.roles.includes("MBR");
 
   return (
-    <main>
-      <h1>Wallet</h1>
+    <>
+      <AppNav roles={ctx.roles} />
+      <main>
+        <h1>Wallet</h1>
       {checkout === "success" && (
         <p role="status">
           Payment received — your purchase is being processed and will appear below shortly.
@@ -141,8 +144,9 @@ export default async function WalletPage({
         Have a claim code? <Link href="/app/wallet/claim">Claim a pass</Link>
       </p>
 
-      <h2>Buy passes</h2>
-      <PurchaseButtons isMember={isMember} disabled={!ctx.emailVerified} />
-    </main>
+        <h2>Buy passes</h2>
+        <PurchaseButtons isMember={isMember} disabled={!ctx.emailVerified} />
+      </main>
+    </>
   );
 }

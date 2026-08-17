@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { Role } from "@/lib/auth/roles";
+import { LogoutForm } from "./LogoutForm";
 
 /**
  * Unlike AdminNav (unconditional — every /admin/* page already requires
@@ -32,6 +33,9 @@ export function OpsNav({ roles }: { roles: Role[] }) {
         )}
         <li>
           <Link href="/dashboard">Dashboard</Link>
+        </li>
+        <li>
+          <LogoutForm />
         </li>
       </ul>
     </nav>

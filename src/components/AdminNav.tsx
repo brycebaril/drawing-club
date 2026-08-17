@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { LogoutForm } from "./LogoutForm";
 
 export function AdminNav() {
   return (
@@ -30,6 +31,9 @@ export function AdminNav() {
         </li>
         <li>
           <Link href="/dashboard">Dashboard</Link>
+        </li>
+        <li>
+          <LogoutForm />
         </li>
       </ul>
     </nav>

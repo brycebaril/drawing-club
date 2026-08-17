@@ -7,6 +7,7 @@ import { computeSessionStatus, type SessionStatus } from "@/lib/booking/sessionS
 import { SLOTS, slotFor, startOfDay, dayIndex } from "@/lib/sessions/shared";
 import { bookSessionAction, cancelBookingAction, joinWaitlistAction } from "./actions";
 import { SeriesPanel } from "./SeriesPanel";
+import { AppNav } from "@/components/AppNav";
 
 interface SessionRow {
   id: string;
@@ -94,8 +95,10 @@ export default async function SchedulePage({
   const selectedSeat = seat ? Number(seat) : null;
 
   return (
-    <main>
-      <h1>Schedule</h1>
+    <>
+      <AppNav roles={ctx.roles} />
+      <main>
+        <h1>Schedule</h1>
       <p>
         Viewing as {ctx.username} ({ctx.roles.join(", ")})
       </p>
@@ -174,7 +177,8 @@ export default async function SchedulePage({
             bookingError={bookingError}
           />
         ))}
-    </main>
+      </main>
+    </>
   );
 }
 
