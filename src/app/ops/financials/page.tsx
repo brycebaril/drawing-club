@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import Link from "next/link";
 import { pool } from "@/lib/db/pool";
 import { requireOpsRole } from "@/lib/auth/requireOpsRole";
 import { OpsNav } from "@/components/OpsNav";
@@ -16,6 +17,18 @@ interface TransactionTotalRow {
   item_type: string;
   count: string;
   total: string;
+  fees: string | null;
+}
+
+interface PayoutBatchRow {
+  payout_batch_id: string;
+  payout_status: string;
+  transaction_count: string;
+  gross_amount: string;
+  total_fees: string | null;
+  net_amount: string | null;
+  earliest: Date;
+  latest: Date;
 }
 
 function mostRecentCompletedWeekStart(now: Date): string {
@@ -27,9 +40,18 @@ function mostRecentCompletedWeekStart(now: Date): string {
   return toDateOnly(weekStart);
 }
 
-export default async function FinancialsPage() {
+export default async function FinancialsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ start?: string; end?: string }>;
+}) {
   const ctx = await requireOpsRole(["VOL_CTRL"]);
   if (!ctx) notFound();
+
+  const { start, end } = await searchParams;
+  const now = new Date();
+  const rangeEnd = end || toDateOnly(now);
+  const rangeStart = start || toDateOnly(new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000));
 
   const weeksResult = await pool.query<WeekSummaryRow>(
     `SELECT week_start_date, week_end_date, count(*) AS models_paid, sum(total_owed) AS total_owed
@@ -40,11 +62,23 @@ export default async function FinancialsPage() {
   );
 
   const transactionTotalsResult = await pool.query<TransactionTotalRow>(
-    `SELECT item_type, count(*) AS count, sum(amount_paid) AS total
+    `SELECT item_type, count(*) AS count, sum(amount_paid) AS total, sum(processing_fee) AS fees
      FROM transactions
-     WHERE charge_status = 'Succeeded' AND created_at >= now() - interval '90 days'
+     WHERE charge_status = 'Succeeded' AND created_at::date BETWEEN $1::date AND $2::date
      GROUP BY item_type
      ORDER BY item_type`,
+    [rangeStart, rangeEnd],
+  );
+
+  const payoutBatchesResult = await pool.query<PayoutBatchRow>(
+    `SELECT payout_batch_id, payout_status, count(*)::int AS transaction_count,
+            sum(amount_paid) AS gross_amount, sum(processing_fee) AS total_fees, sum(net_amount) AS net_amount,
+            min(created_at) AS earliest, max(created_at) AS latest
+     FROM transactions
+     WHERE payout_batch_id IS NOT NULL
+     GROUP BY payout_batch_id, payout_status
+     ORDER BY latest DESC
+     LIMIT 100`,
   );
 
   return (
@@ -92,9 +126,66 @@ export default async function FinancialsPage() {
         </table>
       )}
 
-      <h2>Sales &amp; renewals (last 90 days)</h2>
+      <h2>Payout batch reconciliation</h2>
+      <p>Cross-reference a bank deposit against the transactions that make it up.</p>
+      {payoutBatchesResult.rowCount === 0 ? (
+        <p>No payout batches recorded yet.</p>
+      ) : (
+        <table>
+          <thead>
+            <tr>
+              <th>Payout batch</th>
+              <th>Status</th>
+              <th>Transactions</th>
+              <th>Gross</th>
+              <th>Fees</th>
+              <th>Net</th>
+              <th>Date range</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {payoutBatchesResult.rows.map((batch) => (
+              <tr key={`${batch.payout_batch_id}-${batch.payout_status}`}>
+                <td>{batch.payout_batch_id}</td>
+                <td>{batch.payout_status}</td>
+                <td>{batch.transaction_count}</td>
+                <td>${batch.gross_amount}</td>
+                <td>{batch.total_fees ? `$${batch.total_fees}` : "—"}</td>
+                <td>{batch.net_amount ? `$${batch.net_amount}` : "—"}</td>
+                <td>
+                  {toDateOnly(new Date(batch.earliest))} – {toDateOnly(new Date(batch.latest))}
+                </td>
+                <td>
+                  <Link href={`/ops/financials/payouts/${encodeURIComponent(batch.payout_batch_id)}`}>
+                    View
+                  </Link>
+                  {" · "}
+                  <a href={`/ops/financials/payouts/csv?payoutBatchId=${encodeURIComponent(batch.payout_batch_id)}`}>
+                    CSV
+                  </a>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+
+      <h2>Sales &amp; renewals</h2>
+      <form>
+        <label htmlFor="start">Start</label>
+        <input id="start" name="start" type="date" defaultValue={rangeStart} />
+        <label htmlFor="end">End</label>
+        <input id="end" name="end" type="date" defaultValue={rangeEnd} />
+        <button type="submit">Filter</button>
+      </form>
+      <p>
+        <a href={`/ops/financials/transactions/csv?start=${rangeStart}&end=${rangeEnd}`}>
+          Download transactions CSV for this range
+        </a>
+      </p>
       {transactionTotalsResult.rowCount === 0 ? (
-        <p>No transactions in this window.</p>
+        <p>No transactions in this range.</p>
       ) : (
         <table>
           <thead>
@@ -102,6 +193,7 @@ export default async function FinancialsPage() {
               <th>Item type</th>
               <th>Count</th>
               <th>Total</th>
+              <th>Total fees</th>
             </tr>
           </thead>
           <tbody>
@@ -110,6 +202,7 @@ export default async function FinancialsPage() {
                 <td>{row.item_type}</td>
                 <td>{row.count}</td>
                 <td>${row.total}</td>
+                <td>{row.fees ? `$${row.fees}` : "—"}</td>
               </tr>
             ))}
           </tbody>
