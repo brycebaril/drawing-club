@@ -23,6 +23,9 @@ export function AdminNav() {
           <Link href="/admin/api-keys">API Keys</Link>
         </li>
         <li>
+          <Link href="/admin/settings">Settings</Link>
+        </li>
+        <li>
           <Link href="/dashboard">Dashboard</Link>
         </li>
       </ul>
