@@ -120,3 +120,23 @@ test("assigning and removing a volunteer role updates the user and is audit-logg
     page.getByRole("row").filter({ hasText: target.username }).filter({ hasText: "VOLUNTEER_ROLE_REMOVED" }),
   ).toHaveCount(1);
 });
+
+test("the users list page renders a volunteer's roles without crashing", async ({ page }) => {
+  // Regression test: array_agg(vr.role) without a ::text cast returns the
+  // raw wire-format string from node-pg for a custom-enum column instead of
+  // a parsed JS array — .map() on that string throws. No prior e2e spec
+  // ever navigated to /admin/users itself (only /admin/users/[id]), which
+  // is exactly why this went undetected until a real admin hit it manually.
+  const admin = await createTestUser({ username: `e2eadminlist${Date.now()}`, baseRole: "Admin" });
+  const volunteer = await createTestUser({ username: `e2elistvol${Date.now()}` });
+  await pool.query(`INSERT INTO volunteer_roles (user_id, role) VALUES ($1, 'SessionManager')`, [
+    volunteer.id,
+  ]);
+
+  await loginAsUser(page, admin);
+  await page.goto("/admin/users");
+
+  const row = page.locator("tr", { hasText: volunteer.username });
+  await expect(row).toBeVisible();
+  await expect(row.getByText("VOL_HOST")).toBeVisible();
+});

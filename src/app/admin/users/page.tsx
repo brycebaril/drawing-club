@@ -31,7 +31,7 @@ export default async function AdminUsersPage({
 
   const result = await pool.query<UserRow>(
     `SELECT u.id, u.username, u.email, u.status, u.base_role, u.membership_expires_at,
-            COALESCE(array_agg(vr.role) FILTER (WHERE vr.role IS NOT NULL), '{}') AS volunteer_roles
+            COALESCE(array_agg(vr.role::text) FILTER (WHERE vr.role IS NOT NULL), '{}') AS volunteer_roles
      FROM users u
      LEFT JOIN volunteer_roles vr ON vr.user_id = u.id
      GROUP BY u.id
