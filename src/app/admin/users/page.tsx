@@ -1,26 +1,10 @@
 import { pool } from "@/lib/db/pool";
 import { AdminNav } from "@/components/AdminNav";
-
-interface UserRow {
-  id: string;
-  username: string;
-  email: string;
-  status: "Active" | "Suspended" | "Banned";
-  base_role: "AccountHolder" | "Admin";
-  membership_expires_at: Date | null;
-  volunteer_roles: string[];
-}
+import { filterUserRows, isMemberTier, mappedRolesFor, type UserRow } from "@/lib/users/filterUsers";
 
 const STATUS_OPTIONS = ["Active", "Suspended", "Banned"] as const;
 const TIER_OPTIONS = ["ACCT", "MBR"] as const;
 const ROLE_OPTIONS = ["ADMIN", "VOL_HOST", "VOL_MKT", "VOL_MBR", "VOL_CTRL"] as const;
-
-const VOLUNTEER_ROLE_MAP: Record<string, string> = {
-  SessionManager: "VOL_HOST",
-  ContentEditor: "VOL_MKT",
-  ModelBooker: "VOL_MBR",
-  Controller: "VOL_CTRL",
-};
 
 export default async function AdminUsersPage({
   searchParams,
@@ -39,21 +23,13 @@ export default async function AdminUsersPage({
   );
 
   const now = new Date();
-  const rows = result.rows.filter((row) => {
-    if (status && row.status !== status) return false;
+  const rows = filterUserRows(result.rows, { status, tier, role }, now);
 
-    const isMember = row.membership_expires_at ? new Date(row.membership_expires_at) > now : false;
-    if (tier === "MBR" && !isMember) return false;
-    if (tier === "ACCT" && isMember) return false;
-
-    if (role) {
-      const mappedRoles = row.volunteer_roles.map((r) => VOLUNTEER_ROLE_MAP[r] ?? r);
-      const hasRole = role === "ADMIN" ? row.base_role === "Admin" : mappedRoles.includes(role);
-      if (!hasRole) return false;
-    }
-
-    return true;
-  });
+  const csvParams = new URLSearchParams();
+  if (status) csvParams.set("status", status);
+  if (tier) csvParams.set("tier", tier);
+  if (role) csvParams.set("role", role);
+  const csvHref = `/admin/users/csv${csvParams.size > 0 ? `?${csvParams}` : ""}`;
 
   return (
     <main>
@@ -97,6 +73,10 @@ export default async function AdminUsersPage({
         <button type="submit">Filter</button>
       </form>
 
+      <p>
+        <a href={csvHref}>Download CSV</a>
+      </p>
+
       <table>
         <thead>
           <tr>
@@ -109,11 +89,8 @@ export default async function AdminUsersPage({
         </thead>
         <tbody>
           {rows.map((row) => {
-            const isMember = row.membership_expires_at
-              ? new Date(row.membership_expires_at) > now
-              : false;
-            const mappedRoles = row.volunteer_roles.map((r) => VOLUNTEER_ROLE_MAP[r] ?? r);
-            if (row.base_role === "Admin") mappedRoles.unshift("ADMIN");
+            const isMember = isMemberTier(row, now);
+            const mappedRoles = mappedRolesFor(row);
             return (
               <tr key={row.id}>
                 <td>

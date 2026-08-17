@@ -35,6 +35,12 @@ export function OpsNav({ roles }: { roles: Role[] }) {
           <Link href="/dashboard">Dashboard</Link>
         </li>
         <li>
+          <Link href="/app/schedule">Schedule</Link>
+        </li>
+        <li>
+          <Link href="/app/wallet">Wallet</Link>
+        </li>
+        <li>
           <LogoutForm />
         </li>
       </ul>

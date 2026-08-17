@@ -140,3 +140,26 @@ test("the users list page renders a volunteer's roles without crashing", async (
   await expect(row).toBeVisible();
   await expect(row.getByText("VOL_HOST")).toBeVisible();
 });
+
+test("the users list CSV export reflects the current filters", async ({ page }) => {
+  const admin = await createTestUser({ username: `e2eadmincsv${Date.now()}`, baseRole: "Admin" });
+  const volunteer = await createTestUser({ username: `e2ecsvvol${Date.now()}` });
+  await pool.query(`INSERT INTO volunteer_roles (user_id, role) VALUES ($1, 'ModelBooker')`, [
+    volunteer.id,
+  ]);
+  const other = await createTestUser({ username: `e2ecsvother${Date.now()}` });
+
+  await loginAsUser(page, admin);
+
+  const unfiltered = await page.request.get("/admin/users/csv");
+  expect(unfiltered.ok()).toBe(true);
+  const unfilteredBody = await unfiltered.text();
+  expect(unfilteredBody).toContain(volunteer.username);
+  expect(unfilteredBody).toContain("VOL_MBR");
+  expect(unfilteredBody).toContain(other.username);
+
+  const filtered = await page.request.get("/admin/users/csv?role=VOL_MBR");
+  const filteredBody = await filtered.text();
+  expect(filteredBody).toContain(volunteer.username);
+  expect(filteredBody).not.toContain(other.username);
+});
