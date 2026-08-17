@@ -1,5 +1,6 @@
 import { randomBytes, createHash } from "node:crypto";
 import { pool } from "@/lib/db/pool";
+import type { ReportScope } from "@/lib/reporting/scopes";
 
 /**
  * Design Doc §10 / ArchitectureDocument.md §9: Stats API keys are a
@@ -31,7 +32,7 @@ export type ApiKeyCheckResult =
  * its own JSON response, same "API routes handle their own auth" shape as
  * /api/webhooks/stripe.
  */
-export async function requireApiKeyScope(request: Request, scope: string): Promise<ApiKeyCheckResult> {
+export async function requireApiKeyScope(request: Request, scope: ReportScope): Promise<ApiKeyCheckResult> {
   const authHeader = request.headers.get("authorization") ?? "";
   const match = /^Bearer (.+)$/.exec(authHeader);
   if (!match) {

@@ -24,7 +24,7 @@ export function SettingForm({
   return (
     <form action={formAction}>
       <input type="hidden" name="key" value={settingKey} />
-      <input type="hidden" name="dataType" value={dataType} />
+      {/* No hidden dataType field — the server re-derives it from the DB row itself, never trusts the client for it. */}
       <label htmlFor={fieldId}>{settingKey}</label>
       {dataType === "Boolean" ? (
         <input id={fieldId} name="value" type="checkbox" defaultChecked={value === "true"} />

@@ -19,7 +19,21 @@ export async function updateSettingAction(
   if (!ctx) return { error: "Not authorized." };
 
   const key = String(formData.get("key") ?? "");
-  const dataType = String(formData.get("dataType") ?? "") as SettingDataType;
+
+  // dataType must come from the setting's own row, never from the client —
+  // a submitted request that claims a different dataType than what's
+  // actually stored would skip validateSettingValue's real check (e.g.
+  // "String" for what's really "Integer") and let a non-numeric value land
+  // in a setting every getSettingNumber() caller assumes is parseable.
+  const existing = await pool.query<{ value: string; data_type: SettingDataType }>(
+    `SELECT value, data_type FROM system_settings WHERE key = $1`,
+    [key],
+  );
+  if (existing.rowCount === 0) {
+    return { error: "Unknown setting." };
+  }
+  const { value: oldValue, data_type: dataType } = existing.rows[0];
+
   const rawValue =
     dataType === "Boolean" ? (formData.get("value") === "on" ? "true" : "false") : String(formData.get("value") ?? "");
 
@@ -27,15 +41,6 @@ export async function updateSettingAction(
   if (!validated.ok) {
     return { error: validated.error };
   }
-
-  const existing = await pool.query<{ value: string }>(
-    `SELECT value FROM system_settings WHERE key = $1`,
-    [key],
-  );
-  if (existing.rowCount === 0) {
-    return { error: "Unknown setting." };
-  }
-  const oldValue = existing.rows[0].value;
 
   if (oldValue !== validated.value) {
     await pool.query(
