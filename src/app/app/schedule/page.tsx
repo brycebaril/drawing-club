@@ -7,7 +7,7 @@ import { computeSessionStatus, type SessionStatus } from "@/lib/booking/sessionS
 import { SLOTS, slotFor, startOfDay, dayIndex } from "@/lib/sessions/shared";
 import { bookSessionAction, cancelBookingAction, joinWaitlistAction } from "./actions";
 import { SeriesPanel } from "./SeriesPanel";
-import { AppNav } from "@/components/AppNav";
+import { SiteNav } from "@/components/SiteNav";
 
 interface SessionRow {
   id: string;
@@ -96,7 +96,7 @@ export default async function SchedulePage({
 
   return (
     <>
-      <AppNav roles={ctx.roles} />
+      <SiteNav />
       <main>
         <h1>Schedule</h1>
       <p>

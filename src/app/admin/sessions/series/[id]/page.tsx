@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { pool } from "@/lib/db/pool";
-import { AdminNav } from "@/components/AdminNav";
+import { SiteNav } from "@/components/SiteNav";
 import { SeriesMetadataEditForm } from "./SeriesMetadataEditForm";
 
 interface SeriesDetail {
@@ -22,13 +22,15 @@ export default async function SeriesDetailPage({
   const series = result.rows[0];
 
   return (
-    <main>
-      <AdminNav />
+    <>
+      <SiteNav />
+      <main>
       <h1>Edit series</h1>
       <SeriesMetadataEditForm seriesId={series.id} name={series.name} seatCount={series.seat_count} />
       <p>
         <Link href={`/admin/sessions/new-series?seriesId=${series.id}`}>+ Add more dates to this series</Link>
       </p>
     </main>
+    </>
   );
 }

@@ -6,7 +6,7 @@ import { PurchaseButtons } from "./PurchaseButtons";
 import { ShareForm } from "./ShareForm";
 import { CancelTransferButton } from "./CancelTransferButton";
 import { AcceptDeclineButtons } from "./AcceptDeclineButtons";
-import { AppNav } from "@/components/AppNav";
+import { SiteNav } from "@/components/SiteNav";
 
 interface PassRow {
   id: string;
@@ -70,7 +70,7 @@ export default async function WalletPage({
 
   return (
     <>
-      <AppNav roles={ctx.roles} />
+      <SiteNav />
       <main>
         <h1>Wallet</h1>
         {checkout === "success" && (

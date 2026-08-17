@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { pool } from "@/lib/db/pool";
 import { requireOpsRole } from "@/lib/auth/requireOpsRole";
-import { OpsNav } from "@/components/OpsNav";
+import { SiteNav } from "@/components/SiteNav";
 
 interface BatchTransactionRow {
   id: string;
@@ -42,8 +42,9 @@ export default async function PayoutBatchDetailPage({
   if (result.rowCount === 0) notFound();
 
   return (
-    <main>
-      <OpsNav roles={ctx.roles} />
+    <>
+      <SiteNav />
+      <main>
       <h1>Payout batch {payoutBatchId}</h1>
       <p>
         <a href={`/ops/financials/payouts/csv?payoutBatchId=${encodeURIComponent(payoutBatchId)}`}>
@@ -77,5 +78,6 @@ export default async function PayoutBatchDetailPage({
         </tbody>
       </table>
     </main>
+    </>
   );
 }

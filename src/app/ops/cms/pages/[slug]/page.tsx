@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { pool } from "@/lib/db/pool";
 import { requireOpsRole } from "@/lib/auth/requireOpsRole";
-import { OpsNav } from "@/components/OpsNav";
+import { SiteNav } from "@/components/SiteNav";
 import { StaticPageForm } from "./StaticPageForm";
 
 interface StaticPageRow {
@@ -27,10 +27,12 @@ export default async function EditStaticPagePage({
   const page = result.rows[0];
 
   return (
-    <main>
-      <OpsNav roles={ctx.roles} />
+    <>
+      <SiteNav />
+      <main>
       <h1>Edit page: {slug}</h1>
       <StaticPageForm slug={slug} initialTitle={page.title} initialContent={page.content} />
     </main>
+    </>
   );
 }

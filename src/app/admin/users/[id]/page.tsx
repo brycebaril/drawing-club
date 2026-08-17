@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { pool } from "@/lib/db/pool";
-import { AdminNav } from "@/components/AdminNav";
+import { SiteNav } from "@/components/SiteNav";
 import { StatusForm } from "./StatusForm";
 import { GrantPassForm } from "./GrantPassForm";
 import { MembershipForm } from "./MembershipForm";
@@ -80,8 +80,9 @@ export default async function AdminUserDetailPage({
   );
 
   return (
-    <main>
-      <AdminNav />
+    <>
+      <SiteNav />
+      <main>
       <h1>{user.username}</h1>
       <p>
         {user.email} · {user.base_role} · Status: {user.status} · Tier: {isMember ? "MBR" : "ACCT"} ·
@@ -163,5 +164,6 @@ export default async function AdminUserDetailPage({
         )}
       </section>
     </main>
+    </>
   );
 }

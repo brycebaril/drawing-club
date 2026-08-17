@@ -1,5 +1,5 @@
 import { pool } from "@/lib/db/pool";
-import { AdminNav } from "@/components/AdminNav";
+import { SiteNav } from "@/components/SiteNav";
 import { getSettingNumber } from "@/lib/settings";
 import { slotFor, startOfDay, dayIndex, toDateOnly, parseDateOnly } from "@/lib/sessions/shared";
 import { SeriesSlotPickerForm } from "./SeriesSlotPickerForm";
@@ -54,8 +54,9 @@ export default async function NewSeriesPage({
   }
 
   return (
-    <main>
-      <AdminNav />
+    <>
+      <SiteNav />
+      <main>
       <h1>{existingSeriesName ? `Add dates to "${existingSeriesName}"` : "Create a multi-week series"}</h1>
       <p>
         Pick any open slots below — consecutive or not, any week —{" "}
@@ -74,5 +75,6 @@ export default async function NewSeriesPage({
         <SeriesSlotPickerForm days={days} occupied={occupied} defaultSeatCount={defaultSeatCount} />
       )}
     </main>
+    </>
   );
 }

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { pool } from "@/lib/db/pool";
 import { Markdown } from "@/components/Markdown";
-import { PublicNav } from "@/components/PublicNav";
+import { SiteNav } from "@/components/SiteNav";
 
 interface UpcomingSessionRow {
   id: string;
@@ -22,7 +22,7 @@ export default async function Home() {
 
   return (
     <>
-      <PublicNav />
+      <SiteNav />
       <main>
         <h1>Life Drawing Society</h1>
         <p>

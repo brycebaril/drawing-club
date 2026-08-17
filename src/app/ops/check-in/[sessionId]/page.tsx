@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { pool } from "@/lib/db/pool";
 import { requireOpsRole } from "@/lib/auth/requireOpsRole";
-import { OpsNav } from "@/components/OpsNav";
+import { SiteNav } from "@/components/SiteNav";
 import { toggleCheckedInAction } from "./actions";
 import { NoteForm } from "./NoteForm";
 
@@ -103,8 +103,9 @@ export default async function CheckInPage({
   );
 
   return (
-    <main>
-      <OpsNav roles={ctx.roles} />
+    <>
+      <SiteNav />
+      <main>
       <h1>
         Check-in — {session.session_type} — {new Date(session.start_time).toLocaleString()}
       </h1>
@@ -173,5 +174,6 @@ export default async function CheckInPage({
         </ul>
       )}
     </main>
+    </>
   );
 }

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { pool } from "@/lib/db/pool";
-import { AdminNav } from "@/components/AdminNav";
+import { SiteNav } from "@/components/SiteNav";
 import { cancelSeriesFromListAction } from "./actions";
 
 interface SeriesRow {
@@ -32,8 +32,9 @@ export default async function SeriesListPage() {
   );
 
   return (
-    <main>
-      <AdminNav />
+    <>
+      <SiteNav />
+      <main>
       <h1>Multi-week series</h1>
       <p>
         <Link href="/admin/sessions/new-series">+ Create multi-week series</Link>
@@ -91,5 +92,6 @@ export default async function SeriesListPage() {
         </tbody>
       </table>
     </main>
+    </>
   );
 }

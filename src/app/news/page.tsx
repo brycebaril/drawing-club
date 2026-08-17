@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { pool } from "@/lib/db/pool";
-import { PublicNav } from "@/components/PublicNav";
+import { SiteNav } from "@/components/SiteNav";
 
 interface NewsListRow {
   slug: string;
@@ -25,7 +25,7 @@ export default async function NewsListPage() {
 
   return (
     <>
-      <PublicNav />
+      <SiteNav />
       <main>
         <h1>News</h1>
         {result.rowCount === 0 ? (

@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { pool } from "@/lib/db/pool";
-import { AdminNav } from "@/components/AdminNav";
+import { SiteNav } from "@/components/SiteNav";
 import { getSettingNumber } from "@/lib/settings";
 import { toDateOnly } from "@/lib/sessions/shared";
 import { RecurrenceRuleEditForm } from "./RecurrenceRuleEditForm";
@@ -39,8 +39,9 @@ export default async function RecurrenceRuleDetailPage({
   const defaultCapacity = await getSettingNumber("SESSION_DEFAULT_CAPACITY");
 
   return (
-    <main>
-      <AdminNav />
+    <>
+      <SiteNav />
+      <main>
       <h1>Edit recurring rule</h1>
       <RecurrenceRuleEditForm
         ruleId={rule.id}
@@ -58,5 +59,6 @@ export default async function RecurrenceRuleDetailPage({
         }}
       />
     </main>
+    </>
   );
 }

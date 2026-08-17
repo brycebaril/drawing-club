@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { pool } from "@/lib/db/pool";
 import { requireOpsRole } from "@/lib/auth/requireOpsRole";
-import { OpsNav } from "@/components/OpsNav";
+import { SiteNav } from "@/components/SiteNav";
 import { NewsPostForm } from "../NewsPostForm";
 import { toDateOnly } from "@/lib/sessions/shared";
 
@@ -29,8 +29,9 @@ export default async function EditNewsPostPage({ params }: { params: Promise<{ i
   const post = result.rows[0];
 
   return (
-    <main>
-      <OpsNav roles={ctx.roles} />
+    <>
+      <SiteNav />
+      <main>
       <h1>Edit post</h1>
       <NewsPostForm
         mode="edit"
@@ -46,5 +47,6 @@ export default async function EditNewsPostPage({ params }: { params: Promise<{ i
         }}
       />
     </main>
+    </>
   );
 }

@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { pool } from "@/lib/db/pool";
-import { AdminNav } from "@/components/AdminNav";
+import { SiteNav } from "@/components/SiteNav";
 import {
   cancelOccurrenceAction,
   cancelSeriesAction,
@@ -77,8 +77,9 @@ export default async function AdminSessionDetailPage({
     : { rows: [] as SeatRow[], rowCount: 0 };
 
   return (
-    <main>
-      <AdminNav />
+    <>
+      <SiteNav />
+      <main>
       <h1>
         {session.session_type} — {new Date(session.start_time).toLocaleString()}
       </h1>
@@ -180,5 +181,6 @@ export default async function AdminSessionDetailPage({
         </>
       )}
     </main>
+    </>
   );
 }

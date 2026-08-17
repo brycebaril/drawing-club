@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { pool } from "@/lib/db/pool";
 import { requireOpsRole } from "@/lib/auth/requireOpsRole";
-import { OpsNav } from "@/components/OpsNav";
+import { SiteNav } from "@/components/SiteNav";
 import { toDateOnly } from "@/lib/sessions/shared";
 import { GenerateReportForm } from "./GenerateReportForm";
 
@@ -82,8 +82,9 @@ export default async function FinancialsPage({
   );
 
   return (
-    <main>
-      <OpsNav roles={ctx.roles} />
+    <>
+      <SiteNav />
+      <main>
       <h1>Financials</h1>
 
       <h2>Generate model payout report</h2>
@@ -209,5 +210,6 @@ export default async function FinancialsPage({
         </table>
       )}
     </main>
+    </>
   );
 }

@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { pool } from "@/lib/db/pool";
-import { AdminNav } from "@/components/AdminNav";
+import { SiteNav } from "@/components/SiteNav";
 import { RefundForm } from "./RefundForm";
 
 interface TransactionDetail {
@@ -54,8 +54,9 @@ export default async function AdminTransactionDetailPage({
   const canRefund = (transaction.charge_status === "Succeeded" || transaction.charge_status === "Refunded") && remaining > 0;
 
   return (
-    <main>
-      <AdminNav />
+    <>
+      <SiteNav />
+      <main>
       <h1>Transaction</h1>
       <p>
         Buyer:{" "}
@@ -109,5 +110,6 @@ export default async function AdminTransactionDetailPage({
         <p>This transaction can&apos;t be refunded further.</p>
       )}
     </main>
+    </>
   );
 }

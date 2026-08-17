@@ -1,5 +1,5 @@
 import { pool } from "@/lib/db/pool";
-import { AdminNav } from "@/components/AdminNav";
+import { SiteNav } from "@/components/SiteNav";
 import { filterUserRows, isMemberTier, mappedRolesFor, type UserRow } from "@/lib/users/filterUsers";
 
 const STATUS_OPTIONS = ["Active", "Suspended", "Banned"] as const;
@@ -32,8 +32,9 @@ export default async function AdminUsersPage({
   const csvHref = `/admin/users/csv${csvParams.size > 0 ? `?${csvParams}` : ""}`;
 
   return (
-    <main>
-      <AdminNav />
+    <>
+      <SiteNav />
+      <main>
       <h1>Users</h1>
 
       <form>
@@ -106,5 +107,6 @@ export default async function AdminUsersPage({
         </tbody>
       </table>
     </main>
+    </>
   );
 }

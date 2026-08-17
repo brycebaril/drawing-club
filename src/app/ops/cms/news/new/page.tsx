@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { requireOpsRole } from "@/lib/auth/requireOpsRole";
-import { OpsNav } from "@/components/OpsNav";
+import { SiteNav } from "@/components/SiteNav";
 import { NewsPostForm } from "../NewsPostForm";
 import { toDateOnly } from "@/lib/sessions/shared";
 
@@ -9,8 +9,9 @@ export default async function NewNewsPostPage() {
   if (!ctx) notFound();
 
   return (
-    <main>
-      <OpsNav roles={ctx.roles} />
+    <>
+      <SiteNav />
+      <main>
       <h1>New post</h1>
       <NewsPostForm
         mode="create"
@@ -25,5 +26,6 @@ export default async function NewNewsPostPage() {
         }}
       />
     </main>
+    </>
   );
 }

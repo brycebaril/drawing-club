@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { pool } from "@/lib/db/pool";
 import { requireOpsRole } from "@/lib/auth/requireOpsRole";
-import { OpsNav } from "@/components/OpsNav";
+import { SiteNav } from "@/components/SiteNav";
 
 interface StaticPageRow {
   slug: string;
@@ -30,8 +30,9 @@ export default async function CmsDashboardPage() {
   );
 
   return (
-    <main>
-      <OpsNav roles={ctx.roles} />
+    <>
+      <SiteNav />
+      <main>
       <h1>CMS</h1>
 
       <h2>Static pages</h2>
@@ -89,5 +90,6 @@ export default async function CmsDashboardPage() {
         </table>
       )}
     </main>
+    </>
   );
 }

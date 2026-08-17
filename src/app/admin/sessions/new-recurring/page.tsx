@@ -1,14 +1,15 @@
 import Link from "next/link";
 import { getSettingNumber } from "@/lib/settings";
-import { AdminNav } from "@/components/AdminNav";
+import { SiteNav } from "@/components/SiteNav";
 import { RecurrenceRuleForm } from "./RecurrenceRuleForm";
 
 export default async function NewRecurringSessionPage() {
   const defaultCapacity = await getSettingNumber("SESSION_DEFAULT_CAPACITY");
 
   return (
-    <main>
-      <AdminNav />
+    <>
+      <SiteNav />
+      <main>
       <h1>Create a recurring session</h1>
       <p>
         Generates occurrences up to 90 days out immediately; run <code>pnpm rollforward</code> (or use
@@ -18,5 +19,6 @@ export default async function NewRecurringSessionPage() {
       </p>
       <RecurrenceRuleForm defaultCapacity={defaultCapacity} />
     </main>
+    </>
   );
 }

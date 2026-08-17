@@ -59,7 +59,7 @@ export async function createSessionAction(
     metadata: { sessionId: inserted.rows[0].id, sessionType, startTime, maxCapacity, hostUserId },
   });
 
-  // Reachable via a prefetched <Link> in AdminNav — without this, the
+  // Reachable via a prefetched <Link> in SiteNav's staff-nav — without this, the
   // client Router Cache can serve the pre-creation list after the redirect
   // (see src/app/admin/users/[id]/actions.ts's revalidateUserPages).
   revalidatePath("/admin/sessions");

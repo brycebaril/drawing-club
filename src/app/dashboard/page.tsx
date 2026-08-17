@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { getUserAuthContext } from "@/lib/auth/roles";
-import { AppNav } from "@/components/AppNav";
+import { SiteNav } from "@/components/SiteNav";
 
 /**
  * Placeholder only — proves the auth/RBAC chain works end to end
@@ -17,7 +17,7 @@ export default async function DashboardPage() {
 
   return (
     <>
-      <AppNav roles={ctx.roles} />
+      <SiteNav />
       <main>
         <h1>Dashboard</h1>
         <p>Logged in as {ctx.username}</p>

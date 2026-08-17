@@ -15,10 +15,10 @@ const STATUSES = ["Active", "Suspended", "Banned"] as const;
 const VOLUNTEER_ROLES = ["SessionManager", "ContentEditor", "ModelBooker", "Controller"] as const;
 
 /**
- * Every mutation here is reachable via a prefetched <Link> in AdminNav
- * (src/components/AdminNav.tsx), so without this, Next.js's client Router
- * Cache can serve the pre-mutation RSC payload for these paths after the
- * redirect below — the redirect lands on the right URL, but with stale data.
+ * Every mutation here is reachable via a prefetched <Link> in SiteNav's
+ * staff-nav (src/components/SiteNav.tsx), so without this, Next.js's client
+ * Router Cache can serve the pre-mutation RSC payload for these paths after
+ * the redirect below — the redirect lands on the right URL, but with stale data.
  */
 function revalidateUserPages(userId: string) {
   revalidatePath(`/admin/users/${userId}`);

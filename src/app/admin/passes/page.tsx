@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { pool } from "@/lib/db/pool";
-import { AdminNav } from "@/components/AdminNav";
+import { SiteNav } from "@/components/SiteNav";
 import { PassRowActions } from "./PassRowActions";
 
 interface PassRow {
@@ -55,8 +55,9 @@ export default async function AdminPassesPage({
   );
 
   return (
-    <main>
-      <AdminNav />
+    <>
+      <SiteNav />
+      <main>
       <h1>Passes</h1>
       <p>
         <Link href="/admin/passes/new-batch">New batch</Link>
@@ -122,5 +123,6 @@ export default async function AdminPassesPage({
         </table>
       )}
     </main>
+    </>
   );
 }

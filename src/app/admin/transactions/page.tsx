@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { pool } from "@/lib/db/pool";
-import { AdminNav } from "@/components/AdminNav";
+import { SiteNav } from "@/components/SiteNav";
 
 interface TransactionRow {
   id: string;
@@ -32,8 +32,9 @@ export default async function AdminTransactionsPage({
   );
 
   return (
-    <main>
-      <AdminNav />
+    <>
+      <SiteNav />
+      <main>
       <h1>Transactions</h1>
       <form>
         <label htmlFor="chargeStatus">Charge status</label>
@@ -77,5 +78,6 @@ export default async function AdminTransactionsPage({
         </tbody>
       </table>
     </main>
+    </>
   );
 }

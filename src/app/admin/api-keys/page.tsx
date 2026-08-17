@@ -1,5 +1,5 @@
 import { pool } from "@/lib/db/pool";
-import { AdminNav } from "@/components/AdminNav";
+import { SiteNav } from "@/components/SiteNav";
 import { createApiKeyAction, revokeApiKeyAction } from "./actions";
 import { REPORT_SCOPES } from "@/lib/reporting/scopes";
 
@@ -26,8 +26,9 @@ export default async function ApiKeysPage({
   );
 
   return (
-    <main>
-      <AdminNav />
+    <>
+      <SiteNav />
+      <main>
       <h1>API keys</h1>
       <p>
         Bearer-token keys for the Stats API (<code>/api/stats/*</code>), scoped per report type. Each key is
@@ -99,5 +100,6 @@ export default async function ApiKeysPage({
         </table>
       )}
     </main>
+    </>
   );
 }

@@ -1,5 +1,5 @@
 import { pool } from "@/lib/db/pool";
-import { AdminNav } from "@/components/AdminNav";
+import { SiteNav } from "@/components/SiteNav";
 import { SettingForm } from "./SettingForm";
 import type { SettingDataType } from "@/lib/settingsValidation";
 
@@ -48,8 +48,9 @@ export default async function AdminSettingsPage() {
   );
 
   return (
-    <main>
-      <AdminNav />
+    <>
+      <SiteNav />
+      <main>
       <h1>Settings</h1>
       <p>Changes apply immediately to future activity — historical transactions and already-spent pass values are never retroactively altered.</p>
 
@@ -68,5 +69,6 @@ export default async function AdminSettingsPage() {
         </section>
       ))}
     </main>
+    </>
   );
 }

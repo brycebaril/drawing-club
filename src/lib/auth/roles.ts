@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { pool } from "@/lib/db/pool";
 
 // SiteOutline.md §2's RBAC role codes. GUEST is implicit (absence of a
@@ -30,7 +31,14 @@ export interface UserAuthContext {
   roles: Role[];
 }
 
-export async function getUserAuthContext(userId: string): Promise<UserAuthContext | null> {
+/**
+ * cache()-wrapped: within one React render (a page and SiteNav both calling
+ * this with the same userId, say), the second call reuses the first's
+ * in-flight promise instead of re-querying. Doesn't affect src/proxy.ts's
+ * own call — that runs outside the React render tree, so cache() there is
+ * just a passthrough.
+ */
+export const getUserAuthContext = cache(async (userId: string): Promise<UserAuthContext | null> => {
   // Neither query depends on the other's result, so run them concurrently —
   // this function is on the hottest path in the app (src/proxy.ts calls it
   // fresh on every non-API request).
@@ -68,7 +76,7 @@ export async function getUserAuthContext(userId: string): Promise<UserAuthContex
     mfaRequired,
     roles,
   };
-}
+});
 
 export async function getUserAuthContextByUsername(
   username: string,

@@ -1,5 +1,5 @@
 import { pool } from "@/lib/db/pool";
-import { AdminNav } from "@/components/AdminNav";
+import { SiteNav } from "@/components/SiteNav";
 
 interface AuditLogRow {
   id: string;
@@ -30,8 +30,9 @@ export default async function AdminAuditLogsPage({
   );
 
   return (
-    <main>
-      <AdminNav />
+    <>
+      <SiteNav />
+      <main>
       <h1>Audit logs</h1>
       <form>
         <label htmlFor="actionType">Action type</label>
@@ -63,5 +64,6 @@ export default async function AdminAuditLogsPage({
         </tbody>
       </table>
     </main>
+    </>
   );
 }

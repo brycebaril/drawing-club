@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { pool } from "@/lib/db/pool";
 import { Markdown } from "@/components/Markdown";
-import { PublicNav } from "@/components/PublicNav";
+import { SiteNav } from "@/components/SiteNav";
 
 interface NewsPostRow {
   title: string;
@@ -22,7 +22,7 @@ export default async function NewsPostPage({ params }: { params: Promise<{ slug:
 
   return (
     <>
-      <PublicNav />
+      <SiteNav />
       <main>
         <h1>{post.title}</h1>
         <p>{new Date(post.publish_date).toLocaleDateString()}</p>

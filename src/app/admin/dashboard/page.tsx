@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { AdminNav } from "@/components/AdminNav";
+import { SiteNav } from "@/components/SiteNav";
 import { getUserStats } from "@/lib/reporting/users";
 import { getAttendanceTrend } from "@/lib/reporting/attendance";
 import { getRevenueTrend } from "@/lib/reporting/revenue";
@@ -18,8 +18,9 @@ export default async function AdminDashboardPage() {
   ]);
 
   return (
-    <main>
-      <AdminNav />
+    <>
+      <SiteNav />
+      <main>
       <h1>Reporting dashboard</h1>
 
       <h2>Accounts</h2>
@@ -162,5 +163,6 @@ export default async function AdminDashboardPage() {
         </tbody>
       </table>
     </main>
+    </>
   );
 }

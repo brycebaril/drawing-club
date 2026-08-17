@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { pool } from "@/lib/db/pool";
-import { AdminNav } from "@/components/AdminNav";
+import { SiteNav } from "@/components/SiteNav";
 
 interface SessionRow {
   id: string;
@@ -27,8 +27,9 @@ export default async function AdminSessionsPage() {
   );
 
   return (
-    <main>
-      <AdminNav />
+    <>
+      <SiteNav />
+      <main>
       <h1>Sessions</h1>
       <p>
         <Link href="/admin/sessions/new">+ Create one-off session</Link> ·{" "}
@@ -68,5 +69,6 @@ export default async function AdminSessionsPage() {
         </tbody>
       </table>
     </main>
+    </>
   );
 }

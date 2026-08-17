@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { pool } from "@/lib/db/pool";
-import { AdminNav } from "@/components/AdminNav";
+import { SiteNav } from "@/components/SiteNav";
 import { DAYS_OF_WEEK } from "@/lib/sessions/shared";
 import { cancelSeriesFromListAction, generateMoreSessionsAction } from "./actions";
 
@@ -31,8 +31,9 @@ export default async function RecurringRulesPage() {
   const today = new Date().toISOString().slice(0, 10);
 
   return (
-    <main>
-      <AdminNav />
+    <>
+      <SiteNav />
+      <main>
       <h1>Recurring rules</h1>
       <p>
         <Link href="/admin/sessions/new-recurring">+ Create recurring session</Link>
@@ -89,5 +90,6 @@ export default async function RecurringRulesPage() {
         </tbody>
       </table>
     </main>
+    </>
   );
 }

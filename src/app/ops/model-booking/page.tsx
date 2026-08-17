@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { pool } from "@/lib/db/pool";
 import { requireOpsRole } from "@/lib/auth/requireOpsRole";
-import { OpsNav } from "@/components/OpsNav";
+import { SiteNav } from "@/components/SiteNav";
 import { unassignModelAction, setModelRequiredAction } from "./actions";
 import { AssignModelForm } from "./AssignModelForm";
 
@@ -56,8 +56,9 @@ export default async function ModelBookingPage({
     : sessionsResult.rows.filter((s) => s.model_required && s.assigned_models.length === 0);
 
   return (
-    <main>
-      <OpsNav roles={ctx.roles} />
+    <>
+      <SiteNav />
+      <main>
       <h1>Model booking</h1>
       <form>
         <label htmlFor="filter">Show</label>
@@ -127,5 +128,6 @@ export default async function ModelBookingPage({
         </tbody>
       </table>
     </main>
+    </>
   );
 }

@@ -2,7 +2,7 @@ import { signOut } from "@/auth";
 
 /**
  * Previously inlined only on /dashboard — the only place in the app a user
- * could sign out. Shared here so AppNav/AdminNav/OpsNav can all offer it.
+ * could sign out. Shared here so SiteNav can offer it on every authenticated page.
  */
 export function LogoutForm() {
   return (
