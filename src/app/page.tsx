@@ -1,8 +1,47 @@
-export default function Home() {
+import Link from "next/link";
+import { pool } from "@/lib/db/pool";
+import { Markdown } from "@/components/Markdown";
+
+interface UpcomingSessionRow {
+  id: string;
+  session_type: string;
+  start_time: Date;
+  description: string | null;
+}
+
+export default async function Home() {
+  const pageResult = await pool.query<{ content: string }>(
+    `SELECT content FROM static_pages WHERE slug = 'home'`,
+  );
+  const upcomingResult = await pool.query<UpcomingSessionRow>(
+    `SELECT id, session_type, start_time, description FROM sessions
+     WHERE status = 'Scheduled' AND start_time >= now()
+     ORDER BY start_time LIMIT 3`,
+  );
+
   return (
     <main>
       <h1>Life Drawing Society</h1>
-      <p>Scaffold placeholder — real routes land in the next phase.</p>
+      <p>
+        Join us for figure drawing sessions, workshops, and exhibitions.{" "}
+        <Link href="/app/schedule">View the schedule</Link> or <Link href="/auth/register">sign up</Link>.
+      </p>
+
+      {pageResult.rowCount! > 0 && <Markdown content={pageResult.rows[0].content} />}
+
+      <h2>Upcoming sessions</h2>
+      {upcomingResult.rowCount === 0 ? (
+        <p>No upcoming sessions scheduled right now.</p>
+      ) : (
+        <ul>
+          {upcomingResult.rows.map((session) => (
+            <li key={session.id}>
+              {new Date(session.start_time).toLocaleString()} — {session.session_type}
+              {session.description ? `: ${session.description}` : ""}
+            </li>
+          ))}
+        </ul>
+      )}
     </main>
   );
 }

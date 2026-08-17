@@ -20,6 +20,11 @@ export function OpsNav({ roles }: { roles: Role[] }) {
             <Link href="/ops/model-booking">Model Booking</Link>
           </li>
         )}
+        {(isAdmin || roles.includes("VOL_MKT")) && (
+          <li>
+            <Link href="/ops/cms">CMS</Link>
+          </li>
+        )}
         {(isAdmin || roles.includes("VOL_CTRL")) && (
           <li>
             <Link href="/ops/financials">Financials</Link>
