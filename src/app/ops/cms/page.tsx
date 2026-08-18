@@ -34,9 +34,13 @@ export default async function CmsDashboardPage() {
       <SiteNav />
       <main>
       <h1>CMS</h1>
+      <p>
+        <Link href="/ops/cms/uploads">Upload a file</Link>
+      </p>
 
       <h2>Static pages</h2>
-      <table>
+      <div className="table-scroll">
+        <table>
         <thead>
           <tr>
             <th>Page</th>
@@ -57,8 +61,8 @@ export default async function CmsDashboardPage() {
             </tr>
           ))}
         </tbody>
-      </table>
-
+        </table>
+      </div>
       <h2>News posts</h2>
       <p>
         <Link href="/ops/cms/news/new">New post</Link>
@@ -66,7 +70,8 @@ export default async function CmsDashboardPage() {
       {postsResult.rowCount === 0 ? (
         <p>No posts yet.</p>
       ) : (
-        <table>
+        <div className="table-scroll">
+          <table>
           <thead>
             <tr>
               <th>Title</th>
@@ -87,7 +92,8 @@ export default async function CmsDashboardPage() {
               </tr>
             ))}
           </tbody>
-        </table>
+          </table>
+        </div>
       )}
     </main>
     </>

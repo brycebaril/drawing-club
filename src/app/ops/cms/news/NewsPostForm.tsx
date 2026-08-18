@@ -1,7 +1,8 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useState, useTransition } from "react";
 import { createNewsPostAction, updateNewsPostAction, type NewsPostFormState } from "./actions";
+import { uploadFileAction, type UploadFileState } from "../uploads/actions";
 import { Markdown } from "@/components/Markdown";
 import { slugify } from "@/lib/cms/slugify";
 
@@ -36,6 +37,21 @@ export function NewsPostForm({ mode, postId, initial = EMPTY }: NewsPostFormProp
   const [slug, setSlug] = useState(initial.slug);
   const [slugTouched, setSlugTouched] = useState(mode === "edit");
   const [content, setContent] = useState(initial.content);
+  const [imageUrl, setImageUrl] = useState(initial.imageUrl);
+  const [uploadState, setUploadState] = useState<UploadFileState>({});
+  const [uploading, startUpload] = useTransition();
+
+  function handleImageFileChange(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    const uploadFormData = new FormData();
+    uploadFormData.set("file", file);
+    startUpload(async () => {
+      const result = await uploadFileAction({}, uploadFormData);
+      setUploadState(result);
+      if (result.url) setImageUrl(result.url);
+    });
+  }
 
   return (
     <form action={formAction}>
@@ -70,7 +86,23 @@ export function NewsPostForm({ mode, postId, initial = EMPTY }: NewsPostFormProp
       <input id="excerpt" name="excerpt" defaultValue={initial.excerpt} />
 
       <label htmlFor="imageUrl">Image URL (optional)</label>
-      <input id="imageUrl" name="imageUrl" type="url" defaultValue={initial.imageUrl} />
+      <input
+        id="imageUrl"
+        name="imageUrl"
+        type="url"
+        value={imageUrl}
+        onChange={(e) => setImageUrl(e.target.value)}
+      />
+      <label htmlFor="imageFile">Or upload an image</label>
+      <input
+        id="imageFile"
+        type="file"
+        accept="image/jpeg,image/png,image/webp,image/gif"
+        onChange={handleImageFileChange}
+        disabled={uploading}
+      />
+      {uploading && <p role="status">Uploading…</p>}
+      {uploadState.error && <p role="alert">{uploadState.error}</p>}
 
       <label htmlFor="publishDate">Publish date</label>
       <input id="publishDate" name="publishDate" type="date" defaultValue={initial.publishDate} required />

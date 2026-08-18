@@ -45,3 +45,11 @@ next-env.d.ts
 /playwright-report/
 /test-results/
 /blob-report/
+
+# local-disk upload fallback (src/lib/uploads/storage.ts) — dev/CI only,
+# production always uploads to S3 instead
+/public/uploads/
+
+# legacy Robostrar DB backups for the eventual MigrationPlan.md cutover —
+# large, likely contains real member data, never belongs in git history
+/legacy_data/
