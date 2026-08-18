@@ -1,9 +1,10 @@
 import { expect, test } from "@playwright/test";
 import { createTestUser, loginAsUser } from "./helpers";
+import { ORG_DBA_NAME } from "@/lib/org";
 
 test("home page renders", async ({ page }) => {
   await page.goto("/");
-  await expect(page.getByRole("heading", { name: "Life Drawing Society" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: ORG_DBA_NAME })).toBeVisible();
 });
 
 test("the nav reflects an existing session and keeps public pages reachable while logged in", async ({

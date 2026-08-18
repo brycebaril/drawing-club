@@ -1,7 +1,8 @@
 import { Secret, TOTP } from "otpauth";
 import QRCode from "qrcode";
+import { ORG_DBA_NAME } from "@/lib/org";
 
-const ISSUER = "Life Drawing Society";
+const ISSUER = ORG_DBA_NAME;
 
 function buildTotp(username: string | undefined, secretBase32: string): TOTP {
   return new TOTP({

@@ -103,6 +103,15 @@ h1 {
   margin-bottom: var(--space-4);
 }
 
+/* The home page's legal-name subtitle under the org's DBA name (see
+   src/app/page.tsx) — deliberately quieter than a normal <p>, since it's
+   a subtitle, not body copy. */
+h1 + p.tagline {
+  margin-top: calc(-1 * var(--space-3));
+  color: var(--color-text-muted);
+  font-size: 0.9375rem;
+}
+
 h2 {
   font-size: 1.375rem;
   font-weight: 600;

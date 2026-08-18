@@ -1,5 +1,6 @@
 import { randomBytes, createHash } from "node:crypto";
 import { pool } from "@/lib/db/pool";
+import { ORG_DBA_NAME } from "@/lib/org";
 import { sendEmail } from "./sender";
 
 const TOKEN_TTL_HOURS = 24;
@@ -41,7 +42,7 @@ export async function sendVerificationEmail(user: {
 
   await sendEmail({
     to: user.email,
-    subject: "Verify your Life Drawing Society account",
+    subject: `Verify your ${ORG_DBA_NAME} account`,
     body: `Hi ${user.username},\n\nVerify your email to book sessions and buy passes:\n${verifyUrl}\n\nThis link expires in ${TOKEN_TTL_HOURS} hours.`,
   });
 }

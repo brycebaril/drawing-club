@@ -2,6 +2,7 @@ import Link from "next/link";
 import { pool } from "@/lib/db/pool";
 import { Markdown } from "@/components/Markdown";
 import { SiteNav } from "@/components/SiteNav";
+import { ORG_DBA_NAME, ORG_LEGAL_NAME } from "@/lib/org";
 
 interface UpcomingSessionRow {
   id: string;
@@ -24,7 +25,8 @@ export default async function Home() {
     <>
       <SiteNav />
       <main>
-        <h1>Life Drawing Society</h1>
+        <h1>{ORG_DBA_NAME}</h1>
+        {ORG_LEGAL_NAME !== ORG_DBA_NAME && <p className="tagline">{ORG_LEGAL_NAME}</p>}
         <p>
           Join us for figure drawing sessions, workshops, and exhibitions.{" "}
           <Link href="/app/schedule">View the schedule</Link> or <Link href="/auth/register">sign up</Link>.

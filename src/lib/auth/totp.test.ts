@@ -1,6 +1,7 @@
 import { Secret, TOTP } from "otpauth";
 import { describe, expect, it } from "vitest";
 import { buildOtpauthUrl, generateSecret, verifyTotpCode } from "./totp";
+import { ORG_DBA_NAME } from "@/lib/org";
 
 function currentCodeFor(secretBase32: string): string {
   return new TOTP({
@@ -38,6 +39,6 @@ describe("totp", () => {
     const url = buildOtpauthUrl("someuser", secret);
     expect(url).toContain("otpauth://totp/");
     expect(url).toContain("someuser");
-    expect(url).toContain(encodeURIComponent("Life Drawing Society"));
+    expect(url).toContain(encodeURIComponent(ORG_DBA_NAME));
   });
 });
