@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { auth } from "@/auth";
 import { getUserAuthContext, type Role } from "@/lib/auth/roles";
+import { pool } from "@/lib/db/pool";
+import { RESERVED_STATIC_PAGE_SLUGS } from "@/lib/cms/slugify";
 import { LogoutForm } from "./LogoutForm";
 import { NotificationBanner } from "./NotificationBanner";
 
@@ -52,6 +54,14 @@ export async function SiteNav() {
   const session = await auth();
   const ctx = session?.user?.id ? await getUserAuthContext(session.user.id) : null;
 
+  // Admin-created pages (src/app/pages/[slug]/page.tsx) have no other way
+  // to be reachable except by typing the URL directly, so they're listed
+  // here too. home/about/contact are excluded — already linked above.
+  const extraPagesResult = await pool.query<{ slug: string; title: string }>(
+    `SELECT slug, title FROM static_pages WHERE slug != ALL($1::text[]) ORDER BY title`,
+    [RESERVED_STATIC_PAGE_SLUGS],
+  );
+
   const isAdmin = ctx?.roles.includes("ADMIN") ?? false;
   const opsLinks = ctx ? opsLinksFor(ctx.roles, isAdmin) : [];
   const showStaffMenu = isAdmin || opsLinks.length > 0;
@@ -72,6 +82,11 @@ export async function SiteNav() {
           <li>
             <Link href="/contact">Contact</Link>
           </li>
+          {extraPagesResult.rows.map((page) => (
+            <li key={page.slug}>
+              <Link href={`/pages/${page.slug}`}>{page.title}</Link>
+            </li>
+          ))}
           <li>
             <Link href={ctx ? "/app/schedule" : "/auth/login?redirect=/app/schedule"}>Schedule</Link>
           </li>

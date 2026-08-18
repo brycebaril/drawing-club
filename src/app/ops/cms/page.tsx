@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { pool } from "@/lib/db/pool";
 import { requireOpsRole } from "@/lib/auth/requireOpsRole";
 import { SiteNav } from "@/components/SiteNav";
+import { publicPathForStaticPage } from "@/lib/cms/slugify";
 
 interface StaticPageRow {
   slug: string;
@@ -39,6 +40,9 @@ export default async function CmsDashboardPage() {
       </p>
 
       <h2>Static pages</h2>
+      <p>
+        <Link href="/ops/cms/pages/new">New page</Link>
+      </p>
       <div className="table-scroll">
         <table>
         <thead>
@@ -46,6 +50,7 @@ export default async function CmsDashboardPage() {
             <th>Page</th>
             <th>Title</th>
             <th>Last updated</th>
+            <th></th>
             <th></th>
           </tr>
         </thead>
@@ -57,6 +62,9 @@ export default async function CmsDashboardPage() {
               <td>{new Date(page.updated_at).toLocaleString()}</td>
               <td>
                 <Link href={`/ops/cms/pages/${page.slug}`}>Edit</Link>
+              </td>
+              <td>
+                <Link href={publicPathForStaticPage(page.slug)}>View</Link>
               </td>
             </tr>
           ))}

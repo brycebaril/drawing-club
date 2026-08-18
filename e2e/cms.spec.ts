@@ -31,6 +31,78 @@ test("VOL_MKT edits a static page and the change renders on the public route", a
   await expect(page.getByText(newBody)).toBeVisible();
 });
 
+test("VOL_MKT creates a new static page, it renders at /pages/[slug] and shows up in the nav", async ({
+  page,
+}) => {
+  const editor = await createTestUser({ username: `e2ecmsnewpage${Date.now()}` });
+  await pool.query(`INSERT INTO volunteer_roles (user_id, role) VALUES ($1, 'ContentEditor')`, [
+    editor.id,
+  ]);
+
+  const title = `Code of Conduct ${Date.now()}`;
+  const body = "No photography of the model, of any kind.";
+
+  await loginAsUser(page, editor);
+  await page.goto("/ops/cms/pages/new");
+  await page.getByLabel("Title").fill(title);
+  await page.getByLabel("Content (Markdown)").fill(body);
+  await page.getByRole("button", { name: "Create page" }).click();
+  // Not just /\/ops\/cms\/pages\/[a-z0-9-]+$/ — that also matches the
+  // *starting* URL (/ops/cms/pages/new, since "new" itself matches
+  // [a-z0-9-]+), so it could resolve before any real navigation happens.
+  await page.waitForURL((url) => /\/ops\/cms\/pages\/[a-z0-9-]+$/.test(url.pathname) && !url.pathname.endsWith("/new"));
+  const slug = page.url().split("/").pop()!;
+
+  await page.goto(`/pages/${slug}`);
+  await expect(page.getByRole("heading", { name: title })).toBeVisible();
+  await expect(page.getByText(body)).toBeVisible();
+
+  // Reachable from the nav, not just by typing the URL directly.
+  await page.goto("/");
+  await expect(page.getByRole("link", { name: title })).toBeVisible();
+});
+
+test("creating a static page with a reserved slug or a duplicate slug is rejected", async ({ page }) => {
+  const editor = await createTestUser({ username: `e2ecmsreserved${Date.now()}` });
+  await pool.query(`INSERT INTO volunteer_roles (user_id, role) VALUES ($1, 'ContentEditor')`, [
+    editor.id,
+  ]);
+
+  await loginAsUser(page, editor);
+  await page.goto("/ops/cms/pages/new");
+  await page.getByLabel("Title").fill("Sneaky About Page");
+  await page.getByLabel(/^Slug/).fill("about");
+  await page.getByLabel("Content (Markdown)").fill("Trying to overwrite the real About page.");
+  await page.getByRole("button", { name: "Create page" }).click();
+  await expect(page.getByText("is a reserved page")).toBeVisible();
+
+  const title = `Getting Here ${Date.now()}`;
+  await page.goto("/ops/cms/pages/new");
+  await page.getByLabel("Title").fill(title);
+  await page.getByLabel("Content (Markdown)").fill("Take the SkyTrain.");
+  await page.getByRole("button", { name: "Create page" }).click();
+  await page.waitForURL((url) => /\/ops\/cms\/pages\/[a-z0-9-]+$/.test(url.pathname) && !url.pathname.endsWith("/new"));
+
+  await page.goto("/ops/cms/pages/new");
+  await page.getByLabel("Title").fill(title);
+  await page.getByLabel("Content (Markdown)").fill("A second, conflicting page.");
+  await page.getByRole("button", { name: "Create page" }).click();
+  await expect(page.getByText("already in use")).toBeVisible();
+});
+
+test("a non-VOL_MKT/non-ADMIN volunteer hitting /ops/cms/pages/new is bounced to the dashboard", async ({
+  page,
+}) => {
+  const host = await createTestUser({ username: `e2ecmspagesdenied${Date.now()}` });
+  await pool.query(`INSERT INTO volunteer_roles (user_id, role) VALUES ($1, 'SessionManager')`, [
+    host.id,
+  ]);
+
+  await loginAsUser(page, host);
+  await page.goto("/ops/cms/pages/new");
+  await expect(page).toHaveURL(/\/dashboard$/);
+});
+
 test("a Draft post is hidden from the public site until published", async ({ page }) => {
   const editor = await createTestUser({ username: `e2ecmsnews${Date.now()}` });
   await pool.query(`INSERT INTO volunteer_roles (user_id, role) VALUES ($1, 'ContentEditor')`, [
