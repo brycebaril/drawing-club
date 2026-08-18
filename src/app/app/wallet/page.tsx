@@ -85,7 +85,8 @@ export default async function WalletPage({
           <>
             <h2>Shared with you</h2>
             <p>Passes other members want to share with you — accept to add to your wallet, or decline.</p>
-            <table>
+            <div className="table-scroll">
+              <table>
               <thead>
                 <tr>
                   <th>From</th>
@@ -104,14 +105,16 @@ export default async function WalletPage({
                   </tr>
                 ))}
               </tbody>
-            </table>
+              </table>
+            </div>
           </>
         )}
 
         <h2>Standard passes</h2>
         <p>Available passes: {standardPasses.length}</p>
         {standardPasses.length > 0 && (
-          <table>
+          <div className="table-scroll">
+            <table>
             <thead>
               <tr>
                 <th>Status</th>
@@ -126,13 +129,15 @@ export default async function WalletPage({
                 </tr>
               ))}
             </tbody>
-          </table>
+            </table>
+          </div>
         )}
 
         <h2>Transferable passes</h2>
         <p>Available: {transferablePasses.length}</p>
         {transferablePasses.length > 0 && (
-          <table>
+          <div className="table-scroll">
+            <table>
             <thead>
               <tr>
                 <th>Price paid</th>
@@ -149,14 +154,16 @@ export default async function WalletPage({
                 </tr>
               ))}
             </tbody>
-          </table>
+            </table>
+          </div>
         )}
 
         {outgoingResult.rowCount! > 0 && (
           <>
             <h2>Pending — you&apos;re sharing</h2>
             <p>Passes you&apos;ve offered to someone who hasn&apos;t responded yet.</p>
-            <table>
+            <div className="table-scroll">
+              <table>
               <thead>
                 <tr>
                   <th>To</th>
@@ -175,7 +182,8 @@ export default async function WalletPage({
                   </tr>
                 ))}
               </tbody>
-            </table>
+              </table>
+            </div>
           </>
         )}
 

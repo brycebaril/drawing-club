@@ -63,7 +63,8 @@ export default async function ApiKeysPage({
       {result.rowCount === 0 ? (
         <p>No keys yet.</p>
       ) : (
-        <table>
+        <div className="table-scroll">
+          <table>
           <thead>
             <tr>
               <th>Name</th>
@@ -97,7 +98,8 @@ export default async function ApiKeysPage({
               </tr>
             ))}
           </tbody>
-        </table>
+          </table>
+        </div>
       )}
     </main>
     </>

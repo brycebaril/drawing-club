@@ -85,7 +85,8 @@ export default async function AdminTransactionDetailPage({
             <Link href={`/admin/users/${transaction.user_id}`}>user page</Link> — refunding here
             does not automatically revoke anything (Design Doc §7.1).
           </p>
-          <table>
+          <div className="table-scroll">
+            <table>
             <thead>
               <tr>
                 <th>Status</th>
@@ -100,7 +101,8 @@ export default async function AdminTransactionDetailPage({
                 </tr>
               ))}
             </tbody>
-          </table>
+            </table>
+          </div>
         </>
       )}
 

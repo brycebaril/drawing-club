@@ -25,7 +25,8 @@ export default async function AdminDashboardPage() {
 
       <h2>Accounts</h2>
       <p>{userStats.totalUsers} total users, {userStats.activeMembers} with an active membership.</p>
-      <table>
+      <div className="table-scroll">
+        <table>
         <thead>
           <tr>
             <th>Base role</th>
@@ -40,8 +41,10 @@ export default async function AdminDashboardPage() {
             </tr>
           ))}
         </tbody>
-      </table>
-      <table>
+        </table>
+      </div>
+      <div className="table-scroll">
+        <table>
         <thead>
           <tr>
             <th>Status</th>
@@ -56,13 +59,14 @@ export default async function AdminDashboardPage() {
             </tr>
           ))}
         </tbody>
-      </table>
-
+        </table>
+      </div>
       <h2>Open flags (next 14 days)</h2>
       {openFlags.length === 0 ? (
         <p>Nothing flagged.</p>
       ) : (
-        <table>
+        <div className="table-scroll">
+          <table>
           <thead>
             <tr>
               <th>When</th>
@@ -79,14 +83,16 @@ export default async function AdminDashboardPage() {
               </tr>
             ))}
           </tbody>
-        </table>
+          </table>
+        </div>
       )}
 
       <h2>Attendance — trailing 12 weeks</h2>
       {attendanceTrend.length === 0 ? (
         <p>No completed sessions in this window.</p>
       ) : (
-        <table>
+        <div className="table-scroll">
+          <table>
           <thead>
             <tr>
               <th>Week of</th>
@@ -107,14 +113,16 @@ export default async function AdminDashboardPage() {
               </tr>
             ))}
           </tbody>
-        </table>
+          </table>
+        </div>
       )}
 
       <h2>Revenue — trailing 12 weeks</h2>
       {revenueTrend.length === 0 ? (
         <p>No successful transactions in this window.</p>
       ) : (
-        <table>
+        <div className="table-scroll">
+          <table>
           <thead>
             <tr>
               <th>Week of</th>
@@ -135,14 +143,16 @@ export default async function AdminDashboardPage() {
               </tr>
             ))}
           </tbody>
-        </table>
+          </table>
+        </div>
       )}
 
       <h2>Recent activity</h2>
       <p>
         <Link href="/admin/audit-logs">View full audit log</Link>
       </p>
-      <table>
+      <div className="table-scroll">
+        <table>
         <thead>
           <tr>
             <th>When</th>
@@ -161,7 +171,8 @@ export default async function AdminDashboardPage() {
             </tr>
           ))}
         </tbody>
-      </table>
+        </table>
+      </div>
     </main>
     </>
   );

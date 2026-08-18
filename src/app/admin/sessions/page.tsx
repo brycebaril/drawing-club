@@ -38,7 +38,8 @@ export default async function AdminSessionsPage() {
         <Link href="/admin/sessions/new-series">+ Create multi-week series</Link> ·{" "}
         <Link href="/admin/sessions/series">Multi-week series</Link>
       </p>
-      <table>
+      <div className="table-scroll">
+        <table>
         <thead>
           <tr>
             <th>Type</th>
@@ -67,7 +68,8 @@ export default async function AdminSessionsPage() {
             </tr>
           ))}
         </tbody>
-      </table>
+        </table>
+      </div>
     </main>
     </>
   );

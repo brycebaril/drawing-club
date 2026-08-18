@@ -90,7 +90,8 @@ export default async function AdminPassesPage({
       {passesResult.rowCount === 0 ? (
         <p>No passes match this filter.</p>
       ) : (
-        <table>
+        <div className="table-scroll">
+          <table>
           <thead>
             <tr>
               <th>ID</th>
@@ -120,7 +121,8 @@ export default async function AdminPassesPage({
               </tr>
             ))}
           </tbody>
-        </table>
+          </table>
+        </div>
       )}
     </main>
     </>

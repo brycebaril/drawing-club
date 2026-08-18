@@ -51,7 +51,8 @@ export default async function PayoutBatchDetailPage({
           Download CSV
         </a>
       </p>
-      <table>
+      <div className="table-scroll">
+        <table>
         <thead>
           <tr>
             <th>Buyer</th>
@@ -76,7 +77,8 @@ export default async function PayoutBatchDetailPage({
             </tr>
           ))}
         </tbody>
-      </table>
+        </table>
+      </div>
     </main>
     </>
   );

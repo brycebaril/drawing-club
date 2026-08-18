@@ -107,7 +107,8 @@ export async function SeriesPanel({
             <input type="hidden" name="seriesId" value={series.id} />
             <input type="hidden" name="clickedSessionId" value={clickedSessionId} />
             <input type="hidden" name="seatNumber" value={chosenRow.seatNumber} />
-            <table>
+            <div className="table-scroll">
+              <table>
               <tbody>
                 {chosenRow.cells.map((cell) => (
                   <tr key={cell.sessionId}>
@@ -124,7 +125,8 @@ export async function SeriesPanel({
                   </tr>
                 ))}
               </tbody>
-            </table>
+              </table>
+            </div>
             <button type="submit">Reserve checked dates (1 pass each)</button>
           </form>
 

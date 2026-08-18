@@ -119,7 +119,8 @@ export default async function CheckInPage({
       {rosterResult.rowCount === 0 ? (
         <p>Nobody booked yet.</p>
       ) : (
-        <table>
+        <div className="table-scroll">
+          <table>
           <thead>
             <tr>
               {isSeries && <th>Seat</th>}
@@ -145,7 +146,8 @@ export default async function CheckInPage({
               </tr>
             ))}
           </tbody>
-        </table>
+          </table>
+        </div>
       )}
 
       <h2>Studio guidelines</h2>

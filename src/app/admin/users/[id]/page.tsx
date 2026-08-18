@@ -109,7 +109,8 @@ export default async function AdminUserDetailPage({
         {historyResult.rows.length === 0 ? (
           <p>No membership history.</p>
         ) : (
-          <table>
+          <div className="table-scroll">
+            <table>
             <thead>
               <tr>
                 <th>From</th>
@@ -126,7 +127,8 @@ export default async function AdminUserDetailPage({
                 </tr>
               ))}
             </tbody>
-          </table>
+            </table>
+          </div>
         )}
       </section>
 

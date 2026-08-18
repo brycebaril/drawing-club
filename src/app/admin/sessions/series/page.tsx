@@ -39,7 +39,8 @@ export default async function SeriesListPage() {
       <p>
         <Link href="/admin/sessions/new-series">+ Create multi-week series</Link>
       </p>
-      <table>
+      <div className="table-scroll">
+        <table>
         <thead>
           <tr>
             <th>Name</th>
@@ -90,7 +91,8 @@ export default async function SeriesListPage() {
             );
           })}
         </tbody>
-      </table>
+        </table>
+      </div>
     </main>
     </>
   );

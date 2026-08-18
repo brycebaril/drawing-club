@@ -69,7 +69,9 @@ export default async function ModelBookingPage({
         <button type="submit">Apply</button>
       </form>
 
-      <table>
+      <div className="table-scroll">
+
+        <table>
         <thead>
           <tr>
             <th>When</th>
@@ -126,7 +128,8 @@ export default async function ModelBookingPage({
             </tr>
           ))}
         </tbody>
-      </table>
+        </table>
+      </div>
     </main>
     </>
   );

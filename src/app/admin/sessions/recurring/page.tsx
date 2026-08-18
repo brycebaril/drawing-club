@@ -38,7 +38,8 @@ export default async function RecurringRulesPage() {
       <p>
         <Link href="/admin/sessions/new-recurring">+ Create recurring session</Link>
       </p>
-      <table>
+      <div className="table-scroll">
+        <table>
         <thead>
           <tr>
             <th>Type</th>
@@ -88,7 +89,8 @@ export default async function RecurringRulesPage() {
             );
           })}
         </tbody>
-      </table>
+        </table>
+      </div>
     </main>
     </>
   );

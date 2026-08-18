@@ -47,7 +47,8 @@ export default async function AdminTransactionsPage({
         </select>
         <button type="submit">Filter</button>
       </form>
-      <table>
+      <div className="table-scroll">
+        <table>
         <thead>
           <tr>
             <th>When</th>
@@ -76,7 +77,8 @@ export default async function AdminTransactionsPage({
             </tr>
           ))}
         </tbody>
-      </table>
+        </table>
+      </div>
     </main>
     </>
   );

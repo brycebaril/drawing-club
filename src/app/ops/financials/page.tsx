@@ -98,7 +98,8 @@ export default async function FinancialsPage({
       {weeksResult.rowCount === 0 ? (
         <p>No reports generated yet.</p>
       ) : (
-        <table>
+        <div className="table-scroll">
+          <table>
           <thead>
             <tr>
               <th>Week</th>
@@ -124,7 +125,8 @@ export default async function FinancialsPage({
               );
             })}
           </tbody>
-        </table>
+          </table>
+        </div>
       )}
 
       <h2>Payout batch reconciliation</h2>
@@ -132,7 +134,8 @@ export default async function FinancialsPage({
       {payoutBatchesResult.rowCount === 0 ? (
         <p>No payout batches recorded yet.</p>
       ) : (
-        <table>
+        <div className="table-scroll">
+          <table>
           <thead>
             <tr>
               <th>Payout batch</th>
@@ -169,7 +172,8 @@ export default async function FinancialsPage({
               </tr>
             ))}
           </tbody>
-        </table>
+          </table>
+        </div>
       )}
 
       <h2>Sales &amp; renewals</h2>
@@ -188,7 +192,8 @@ export default async function FinancialsPage({
       {transactionTotalsResult.rowCount === 0 ? (
         <p>No transactions in this range.</p>
       ) : (
-        <table>
+        <div className="table-scroll">
+          <table>
           <thead>
             <tr>
               <th>Item type</th>
@@ -207,7 +212,8 @@ export default async function FinancialsPage({
               </tr>
             ))}
           </tbody>
-        </table>
+          </table>
+        </div>
       )}
     </main>
     </>

@@ -173,11 +173,49 @@ nav a:hover {
 
 /* ---- Tables ---- */
 
+/* Every <table> is wrapped in a .table-scroll div (see e.g.
+   src/app/admin/audit-logs/page.tsx) so wide content scrolls within its
+   own bounds instead of breaking out of main's 960px card.
+   Two earlier passes at this both undersold the actual problem, worth
+   recording so the same mistakes aren't repeated: (1) overflow-x: auto on
+   the table itself (display: block, no wrapper) contained the overflow,
+   but the scrollbar was the *only* cue it existed, and on a long table
+   (200 rows on /admin/audit-logs) it sits below every row — often well
+   below the viewport, easy to never discover; (2) adding a
+   background-attachment: local/scroll "shadow" gradient cue on the
+   wrapper (a well-known pure-CSS technique) is real and correctly wired,
+   but reads as a thin, easy-to-miss sliver on a container this tall — it
+   was designed for short horizontal strips, not a scrolling data table.
+   The actual fix for a *long* table is to cap its own height and let it
+   scroll vertically too, with a sticky header — that keeps the horizontal
+   scrollbar inside the visible panel at all times instead of hundreds of
+   rows below it. On a short table (most pages here — a handful of rows)
+   this never engages at all, since natural content height stays under
+   the cap; it only changes anything for genuinely long lists. */
+.table-scroll {
+  overflow: auto;
+  max-height: 60vh;
+  margin-bottom: var(--space-5);
+  background-image: linear-gradient(to right, var(--color-surface) 30%, transparent),
+    linear-gradient(to left, var(--color-surface) 30%, transparent),
+    radial-gradient(farthest-side at 0 50%, rgba(0, 0, 0, 0.2), rgba(0, 0, 0, 0)),
+    radial-gradient(farthest-side at 100% 50%, rgba(0, 0, 0, 0.2), rgba(0, 0, 0, 0));
+  background-repeat: no-repeat;
+  background-size: 40px 100%, 40px 100%, 14px 100%, 14px 100%;
+  background-position: 0 0, 100% 0, 0 0, 100% 0;
+  background-attachment: local, local, scroll, scroll;
+}
+
 table {
   width: 100%;
   border-collapse: collapse;
-  margin-bottom: var(--space-5);
   font-size: 0.9375rem;
+}
+
+.table-scroll th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
 }
 
 th,
@@ -186,6 +224,22 @@ td {
   padding: var(--space-2) var(--space-3);
   border-bottom: 1px solid var(--color-border);
   vertical-align: top;
+}
+
+/* A JSON blob (e.g. admin/audit-logs's metadata column) has no spaces to
+   wrap on, so it's given overflow-wrap: anywhere so it can wrap instead of
+   forcing its column out to the string's full length — but overflow-wrap
+   alone lets the browser's table layout shrink that column arbitrarily far
+   (down to a single character wide, one JSON blob spanning 10+ short
+   lines, seen for real on /admin/audit-logs). min-width keeps the column
+   at a usable width regardless; the table only needs to scroll once a
+   row's *other* columns also push the total past what's available. */
+td:has(code) {
+  min-width: 16rem;
+}
+
+td code {
+  overflow-wrap: anywhere;
 }
 
 th {

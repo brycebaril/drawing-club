@@ -39,7 +39,8 @@ export default async function AdminAuditLogsPage({
         <input id="actionType" name="actionType" defaultValue={actionType ?? ""} placeholder="e.g. ACCOUNT_STATUS_CHANGED" />
         <button type="submit">Filter</button>
       </form>
-      <table>
+      <div className="table-scroll">
+        <table>
         <thead>
           <tr>
             <th>When</th>
@@ -62,7 +63,8 @@ export default async function AdminAuditLogsPage({
             </tr>
           ))}
         </tbody>
-      </table>
+        </table>
+      </div>
     </main>
     </>
   );

@@ -78,7 +78,9 @@ export default async function AdminUsersPage({
         <a href={csvHref}>Download CSV</a>
       </p>
 
-      <table>
+      <div className="table-scroll">
+
+        <table>
         <thead>
           <tr>
             <th>Username</th>
@@ -105,7 +107,8 @@ export default async function AdminUsersPage({
             );
           })}
         </tbody>
-      </table>
+        </table>
+      </div>
     </main>
     </>
   );
