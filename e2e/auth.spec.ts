@@ -5,6 +5,7 @@ import { createTestUser, loginAsUser, pool } from "./helpers";
 test("registering creates an account and signs the user in", async ({ page }) => {
   const username = `e2euser${Date.now()}`;
   await page.goto("/auth/register");
+  await page.getByLabel("Name", { exact: true }).fill("E2E User");
   await page.getByLabel("Username").fill(username);
   await page.getByLabel("Email").fill(`${username}@example.test`);
   await page.getByLabel("Password").fill("a-decent-password");

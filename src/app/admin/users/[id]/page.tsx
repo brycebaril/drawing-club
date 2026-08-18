@@ -33,6 +33,10 @@ const VOLUNTEER_ROLE_LABELS: Record<string, string> = {
   ContentEditor: "Content Editor (VOL_MKT)",
   ModelBooker: "Model Booker (VOL_MBR)",
   Controller: "Controller (VOL_CTRL)",
+  // No corresponding VOL_* RBAC level — a Board Member's access already
+  // comes from base_role='Admin'; this is a descriptive volunteer-type tag,
+  // not a route-gating one.
+  Board: "Board Member",
 };
 
 export default async function AdminUserDetailPage({

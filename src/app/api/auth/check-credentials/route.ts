@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { pool } from "@/lib/db/pool";
-import { verifyPassword } from "@/lib/auth/password";
+import { verifyPassword, isLegacyBcryptHash, verifyLegacyBcryptPassword } from "@/lib/auth/password";
 import { getUserAuthContext } from "@/lib/auth/roles";
 import { isLoginRateLimited, recordLoginAttempt } from "@/lib/auth/rateLimit";
 import { getClientIp } from "@/lib/auth/clientIp";
@@ -36,7 +36,17 @@ export async function POST(request: Request) {
     return NextResponse.json({ valid: false });
   }
 
-  const passwordOk = await verifyPassword(userRow.rows[0].password_hash, password);
+  // Migrated legacy accounts (docs/MigrationPlan.md §7) carry a bcrypt hash
+  // until authorize()'s real signIn() call re-hashes them to argon2id —
+  // this pre-check has to accept that hash too, or an MFA-required migrated
+  // account (e.g. a Board Member, who gets base_role='Admin') could never
+  // get past this step to reach the TOTP field at all. No rehash happens
+  // here — this route never creates a session; the real authorize() call
+  // that follows handles the rehash.
+  const { password_hash: passwordHash } = userRow.rows[0];
+  const passwordOk = isLegacyBcryptHash(passwordHash)
+    ? await verifyLegacyBcryptPassword(passwordHash, password)
+    : await verifyPassword(passwordHash, password);
   if (!passwordOk) {
     await recordLoginAttempt(username, ip, false);
     return NextResponse.json({ valid: false });

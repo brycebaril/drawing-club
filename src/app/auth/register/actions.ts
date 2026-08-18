@@ -21,10 +21,14 @@ export async function registerAction(
   _prevState: RegisterState,
   formData: FormData,
 ): Promise<RegisterState> {
+  const displayName = String(formData.get("displayName") ?? "").trim();
   const username = String(formData.get("username") ?? "").trim();
   const email = String(formData.get("email") ?? "").trim();
   const password = String(formData.get("password") ?? "");
 
+  if (!displayName) {
+    return { error: "Enter your name." };
+  }
   if (!USERNAME_RE.test(username)) {
     return { error: "Username must be 3-32 characters: letters, numbers, underscores only." };
   }
@@ -48,10 +52,10 @@ export async function registerAction(
   let user: { id: string; username: string; email: string };
   try {
     const result = await pool.query<{ id: string; username: string; email: string }>(
-      `INSERT INTO users (username, password_hash, email, base_role, status)
-       VALUES ($1, $2, $3, 'AccountHolder', 'Active')
+      `INSERT INTO users (username, password_hash, email, display_name, base_role, status)
+       VALUES ($1, $2, $3, $4, 'AccountHolder', 'Active')
        RETURNING id, username, email`,
-      [username, passwordHash, email],
+      [username, passwordHash, email, displayName],
     );
     user = result.rows[0];
   } catch (error) {

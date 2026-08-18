@@ -1,7 +1,12 @@
 import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import { pool } from "@/lib/db/pool";
-import { verifyPassword } from "@/lib/auth/password";
+import {
+  verifyPassword,
+  isLegacyBcryptHash,
+  verifyLegacyBcryptPassword,
+  hashPassword,
+} from "@/lib/auth/password";
 import { getUserAuthContext } from "@/lib/auth/roles";
 import { verifyTotpCode } from "@/lib/auth/totp";
 import { isLoginRateLimited, recordLoginAttempt } from "@/lib/auth/rateLimit";
@@ -45,10 +50,20 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         }
         const { id, password_hash: passwordHash } = userRow.rows[0];
 
-        const passwordOk = await verifyPassword(passwordHash, password);
+        // Migrated legacy accounts (docs/MigrationPlan.md §7) carry a
+        // bcrypt hash until their first successful post-cutover login —
+        // verify against that instead of argon2id, then transparently
+        // re-hash so every subsequent login uses the normal argon2id path.
+        const passwordOk = isLegacyBcryptHash(passwordHash)
+          ? await verifyLegacyBcryptPassword(passwordHash, password)
+          : await verifyPassword(passwordHash, password);
         if (!passwordOk) {
           await recordLoginAttempt(username, ip, false);
           return null;
+        }
+        if (isLegacyBcryptHash(passwordHash)) {
+          const rehashed = await hashPassword(password);
+          await pool.query(`UPDATE users SET password_hash = $1 WHERE id = $2`, [rehashed, id]);
         }
 
         const ctx = await getUserAuthContext(id);

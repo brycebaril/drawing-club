@@ -22,6 +22,7 @@
     "@aws-sdk/client-s3": "^3.1112.0",
     "@aws-sdk/client-sesv2": "^3.1111.0",
     "@node-rs/argon2": "^2.1.0",
+    "@node-rs/bcrypt": "^1.10.8",
     "next": "16.3.1",
     "next-auth": "5.0.0-beta.32",
     "otpauth": "^9.5.1",

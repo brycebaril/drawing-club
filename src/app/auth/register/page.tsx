@@ -13,6 +13,10 @@ export default function RegisterPage() {
       <h1>Create an account</h1>
       <form action={formAction}>
         <div>
+          <label htmlFor="displayName">Name</label>
+          <input id="displayName" name="displayName" required maxLength={255} autoComplete="name" />
+        </div>
+        <div>
           <label htmlFor="username">Username</label>
           <input id="username" name="username" required minLength={3} maxLength={32} autoComplete="username" />
         </div>

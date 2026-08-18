@@ -12,7 +12,7 @@ export interface ActionState {
 }
 
 const STATUSES = ["Active", "Suspended", "Banned"] as const;
-const VOLUNTEER_ROLES = ["SessionManager", "ContentEditor", "ModelBooker", "Controller"] as const;
+const VOLUNTEER_ROLES = ["SessionManager", "ContentEditor", "ModelBooker", "Controller", "Board"] as const;
 
 /**
  * Every mutation here is reachable via a prefetched <Link> in SiteNav's

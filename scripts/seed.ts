@@ -16,19 +16,21 @@ const DEV_PASSWORD = "dev-password-change-me";
 async function upsertUser(params: {
   username: string;
   email: string;
+  displayName?: string;
   baseRole?: "AccountHolder" | "Admin";
   membershipExpiresAt?: Date;
 }) {
   const passwordHash = await hashPassword(DEV_PASSWORD);
   const result = await pool.query(
-    `INSERT INTO users (username, password_hash, email, email_verified_at, base_role, membership_expires_at, status)
-     VALUES ($1, $2, $3, now(), $4, $5, 'Active')
+    `INSERT INTO users (username, password_hash, email, display_name, email_verified_at, base_role, membership_expires_at, status)
+     VALUES ($1, $2, $3, $4, now(), $5, $6, 'Active')
      ON CONFLICT (username) DO UPDATE SET password_hash = EXCLUDED.password_hash
      RETURNING id, username, base_role`,
     [
       params.username,
       passwordHash,
       params.email,
+      params.displayName ?? params.username,
       params.baseRole ?? "AccountHolder",
       params.membershipExpiresAt ?? null,
     ],
