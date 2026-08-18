@@ -3,6 +3,7 @@
 import { requireOpsRole } from "@/lib/auth/requireOpsRole";
 import { writeAuditLog } from "@/lib/audit/log";
 import { uploadFile } from "@/lib/uploads/storage";
+import { MAX_UPLOAD_SIZE_BYTES } from "@/lib/uploads/constants";
 
 export interface UploadFileState {
   error?: string;
@@ -10,7 +11,6 @@ export interface UploadFileState {
 }
 
 const ALLOWED_CONTENT_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif", "application/pdf"];
-const MAX_SIZE_BYTES = 10 * 1024 * 1024;
 
 /**
  * Single upload entry point, called both from the standalone /ops/cms/uploads
@@ -34,12 +34,12 @@ export async function uploadFileAction(
   if (!ALLOWED_CONTENT_TYPES.includes(file.type)) {
     return { error: "That file type isn't allowed. Use a JPEG, PNG, WebP, GIF, or PDF." };
   }
-  if (file.size > MAX_SIZE_BYTES) {
+  if (file.size > MAX_UPLOAD_SIZE_BYTES) {
     return { error: "That file is too large — the limit is 10 MB." };
   }
 
   const buffer = Buffer.from(await file.arrayBuffer());
-  const { url, key } = await uploadFile(buffer, { originalFilename: file.name, contentType: file.type });
+  const { url, key } = await uploadFile(buffer, { contentType: file.type });
 
   await writeAuditLog({
     actorId: ctx.id,

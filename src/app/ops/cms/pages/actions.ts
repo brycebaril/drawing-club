@@ -39,7 +39,7 @@ export async function createStaticPageAction(
     return { error: "Couldn't derive a slug from that title — add one manually." };
   }
   if (RESERVED_STATIC_PAGE_SLUGS.includes(slug)) {
-    return { error: `"${slug}" is a reserved page and already exists — choose a different slug.` };
+    return { error: `"${slug}" is a reserved slug — choose a different one.` };
   }
 
   try {
@@ -61,6 +61,13 @@ export async function createStaticPageAction(
   });
 
   revalidatePath("/ops/cms");
+  // SiteNav lists every non-reserved static page and renders on nearly
+  // every route in the app — a plain revalidatePath("/ops/cms") wouldn't
+  // bust an already-visited page's cached RSC payload, leaving its nav
+  // stale (missing the new page) until a hard reload. "layout" busts
+  // every route sharing the root layout, i.e. the whole app — cheap here
+  // since page creation is a rare admin action, not a hot path.
+  revalidatePath("/", "layout");
   redirect(`/ops/cms/pages/${slug}`);
 }
 
@@ -95,5 +102,8 @@ export async function updateStaticPageAction(
   revalidatePath(`/ops/cms/pages/${slug}`);
   revalidatePath("/ops/cms");
   revalidatePath(publicPathForStaticPage(slug));
+  // A title change also needs to reach SiteNav's listing of this page on
+  // every other route — same reasoning as createStaticPageAction's.
+  revalidatePath("/", "layout");
   redirect(`/ops/cms/pages/${slug}`);
 }

@@ -1,11 +1,16 @@
 /**
- * The 3 static_pages rows with their own dedicated public route and extra
- * page-specific behavior beyond a generic Markdown render (home: the
- * upcoming-sessions list; contact: the contact form). Admin-created pages
- * can't use these slugs, and never render at /pages/[slug] — they already
- * have their real URL.
+ * Slugs an admin-created page can never use. `home`/`about`/`contact` each
+ * have their own dedicated public route and extra page-specific behavior
+ * beyond a generic Markdown render (home: the upcoming-sessions list;
+ * contact: the contact form) — they never render at /pages/[slug].
+ * `new` is reserved for a different reason: it would collide with the
+ * literal sibling route /ops/cms/pages/new (Next.js always prefers a
+ * literal route segment over a dynamic [slug] one for an exact match), so
+ * a page with that slug could never be reached through its own Edit link
+ * again — it would silently land back on the "create a new page" form
+ * instead. Found by code review, not by a report of it happening.
  */
-export const RESERVED_STATIC_PAGE_SLUGS = ["home", "about", "contact"];
+export const RESERVED_STATIC_PAGE_SLUGS = ["home", "about", "contact", "new"];
 
 /** Where a static_pages row actually renders publicly — see the reserved-slugs note above. */
 export function publicPathForStaticPage(slug: string): string {

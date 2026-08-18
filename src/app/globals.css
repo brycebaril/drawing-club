@@ -219,6 +219,14 @@ table {
   width: 100%;
   border-collapse: collapse;
   font-size: 0.9375rem;
+  margin-bottom: var(--space-5);
+}
+
+/* .table-scroll already sets its own margin-bottom on the wrapper; without
+   this, a wrapped table would get a doubled gap (its own margin, plus the
+   wrapper's). */
+.table-scroll table {
+  margin-bottom: 0;
 }
 
 .table-scroll th {

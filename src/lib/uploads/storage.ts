@@ -1,8 +1,25 @@
 import { randomBytes } from "node:crypto";
-import { extname } from "node:path";
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
+
+/**
+ * Extension is derived from the validated content-type, never from the
+ * client-supplied original filename — a filename claiming ".png" with a
+ * forged Content-Type (or an .html file renamed to look like an image)
+ * would otherwise let the local-disk fallback serve it as whatever its
+ * extension implies, since Next's static file server infers Content-Type
+ * from the stored key's extension, not any validated metadata. Keys here
+ * intentionally match uploadFileAction's ALLOWED_CONTENT_TYPES allowlist —
+ * update both together.
+ */
+const EXTENSION_FOR_CONTENT_TYPE: Record<string, string> = {
+  "image/jpeg": ".jpg",
+  "image/png": ".png",
+  "image/webp": ".webp",
+  "image/gif": ".gif",
+  "application/pdf": ".pdf",
+};
 
 /**
  * Mirrors src/lib/email/sender.ts's shape: real S3 whenever AWS_REGION/
@@ -29,23 +46,20 @@ export interface UploadedFile {
   key: string;
 }
 
-function generateKey(originalFilename: string): string {
-  const ext = extname(originalFilename).toLowerCase().replace(/[^a-z0-9.]/g, "");
+function generateKey(contentType: string): string {
+  const ext = EXTENSION_FOR_CONTENT_TYPE[contentType] ?? "";
   return `${randomBytes(16).toString("hex")}${ext}`;
 }
 
 /**
- * Never trusts the caller's filename as the storage key or path — only
- * its extension, sanitized. Caller (uploadFileAction) is responsible for
- * validating contentType/size before calling this.
+ * Never trusts the caller's filename as the storage key or path — the key
+ * is a random id plus an extension derived from the (already-validated)
+ * content type, not anything client-supplied.
  */
-export async function uploadFile(
-  buffer: Buffer,
-  opts: { originalFilename: string; contentType: string },
-): Promise<UploadedFile> {
-  const key = generateKey(opts.originalFilename);
+export async function uploadFile(buffer: Buffer, opts: { contentType: string }): Promise<UploadedFile> {
+  const key = generateKey(opts.contentType);
 
-  if (s3Client && process.env.S3_BUCKET_NAME) {
+  if (s3Client) {
     await s3Client.send(
       new PutObjectCommand({
         Bucket: process.env.S3_BUCKET_NAME,

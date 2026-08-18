@@ -74,7 +74,19 @@ test("creating a static page with a reserved slug or a duplicate slug is rejecte
   await page.getByLabel(/^Slug/).fill("about");
   await page.getByLabel("Content (Markdown)").fill("Trying to overwrite the real About page.");
   await page.getByRole("button", { name: "Create page" }).click();
-  await expect(page.getByText("is a reserved page")).toBeVisible();
+  await expect(page.getByText("is a reserved slug")).toBeVisible();
+
+  // Regression test (found by code review, not by a report): "new" collides
+  // with the literal sibling route /ops/cms/pages/new — Next.js always
+  // prefers a literal segment over a dynamic [slug] one for an exact match,
+  // so a page with this slug could never be reached through its own Edit
+  // link again.
+  await page.goto("/ops/cms/pages/new");
+  await page.getByLabel("Title").fill("New");
+  await page.getByLabel(/^Slug/).fill("new");
+  await page.getByLabel("Content (Markdown)").fill("This would collide with the create-page route.");
+  await page.getByRole("button", { name: "Create page" }).click();
+  await expect(page.getByText("is a reserved slug")).toBeVisible();
 
   const title = `Getting Here ${Date.now()}`;
   await page.goto("/ops/cms/pages/new");
