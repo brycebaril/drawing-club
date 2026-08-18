@@ -41,6 +41,7 @@ const ROUTE_RULES: RouteRule[] = [
   { pattern: "/news", public: true },
   { pattern: "/news/*", public: true },
   { pattern: "/contact", public: true },
+  { pattern: "/pricing", public: true },
   // One rule covers every admin-created static page, present and future —
   // see src/app/pages/[slug]/page.tsx.
   { pattern: "/pages/*", public: true },

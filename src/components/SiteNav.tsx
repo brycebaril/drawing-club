@@ -88,6 +88,9 @@ export async function SiteNav() {
             </li>
           ))}
           <li>
+            <Link href="/pricing">Pricing</Link>
+          </li>
+          <li>
             <Link href={ctx ? "/app/schedule" : "/auth/login?redirect=/app/schedule"}>Schedule</Link>
           </li>
           {ctx ? (
