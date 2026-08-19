@@ -1,17 +1,30 @@
 import { pool } from "@/lib/db/pool";
 import { SiteNav } from "@/components/SiteNav";
+import { SortableTh } from "@/components/SortableTh";
+import { resolveSort } from "@/lib/sort";
 import { filterUserRows, isMemberTier, mappedRolesFor, type UserRow } from "@/lib/users/filterUsers";
 
 const STATUS_OPTIONS = ["Active", "Suspended", "Banned"] as const;
 const TIER_OPTIONS = ["ACCT", "MBR"] as const;
 const ROLE_OPTIONS = ["ADMIN", "VOL_HOST", "VOL_MKT", "VOL_MBR", "VOL_CTRL"] as const;
 
+const SORT_COLUMNS = {
+  username: "u.username",
+  displayName: "u.display_name",
+  email: "u.email",
+  status: "u.status",
+  // Tier (MBR/ACCT) is derived from membership_expires_at, not a stored
+  // flag — sorting by the underlying column groups active members together.
+  tier: "u.membership_expires_at",
+} as const;
+
 export default async function AdminUsersPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string; tier?: string; role?: string }>;
+  searchParams: Promise<{ status?: string; tier?: string; role?: string; sort?: string; dir?: string }>;
 }) {
-  const { status, tier, role } = await searchParams;
+  const { status, tier, role, sort, dir } = await searchParams;
+  const { state, orderBy } = resolveSort(sort, dir, SORT_COLUMNS, "username");
 
   const result = await pool.query<UserRow>(
     `SELECT u.id, u.username, u.display_name, u.email, u.status, u.base_role, u.membership_expires_at,
@@ -19,7 +32,7 @@ export default async function AdminUsersPage({
      FROM users u
      LEFT JOIN volunteer_roles vr ON vr.user_id = u.id
      GROUP BY u.id
-     ORDER BY u.username ASC`,
+     ORDER BY ${orderBy}, u.id ASC`,
   );
 
   const now = new Date();
@@ -30,6 +43,14 @@ export default async function AdminUsersPage({
   if (tier) csvParams.set("tier", tier);
   if (role) csvParams.set("role", role);
   const csvHref = `/admin/users/csv${csvParams.size > 0 ? `?${csvParams}` : ""}`;
+
+  const currentParams = new URLSearchParams({
+    ...(status ? { status } : {}),
+    ...(tier ? { tier } : {}),
+    ...(role ? { role } : {}),
+    sort: state.key,
+    dir: state.dir,
+  });
 
   return (
     <>
@@ -83,11 +104,17 @@ export default async function AdminUsersPage({
         <table>
         <thead>
           <tr>
-            <th>Username</th>
-            <th>Display name</th>
-            <th>Email</th>
-            <th>Status</th>
-            <th>Tier</th>
+            <SortableTh label="Username" columnKey="username" pathname="/admin/users" currentParams={currentParams} current={state} />
+            <SortableTh
+              label="Display name"
+              columnKey="displayName"
+              pathname="/admin/users"
+              currentParams={currentParams}
+              current={state}
+            />
+            <SortableTh label="Email" columnKey="email" pathname="/admin/users" currentParams={currentParams} current={state} />
+            <SortableTh label="Status" columnKey="status" pathname="/admin/users" currentParams={currentParams} current={state} />
+            <SortableTh label="Tier" columnKey="tier" pathname="/admin/users" currentParams={currentParams} current={state} />
             <th>Roles</th>
           </tr>
         </thead>

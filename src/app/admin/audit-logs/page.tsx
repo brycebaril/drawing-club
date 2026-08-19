@@ -1,5 +1,14 @@
 import { pool } from "@/lib/db/pool";
 import { SiteNav } from "@/components/SiteNav";
+import { SortableTh } from "@/components/SortableTh";
+import { resolveSort } from "@/lib/sort";
+
+const SORT_COLUMNS = {
+  when: "l.created_at",
+  actor: "actor.username",
+  action: "l.action_type",
+  target: "target.username",
+} as const;
 
 interface AuditLogRow {
   id: string;
@@ -13,9 +22,15 @@ interface AuditLogRow {
 export default async function AdminAuditLogsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ actionType?: string }>;
+  searchParams: Promise<{ actionType?: string; sort?: string; dir?: string }>;
 }) {
-  const { actionType } = await searchParams;
+  const { actionType, sort, dir } = await searchParams;
+  const { state, orderBy } = resolveSort(sort, dir, SORT_COLUMNS, "when", "desc");
+  const currentParams = new URLSearchParams({
+    ...(actionType ? { actionType } : {}),
+    sort: state.key,
+    dir: state.dir,
+  });
 
   const result = await pool.query<AuditLogRow>(
     `SELECT l.id, actor.username AS actor_username, l.action_type,
@@ -24,7 +39,7 @@ export default async function AdminAuditLogsPage({
      LEFT JOIN users actor ON actor.id = l.actor_id
      LEFT JOIN users target ON target.id = l.target_user_id
      WHERE $1::text IS NULL OR l.action_type = $1
-     ORDER BY l.created_at DESC
+     ORDER BY ${orderBy}, l.id ASC
      LIMIT 200`,
     [actionType || null],
   );
@@ -43,10 +58,10 @@ export default async function AdminAuditLogsPage({
         <table>
         <thead>
           <tr>
-            <th>When</th>
-            <th>Actor</th>
-            <th>Action</th>
-            <th>Target</th>
+            <SortableTh label="When" columnKey="when" pathname="/admin/audit-logs" currentParams={currentParams} current={state} />
+            <SortableTh label="Actor" columnKey="actor" pathname="/admin/audit-logs" currentParams={currentParams} current={state} />
+            <SortableTh label="Action" columnKey="action" pathname="/admin/audit-logs" currentParams={currentParams} current={state} />
+            <SortableTh label="Target" columnKey="target" pathname="/admin/audit-logs" currentParams={currentParams} current={state} />
             <th>Details</th>
           </tr>
         </thead>

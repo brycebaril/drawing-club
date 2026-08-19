@@ -1,7 +1,18 @@
 import Link from "next/link";
 import { pool } from "@/lib/db/pool";
 import { SiteNav } from "@/components/SiteNav";
+import { SortableTh } from "@/components/SortableTh";
+import { resolveSort } from "@/lib/sort";
 import { PassRowActions } from "./PassRowActions";
+
+const SORT_COLUMNS = {
+  owner: "owner.username",
+  transferable: "p.is_transferable",
+  status: "p.status",
+  batch: "pb.organization_name",
+  price: "p.effective_price",
+  created: "p.created_at",
+} as const;
 
 interface PassRow {
   id: string;
@@ -31,9 +42,16 @@ function isRevocable(pass: PassRow): boolean {
 export default async function AdminPassesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string; batchId?: string }>;
+  searchParams: Promise<{ status?: string; batchId?: string; sort?: string; dir?: string }>;
 }) {
-  const { status, batchId } = await searchParams;
+  const { status, batchId, sort, dir } = await searchParams;
+  const { state, orderBy } = resolveSort(sort, dir, SORT_COLUMNS, "created", "desc");
+  const currentParams = new URLSearchParams({
+    ...(status ? { status } : {}),
+    ...(batchId ? { batchId } : {}),
+    sort: state.key,
+    dir: state.dir,
+  });
 
   const passesResult = await pool.query<PassRow>(
     `SELECT p.id, owner.username AS owner_username, recipient.username AS pending_recipient_username,
@@ -45,7 +63,7 @@ export default async function AdminPassesPage({
      LEFT JOIN pass_batches pb ON pb.id = p.batch_id
      WHERE ($1::text IS NULL OR p.status::text = $1)
        AND ($2::uuid IS NULL OR p.batch_id = $2)
-     ORDER BY p.created_at DESC
+     ORDER BY ${orderBy}, p.id ASC
      LIMIT 200`,
     [status || null, batchId || null],
   );
@@ -95,12 +113,30 @@ export default async function AdminPassesPage({
           <thead>
             <tr>
               <th>ID</th>
-              <th>Owner</th>
-              <th>Transferable</th>
-              <th>Status</th>
-              <th>Batch / Organization</th>
-              <th>Effective price</th>
-              <th>Created</th>
+              <SortableTh label="Owner" columnKey="owner" pathname="/admin/passes" currentParams={currentParams} current={state} />
+              <SortableTh
+                label="Transferable"
+                columnKey="transferable"
+                pathname="/admin/passes"
+                currentParams={currentParams}
+                current={state}
+              />
+              <SortableTh label="Status" columnKey="status" pathname="/admin/passes" currentParams={currentParams} current={state} />
+              <SortableTh
+                label="Batch / Organization"
+                columnKey="batch"
+                pathname="/admin/passes"
+                currentParams={currentParams}
+                current={state}
+              />
+              <SortableTh
+                label="Effective price"
+                columnKey="price"
+                pathname="/admin/passes"
+                currentParams={currentParams}
+                current={state}
+              />
+              <SortableTh label="Created" columnKey="created" pathname="/admin/passes" currentParams={currentParams} current={state} />
               <th></th>
             </tr>
           </thead>

@@ -1,6 +1,18 @@
 import Link from "next/link";
 import { pool } from "@/lib/db/pool";
 import { SiteNav } from "@/components/SiteNav";
+import { SortableTh } from "@/components/SortableTh";
+import { resolveSort } from "@/lib/sort";
+
+const SORT_COLUMNS = {
+  when: "t.created_at",
+  user: "u.username",
+  item: "t.item_type",
+  amount: "t.amount_paid",
+  chargeStatus: "t.charge_status",
+  refunded: "t.refunded_amount",
+  payoutStatus: "t.payout_status",
+} as const;
 
 interface TransactionRow {
   id: string;
@@ -16,9 +28,15 @@ interface TransactionRow {
 export default async function AdminTransactionsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ chargeStatus?: string }>;
+  searchParams: Promise<{ chargeStatus?: string; sort?: string; dir?: string }>;
 }) {
-  const { chargeStatus } = await searchParams;
+  const { chargeStatus, sort, dir } = await searchParams;
+  const { state, orderBy } = resolveSort(sort, dir, SORT_COLUMNS, "when", "desc");
+  const currentParams = new URLSearchParams({
+    ...(chargeStatus ? { chargeStatus } : {}),
+    sort: state.key,
+    dir: state.dir,
+  });
 
   const result = await pool.query<TransactionRow>(
     `SELECT t.id, u.username, t.item_type, t.amount_paid, t.charge_status,
@@ -26,7 +44,7 @@ export default async function AdminTransactionsPage({
      FROM transactions t
      LEFT JOIN users u ON u.id = t.user_id
      WHERE $1::text IS NULL OR t.charge_status::text = $1
-     ORDER BY t.created_at DESC
+     ORDER BY ${orderBy}, t.id ASC
      LIMIT 200`,
     [chargeStatus || null],
   );
@@ -51,13 +69,37 @@ export default async function AdminTransactionsPage({
         <table>
         <thead>
           <tr>
-            <th>When</th>
-            <th>User</th>
-            <th>Item</th>
-            <th>Amount paid</th>
-            <th>Charge status</th>
-            <th>Refunded</th>
-            <th>Payout status</th>
+            <SortableTh label="When" columnKey="when" pathname="/admin/transactions" currentParams={currentParams} current={state} />
+            <SortableTh label="User" columnKey="user" pathname="/admin/transactions" currentParams={currentParams} current={state} />
+            <SortableTh label="Item" columnKey="item" pathname="/admin/transactions" currentParams={currentParams} current={state} />
+            <SortableTh
+              label="Amount paid"
+              columnKey="amount"
+              pathname="/admin/transactions"
+              currentParams={currentParams}
+              current={state}
+            />
+            <SortableTh
+              label="Charge status"
+              columnKey="chargeStatus"
+              pathname="/admin/transactions"
+              currentParams={currentParams}
+              current={state}
+            />
+            <SortableTh
+              label="Refunded"
+              columnKey="refunded"
+              pathname="/admin/transactions"
+              currentParams={currentParams}
+              current={state}
+            />
+            <SortableTh
+              label="Payout status"
+              columnKey="payoutStatus"
+              pathname="/admin/transactions"
+              currentParams={currentParams}
+              current={state}
+            />
             <th></th>
           </tr>
         </thead>
