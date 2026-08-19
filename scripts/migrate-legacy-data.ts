@@ -90,7 +90,7 @@ async function main() {
     printReport(await migrateModels(client));
     printReport(await migrateUsers(client));
     printReport(await migrateTransactions(client));
-    printReport(await migrateRolesAndMembership(client));
+    printReport(await migrateRolesAndMembership(client, cutoverDate));
     printReport(await migratePasses(client));
     printReport(await migrateSessions(client));
     printReport(await migrateAttendanceHistory(client, cutoverDate));

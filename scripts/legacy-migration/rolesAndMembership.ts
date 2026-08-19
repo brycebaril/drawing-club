@@ -36,7 +36,7 @@ const SPECIFIC_ROLE_FOR_ENTITLEMENT: Record<string, string> = {
   model_booker: "ModelBooker",
 };
 
-export async function migrateRolesAndMembership(client: PoolClient): Promise<MigrationReport> {
+export async function migrateRolesAndMembership(client: PoolClient, cutoverDate: Date): Promise<MigrationReport> {
   const report = emptyReport("volunteer_roles + membership_history");
 
   const rows = await legacyQuery<(LegacyOwnedPassRow & RowDataPacket)[]>(
@@ -94,20 +94,46 @@ export async function migrateRolesAndMembership(client: PoolClient): Promise<Mig
       }
     }
 
+    // Admin promotion and volunteer_roles are CURRENT-state grants, not a
+    // historical ledger (unlike membership_history above, which correctly
+    // keeps every row regardless of expiry) — an owned_passes row past its
+    // own validThru shouldn't confer live access in the new system. Real
+    // bug found only by checking real data: 11 of 21 people who'd have
+    // been promoted to Admin under the original (date-blind) logic had
+    // *only* expired admin-qualifying passes, including a test account
+    // ("Manlo Mysterium," attendeeId 2) whose only two qualifying passes
+    // were both already expired at import time — one for a single day.
+    const isCurrentlyValid = new Date(row.validThru) >= cutoverDate;
+
     if (entitlements.some((e) => ADMIN_ENTITLEMENTS.has(e))) {
-      usersToPromoteToAdmin.add(userId);
+      if (isCurrentlyValid) {
+        usersToPromoteToAdmin.add(userId);
+      } else {
+        report.warnings.push(
+          `owned_passes.id ${row.id} ("${row.passName}"): admin-qualifying entitlement, but this pass expired ${row.validThru} — not promoted to Admin from this row (a different, currently-valid pass may still promote the same user).`,
+        );
+      }
     }
 
     let assignedSpecificRole = false;
     for (const entitlement of entitlements) {
       const role = SPECIFIC_ROLE_FOR_ENTITLEMENT[entitlement];
       if (role) {
-        await client.query(
-          `INSERT INTO volunteer_roles (user_id, role) VALUES ($1, $2) ON CONFLICT (user_id, role) DO NOTHING`,
-          [userId, role],
-        );
+        if (isCurrentlyValid) {
+          await client.query(
+            `INSERT INTO volunteer_roles (user_id, role) VALUES ($1, $2) ON CONFLICT (user_id, role) DO NOTHING`,
+            [userId, role],
+          );
+          report.migrated += 1;
+        } else {
+          report.warnings.push(
+            `owned_passes.id ${row.id} ("${row.passName}"): would grant ${role}, but this pass expired ${row.validThru} — not assigned.`,
+          );
+        }
+        // Counts as "handled" either way, expired or not — an expired
+        // role-granting pass still isn't a "no RBAC destination" case, it's
+        // a lapsed one, which is a different (and less concerning) thing.
         assignedSpecificRole = true;
-        report.migrated += 1;
       }
     }
 
