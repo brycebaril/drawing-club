@@ -1,7 +1,7 @@
 import { pool } from "@/lib/db/pool";
 import { dateRangeClause, resolveGroupBy, timeBucketExpression, type DateRange, type Granularity } from "./queryFilters";
 
-export const PASS_STATUSES = ["Available", "Assigned", "Used", "Revoked"] as const;
+export const PASS_STATUSES = ["Available", "Assigned", "Used", "Forfeited", "Revoked"] as const;
 export type PassStatus = (typeof PASS_STATUSES)[number];
 
 export const PASS_ORIGINS = ["legacy", "stripe", "batch", "admin_grant"] as const;

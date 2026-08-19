@@ -62,10 +62,10 @@ export function SessionDetailsPanel({
             <UserX className="h-4 w-4 shrink-0" /> We&rsquo;re still confirming a model for this session.
           </div>
         )}
-        {status === "NonCancelable" && (
+        {status === "CancelableNoRefund" && (
           <div className="flex items-start gap-2 rounded-lg border border-warn-line bg-warn-bg p-3 text-sm font-medium text-warn">
             <Lock className="mt-0.5 h-4 w-4 shrink-0" />
-            <span>You&rsquo;re booked. This starts too soon to cancel.</span>
+            <span>You&rsquo;re booked. It&rsquo;s too close to start for a refund, but you can still cancel below.</span>
           </div>
         )}
         {bookingError && (
@@ -100,6 +100,21 @@ export function SessionDetailsPanel({
               className="w-full rounded-lg bg-brand py-3.5 font-bold text-white shadow-sm transition-all hover:bg-brand-strong hover:shadow-md"
             >
               Cancel registration
+            </button>
+          </form>
+        )}
+        {status === "CancelableNoRefund" && (
+          <form action={cancelBookingAction} className="space-y-3">
+            <input type="hidden" name="sessionId" value={session.id} />
+            <label className="flex items-start gap-2 text-sm text-ink-soft">
+              <input type="checkbox" required className="mt-1" />
+              <span>I understand I won&rsquo;t get my pass back if I cancel now.</span>
+            </label>
+            <button
+              type="submit"
+              className="w-full rounded-lg bg-brand py-3.5 font-bold text-white shadow-sm transition-all hover:bg-brand-strong hover:shadow-md"
+            >
+              Cancel without refund
             </button>
           </form>
         )}

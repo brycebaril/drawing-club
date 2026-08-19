@@ -35,10 +35,10 @@ describe("computeSessionStatus", () => {
     expect(computeSessionStatus(baseInput({ viewerHasBooking: true }))).toBe("Registered");
   });
 
-  it("NonCancelable when the viewer has a booking inside the cutoff window", () => {
+  it("CancelableNoRefund when the viewer has a booking inside the cutoff window", () => {
     const session = { startTime: new Date("2026-01-01T18:00:00Z"), maxCapacity: 2 }; // 6h from NOW
     expect(computeSessionStatus(baseInput({ session, viewerHasBooking: true }))).toBe(
-      "NonCancelable",
+      "CancelableNoRefund",
     );
   });
 

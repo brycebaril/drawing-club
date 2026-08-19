@@ -1,13 +1,15 @@
 import type { Role } from "@/lib/auth/roles";
 import { isCancellable } from "@/lib/cancellation";
 
-// Design Doc §3.3's visual states, minus "No Model Assigned" (model
-// assignment isn't in scope yet — Phase 3 plan's scope boundary).
+// Design Doc §3.3's visual states, plus "No Model Assigned" (now surfaced
+// separately by the schedule page — see scheduleTypes.ts's needsModel, not
+// folded into this union since it's an independent overlay, not a
+// mutually-exclusive state).
 export type SessionStatus =
   | "NoSession"
   | "Available"
   | "Registered"
-  | "NonCancelable"
+  | "CancelableNoRefund"
   | "Full"
   | "OnWaitlist"
   | "TooFarFuture";
@@ -50,7 +52,7 @@ export function computeSessionStatus(input: SessionStatusInput): SessionStatus {
   if (input.viewerHasBooking) {
     return isCancellable(startTime, input.cancellationCutoffHours, now)
       ? "Registered"
-      : "NonCancelable";
+      : "CancelableNoRefund";
   }
 
   const windowDays = viewerBookingWindowDays(

@@ -92,3 +92,68 @@ test("waitlisting: a second user is notified after the booked user cancels a ful
     expect(waitlistRow.rows[0].notified_at).not.toBeNull();
   }).toPass({ timeout: 5000 });
 });
+
+test("canceling within the cutoff forfeits the pass but still frees the seat and notifies the waitlist", async ({
+  page,
+}) => {
+  // 2 hours out: inside the default 24h CANCELLATION_CUTOFF_HOURS, so
+  // canceling should now require the no-refund confirmation rather than
+  // being blocked outright.
+  const startTime = new Date(Date.now() + 2 * 60 * 60 * 1000);
+  const sessionId = await createOneOffSessionAsAdmin(page, {
+    description: `late-cancel-test-${Date.now()}`,
+    startTime,
+    capacity: 1,
+  });
+
+  const first = await createTestUser({ username: `e2elatefirst${Date.now()}` });
+  await loginAsUser(page, first);
+  await pool.query(
+    `INSERT INTO passes (owner_id, status, effective_price) VALUES ($1, 'Available', 12.34)`,
+    [first.id],
+  );
+  await page.goto(`/app/schedule?session_id=${sessionId}`);
+  await page.getByRole("button", { name: "Book (uses 1 pass)" }).click();
+  await page.waitForURL(`**/app/schedule?session_id=${sessionId}`);
+
+  const second = await createTestUser({ username: `e2elatesecond${Date.now()}` });
+  await loginAsUser(page, second);
+  await page.goto(`/app/schedule?session_id=${sessionId}`);
+  await page.getByRole("button", { name: "Join waitlist" }).click();
+  await page.waitForURL(`**/app/schedule?session_id=${sessionId}`);
+
+  await loginAsUser(page, first);
+  await page.goto(`/app/schedule?session_id=${sessionId}`);
+  await expect(page.getByText(/too close to start for a refund/)).toBeVisible();
+  await page.getByLabel(/won.t get my pass back if I cancel now/).check();
+  await page.getByRole("button", { name: "Cancel without refund" }).click();
+  await page.waitForURL(`**/app/schedule?session_id=${sessionId}`);
+
+  await expect(async () => {
+    const passRow = await pool.query<{ status: string; session_id: string | null }>(
+      `SELECT status, session_id FROM passes WHERE owner_id = $1`,
+      [first.id],
+    );
+    // Forfeited, not Available — no refund. session_id stays set as a
+    // record of which session it was forfeited for.
+    expect(passRow.rows[0].status).toBe("Forfeited");
+    expect(passRow.rows[0].session_id).toBe(sessionId);
+
+    const waitlistRow = await pool.query<{ notified_at: Date | null }>(
+      `SELECT notified_at FROM waitlist_entries WHERE session_id = $1 AND user_id = $2`,
+      [sessionId, second.id],
+    );
+    expect(waitlistRow.rows[0].notified_at).not.toBeNull();
+  }).toPass({ timeout: 5000 });
+
+  // The seat is genuinely free again (Forfeited doesn't count toward
+  // booked-count) — a third user can book it.
+  const third = await createTestUser({ username: `e2elatethird${Date.now()}` });
+  await loginAsUser(page, third);
+  await pool.query(
+    `INSERT INTO passes (owner_id, status, effective_price) VALUES ($1, 'Available', 0)`,
+    [third.id],
+  );
+  await page.goto(`/app/schedule?session_id=${sessionId}`);
+  await expect(page.getByRole("button", { name: "Book (uses 1 pass)" })).toBeVisible();
+});

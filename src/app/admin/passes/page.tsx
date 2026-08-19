@@ -36,7 +36,7 @@ interface BatchOption {
   created_at: Date;
 }
 
-const STATUSES = ["Available", "Assigned", "Used", "Revoked"] as const;
+const STATUSES = ["Available", "Assigned", "Used", "Forfeited", "Revoked"] as const;
 
 /** Any unspent transferable pass is eligible for admin revocation — matches revokePassAction's own scope. */
 function isRevocable(pass: PassRow): boolean {

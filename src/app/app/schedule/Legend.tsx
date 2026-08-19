@@ -27,7 +27,7 @@ export function Legend() {
             </div>
             <div className="flex items-center gap-2.5">
               <Lock className="h-4 w-4 text-warn" strokeWidth={2.5} />
-              <span>Registered, too close to start to cancel</span>
+              <span>Registered — canceling now forfeits your pass</span>
             </div>
             <div className="flex items-center gap-2.5">
               <Clock className="h-4 w-4 text-warn" strokeWidth={2.5} />

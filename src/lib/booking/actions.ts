@@ -133,19 +133,28 @@ export async function bookSession(userId: string, sessionId: string): Promise<Bo
   }
 }
 
-export type CancelBookingResult = { ok: true } | { ok: false; reason: "not-found" | "not-cancellable" };
+export type CancelBookingResult = { ok: true } | { ok: false; reason: "not-found" };
 
 /**
  * Shared by the user-initiated cancel path and the admin-forced release
  * path (Phase 4's ban/suspend auto-cancellation) — must run inside an
  * already-open transaction that holds a lock on the session row, so the
  * capacity count and the release are atomic together.
+ *
+ * `refund`: false means the pass is marked 'Forfeited' instead of
+ * 'Available' — a late (within-cutoff) voluntary cancellation frees the
+ * seat (booked-count only counts 'Used', so a Forfeited pass doesn't block
+ * it) without giving the member their pass back. Admin-forced release
+ * always passes true regardless of cutoff — an org-initiated action (ban,
+ * session cancellation) isn't the member choosing to cancel late, so it
+ * shouldn't cost them the pass.
  */
 async function releaseBookedPass(
   client: PoolClient,
   sessionId: string,
   passId: string,
   maxCapacity: number,
+  refund: boolean,
 ): Promise<boolean> {
   const countRow = await client.query<{ count: string }>(
     `SELECT count(*) FROM passes WHERE session_id = $1 AND status = 'Used'`,
@@ -153,7 +162,13 @@ async function releaseBookedPass(
   );
   const wasFull = Number(countRow.rows[0].count) >= maxCapacity;
 
-  await client.query(`UPDATE passes SET status = 'Available', session_id = NULL WHERE id = $1`, [passId]);
+  if (refund) {
+    await client.query(`UPDATE passes SET status = 'Available', session_id = NULL WHERE id = $1`, [passId]);
+  } else {
+    // session_id stays set — a record of which session it was forfeited
+    // for, harmless for capacity counting since that only counts 'Used'.
+    await client.query(`UPDATE passes SET status = 'Forfeited' WHERE id = $1`, [passId]);
+  }
 
   return wasFull;
 }
@@ -185,12 +200,12 @@ export async function cancelBooking(userId: string, sessionId: string): Promise<
     }
     const { start_time: startTime, max_capacity: maxCapacity } = sessionRow.rows[0];
 
-    if (!isCancellable(new Date(startTime), cutoffHours)) {
-      await client.query("ROLLBACK");
-      return { ok: false, reason: "not-cancellable" };
-    }
+    // Canceling is always allowed now — within the cutoff it just forfeits
+    // the pass instead of refunding it (the member confirms this in the UI
+    // before submitting; see SessionDetailsPanel's CancelableNoRefund branch).
+    const refund = isCancellable(new Date(startTime), cutoffHours);
 
-    shouldNotifyWaitlist = await releaseBookedPass(client, sessionId, passRow.rows[0].id, maxCapacity);
+    shouldNotifyWaitlist = await releaseBookedPass(client, sessionId, passRow.rows[0].id, maxCapacity, refund);
 
     // No-op unless this booking was actually a numbered series seat (bookSession
     // itself now refuses series sessions, but a pre-existing series booking can
@@ -252,6 +267,7 @@ export async function releaseAllFutureBookingsForUser(userId: string): Promise<v
         row.session_id,
         row.pass_id,
         sessionRow.rows[0].max_capacity,
+        true, // admin-forced release always refunds, regardless of cutoff
       );
       await client.query("COMMIT");
     } catch (error) {

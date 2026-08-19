@@ -1,4 +1,6 @@
 import { pool } from "@/lib/db/pool";
+import { getSettingNumber } from "@/lib/settings";
+import { isCancellable } from "@/lib/cancellation";
 import { computeSeatGrid } from "@/lib/series/seatStatus";
 import { bookSeriesSeatAction, cancelSeriesSeatDateAction } from "./actions";
 
@@ -77,6 +79,8 @@ export async function SeriesPanel({
   const viewerRow = grid.find((row) => row.status === "UserReserved");
   const chosenRow = viewerRow ?? (selectedSeat ? grid.find((row) => row.seatNumber === selectedSeat) : undefined);
 
+  const cutoffHours = await getSettingNumber("CANCELLATION_CUTOFF_HOURS");
+
   return (
     <div className="p-6">
       <h2 className="text-xl font-bold text-ink">{series.name} — numbered seats</h2>
@@ -145,21 +149,35 @@ export async function SeriesPanel({
           {chosenRow.cells.some((cell) => cell.state === "Yours") && (
             <>
               <h3 className="mt-6 text-sm font-bold text-ink">Cancel a booked date</h3>
-              <div className="mt-2 space-y-2">
+              <div className="mt-2 space-y-3">
                 {chosenRow.cells
                   .filter((cell) => cell.state === "Yours")
-                  .map((cell) => (
-                    <form action={cancelSeriesSeatDateAction} key={cell.sessionId}>
-                      <input type="hidden" name="sessionId" value={cell.sessionId} />
-                      <input type="hidden" name="clickedSessionId" value={clickedSessionId} />
-                      <button
-                        type="submit"
-                        className="w-full rounded-lg bg-brand py-2.5 text-sm font-semibold text-white transition-colors hover:bg-brand-strong"
-                      >
-                        Cancel {new Date(cell.startTime).toLocaleDateString()}
-                      </button>
-                    </form>
-                  ))}
+                  .map((cell) => {
+                    const refundable = isCancellable(new Date(cell.startTime), cutoffHours);
+                    return (
+                      <form action={cancelSeriesSeatDateAction} key={cell.sessionId} className="space-y-2">
+                        <input type="hidden" name="sessionId" value={cell.sessionId} />
+                        <input type="hidden" name="clickedSessionId" value={clickedSessionId} />
+                        {!refundable && (
+                          <label className="flex items-start gap-2 text-sm text-ink-soft">
+                            <input type="checkbox" required className="mt-1" />
+                            <span>
+                              I understand I won&rsquo;t get my pass back for{" "}
+                              {new Date(cell.startTime).toLocaleDateString()} if I cancel now.
+                            </span>
+                          </label>
+                        )}
+                        <button
+                          type="submit"
+                          className="w-full rounded-lg bg-brand py-2.5 text-sm font-semibold text-white transition-colors hover:bg-brand-strong"
+                        >
+                          {refundable
+                            ? `Cancel ${new Date(cell.startTime).toLocaleDateString()}`
+                            : `Cancel ${new Date(cell.startTime).toLocaleDateString()} without refund`}
+                        </button>
+                      </form>
+                    );
+                  })}
               </div>
             </>
           )}

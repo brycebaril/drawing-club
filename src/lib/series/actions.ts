@@ -149,7 +149,7 @@ export async function bookSeriesSeat(
   }
 }
 
-export type CancelSeriesSeatDateResult = { ok: true } | { ok: false; reason: "not-found" | "not-cancellable" };
+export type CancelSeriesSeatDateResult = { ok: true } | { ok: false; reason: "not-found" };
 
 /**
  * Releases one member's seat reservation for one date in a series — same
@@ -186,10 +186,10 @@ export async function cancelSeriesSeatDate(
     }
     const { start_time: startTime, max_capacity: maxCapacity } = sessionRow.rows[0];
 
-    if (!isCancellable(new Date(startTime), cutoffHours)) {
-      await client.query("ROLLBACK");
-      return { ok: false, reason: "not-cancellable" };
-    }
+    // Same policy as cancelBooking: canceling is always allowed, but within
+    // the cutoff the pass for THIS date is forfeited instead of refunded —
+    // only this one session's pass, not the seat's other reserved dates.
+    const refund = isCancellable(new Date(startTime), cutoffHours);
 
     const countRow = await client.query<{ count: string }>(
       `SELECT count(*) FROM passes WHERE session_id = $1 AND status = 'Used'`,
@@ -197,9 +197,13 @@ export async function cancelSeriesSeatDate(
     );
     shouldNotifyWaitlist = Number(countRow.rows[0].count) >= maxCapacity;
 
-    await client.query(`UPDATE passes SET status = 'Available', session_id = NULL WHERE id = $1`, [
-      reservationRow.rows[0].pass_id,
-    ]);
+    if (refund) {
+      await client.query(`UPDATE passes SET status = 'Available', session_id = NULL WHERE id = $1`, [
+        reservationRow.rows[0].pass_id,
+      ]);
+    } else {
+      await client.query(`UPDATE passes SET status = 'Forfeited' WHERE id = $1`, [reservationRow.rows[0].pass_id]);
+    }
     await client.query(`DELETE FROM seat_reservations WHERE id = $1`, [reservationRow.rows[0].id]);
 
     await client.query("COMMIT");

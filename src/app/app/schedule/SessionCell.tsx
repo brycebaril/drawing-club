@@ -14,7 +14,7 @@ export function EmptyCell() {
 export function SessionCell({ cell, href }: { cell: GridCellData; href: string }) {
   const info = sessionTypeInfo(cell.sessionType);
   const interactive = isCellInteractive(cell.status);
-  const isMine = cell.status === "Registered" || cell.status === "NonCancelable";
+  const isMine = cell.status === "Registered" || cell.status === "CancelableNoRefund";
 
   // Matches globals.css's button:disabled opacity (0.5) rather than an
   // invented value — "not yet in your booking window" is this page's one
@@ -47,8 +47,11 @@ export function SessionCell({ cell, href }: { cell: GridCellData; href: string }
         </span>
       )}
       <span className={`text-lg font-black ${info.textClass}`}>{info.display}</span>
-      {cell.status === "NonCancelable" && (
-        <span className="absolute bottom-1 right-1 rounded-full bg-panel p-px" title="Too close to start to cancel">
+      {cell.status === "CancelableNoRefund" && (
+        <span
+          className="absolute bottom-1 right-1 rounded-full bg-panel p-px"
+          title="Canceling now won't refund your pass"
+        >
           <Lock className="h-2.5 w-2.5 text-warn" strokeWidth={3} />
         </span>
       )}
