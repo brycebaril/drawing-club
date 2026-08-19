@@ -17,6 +17,8 @@ All five original open questions are resolved (see `LegacyDataAnalysis.md`'s Dec
 
 **Password hashing is confirmed bcrypt** (`$2y$`, 60 characters — PHP's standard `password_hash()` default), verified directly against the dump's `PasswordHash` columns (format/length only, no hash values inspected). This resolves the format half of §7 below. Two `session_attendees` rows have a 1-character `x` value instead of a real hash — almost certainly disabled/locked accounts, not migratable credentials; see §7.
 
+**The migration scripts described below are built and verified** (`scripts/migrate-legacy-data.ts` + `scripts/legacy-migration/*`, run via `pnpm migrate-legacy-data`) — every count in §5's tables below was confirmed against the real dump in an ephemeral MySQL container, matched exactly against independent `COUNT(*)` queries, and committed against a throwaway Postgres staging database (never the real dev/staging/production DB). A handful of real refinements surfaced only once actual field-mapping code was written against real data, not from re-reading the plan on paper — captured inline in §5 below where they apply. `pnpm typecheck`/`pnpm lint`/`pnpm test` all pass clean with the migration code in place. Still not done: an actual run against a real `staging` environment (§8 phase 4) — everything so far has been local rehearsal.
+
 ## **3. Schema Prerequisites**
 
 Three real schema/app changes are needed **before** the data-migration scripts can run — these are ordinary feature work for this codebase, not migration-script logic, and should land as their own PR(s) ahead of cutover:
@@ -58,8 +60,8 @@ Only tables with a **Migrate** or **Transform** verdict in `LegacyDataAnalysis.m
 | `email` | `email` | direct copy — verified no dupes, no nulls |
 | `password_hash` | `PasswordHash` | direct copy (bcrypt, confirmed §2) — **except** the 2 `x`-value rows, which get a random unusable placeholder hash instead and are force-reset on first login attempt regardless (§7) |
 | `email_verified_at` | — | no legacy equivalent; set to migration timestamp (a legacy account's email was implicitly trusted by years of use) |
-| `base_role` | — | default `AccountHolder`; `Admin` assigned manually post-migration per current admin roster, not derived from legacy data |
-| `membership_expires_at` | derived from `owned_passes` (membership rows) | see `membership_history` below — this is the denormalized "current" field, kept in sync with the last migrated membership row |
+| `base_role` | derived from `owned_passes`/`owned_entitlements` | default `AccountHolder`; promoted to `Admin` automatically for anyone holding `sysadmin_power`/`registrar_power`/`dataview_power`/`bio_view_power`/`board_status` (see `volunteer_roles` below) — the script does this, not a manual post-migration pass |
+| `membership_expires_at` | `MAX(owned_passes.validThru)` across a user's `member_status`-entitled rows | this app's actual MBR-derivation reads this stored field directly (`src/lib/auth/roles.ts`) — a real gap caught only once the script was written and cross-checked against the running app's code: an earlier draft populated `membership_history` but left this column null, which would have silently defaulted every migrated member to non-member pricing/booking-window despite real membership history existing |
 | `status` | `suspended_attendee_accounts` | `'Suspended'` for the 1 currently-suspended account (see `LegacyDataAnalysis.md`'s Compliance-sensitive callout), `'Active'` otherwise |
 | `created_at` | — | no legacy equivalent at all (`LegacyDataAnalysis.md` finding #7) — set to migration timestamp |
 
@@ -80,6 +82,11 @@ Per `LegacyDataAnalysis.md` finding #3, `owned_passes` is a membership/role conc
 
 The ~3 `passKind=0` miscellaneous rows ("Presidential Magic Wand," "BONANZA PASS," "Test Edition" — see `LegacyDataAnalysis.md`'s mapping matrix) need individual manual review; they don't fit this table's pattern.
 
+**Two more real gaps surfaced only once the actual `passName`/entitlement combinations were queried, not guessable from the table structure alone:**
+
+1. **`free_studio_seat` (unlimited free attendance for role-holders) has no equivalent in this app's pass economy at all**, and the migration script deliberately does **not** synthesize passes to approximate it — this app's membership never grants unlimited free seats (it only affects pricing tier and booking-window length), so there's no finite number of passes that would honestly represent "unlimited." This is the same shape as the not-yet-built "volunteers get a free pass every week, capped at a configurable wallet limit" feature raised during migration planning — that feature, once built, is the real intended replacement. Until then, role-holders who previously had free unlimited attendance will need to actually spend passes like anyone else post-cutover; flag this to the org as a real, user-facing behavior change, not just a migration footnote.
+2. **24 `owned_passes` rows carry only generic `volunteer_status` with no other specific entitlement** — this app has no generic "volunteer, unspecified" role, only the five named sub-roles, so these have no automatic destination. Quantified against the real dump: 7× Studio Cleaner, 4× Gallery Coordinator, 4× Past Board Member, 3× BIO Manager, 2× Social Media Coordinator, 1× each of Membership Coordinator ID / Financial Clerk / Studio Coordinator / Special Sessions Coordinator. The script flags every one individually (by `owned_passes.id`, never by name/PII) for manual review rather than guessing — "Financial Clerk," in particular, sounds like a plausible match for this app's `Controller` role ("Financial reviewer" per `SiteOutline.md`), but that's a real access-granting decision that deserves the org's explicit call, not an inferred one.
+
 ### `membership_history` ← `owned_passes` (the `member_status`-entitled subset, ~705 rows)
 
 | New column | Source |
@@ -90,17 +97,19 @@ The ~3 `passKind=0` miscellaneous rows ("Presidential Magic Wand," "BONANZA PASS
 | `valid_until` | `owned_passes.validThru` |
 | `granted_by` | — no legacy equivalent (no admin-actor column on `owned_passes`); left `NULL` |
 
-### `transactions` ← `store_orders` + `store_order_components` (fulfilled orders only, `status = 10`, 9,196 of 10,339 rows)
+### `transactions` ← `store_order_components` (fulfilled orders only, `status = 10`, **9,289 line items**, not 9,196)
+
+**Refined during implementation**: this migrates **one row per `store_order_components` line item, not per `store_orders` order.** ~1% of fulfilled orders (101 of 10,238) bundle more than one line item in a single checkout (e.g. a ticket purchase and a membership renewal together) — verified directly against the dump. Component prices were confirmed to sum exactly to their order's total for every fulfilled order (zero mismatches, zero nulls), so splitting this way loses nothing and gains the ability for a migrated pass/membership row to link to the *specific* purchase that paid for it, not just "the order it happened to ship alongside." This is why the row count above (9,289) differs from the order count (9,196) — both are correct, they're just counting different things.
 
 | New column | Source | Notes |
 |---|---|---|
-| `user_id` | `store_orders.customerId` → migrated `users.id` | |
-| `gateway_ref_id` | `store_order_components.sku`'s associated PayPal reference, if resolvable, else a synthetic `legacy-invoice-{invoiceId}` placeholder | this app's Stripe integration expects a real gateway reference; legacy used PayPal exclusively (`processor` 1/2) — **these historical transactions should carry a marker distinguishing them from real Stripe activity**, so `/ops/financials` and `/admin/dashboard`'s revenue tables (which sum `transactions` directly) aren't silently mixing PayPal-era and Stripe-era totals without being able to tell them apart. Recommend an explicit boolean or a reserved gateway-ref prefix, decided before Phase 3 (trial import) |
-| `amount_paid` | `store_orders.total` | |
+| `user_id` | `store_orders.customerId` (via the component's order) → migrated `users.id` | |
+| `gateway_ref_id` | synthetic `legacy-invoice-{invoiceId}-{componentId}` | this app's Stripe integration expects a real gateway reference; legacy used PayPal exclusively (`processor` 1/2). The `legacy-` prefix is the reserved marker so `/ops/financials`/`/admin/dashboard` revenue reporting can exclude legacy-era rows from Stripe-specific logic (fee lookups, payout-batch matching) — implemented as a string prefix, not a new schema column |
+| `amount_paid` | `store_order_components.price` (the specific line item's price, not the order's `total`) | |
 | `processing_fee`, `net_amount` | — | no legacy equivalent (PayPal fee data was never captured); left `NULL` |
 | `charge_status` | — | always `'Succeeded'` (only fulfilled orders migrate) |
-| `item_type` | derived from `store_order_components.sku`/`name` | `SinglePass` for SKUs 1/101, `PassPack` for 5/7/105 (5-pack and 10-pack collapse to the same enum value — the new schema doesn't distinguish pack size at the transaction level, only via how many `passes` rows share the `transaction_id`), `MembershipRenewal` for 500/501/502 |
-| `created_at` | `store_orders.date` | |
+| `item_type` | derived from `store_order_components.sku` | `SinglePass` for SKUs 1/101, `PassPack` for 5/7/105 (5-pack and 10-pack collapse to the same enum value — the new schema doesn't distinguish pack size at the transaction level, only via how many `passes` rows share the `transaction_id`), `MembershipRenewal` for 500/501/502 |
+| `created_at` | `store_orders.date` (via the component's order) | |
 
 The 1,143 unpaid/abandoned orders (`status = 0`) are **not migrated** — no charge occurred, nothing to reconcile.
 
@@ -153,9 +162,9 @@ The 2 `session_attendees` rows with a 1-character `x` `PasswordHash` (almost cer
 ## **8. Phases**
 
 1. **Schema mapping** — *substantially complete*, see §5 above; remaining gaps are the three explicitly-flagged manual-review items (`owned_passes` `passKind=0` miscellaneous rows, whether role passes also grant seat allowances, and the two undocumented `sessions.status`/`registration_logs.what` enum groups pending the admin's input). `board_status` is resolved (§5).
-2. **Schema prerequisites** *(new — see §3)*. Land `users.display_name`/`users.legacy_id`, the registration-flow update, the `legacy_attendance_history` table, and bcrypt-verification support in `authorize()`, as ordinary app PRs, before touching the migration scripts themselves.
-3. **Data cleaning & normalization.** Resolve the 2 duplicate `merdels` emails; resolve the 3 `passKind=0` miscellaneous `owned_passes` rows; decide the `board_status` destination; reconcile any orphaned records surfaced during script development (none were found during analysis, but the analysis queried the dump directly, not the transformed output).
-4. **Trial import into staging.** Run the migration scripts against the `staging` environment (`ArchitectureDocument.md` §4) using the actual dump — not synthetic test data.
+2. **Schema prerequisites** *(done)*. `users.display_name`/`users.legacy_id`, the registration-flow update, the `legacy_attendance_history` table, `volunteer_role_name`'s `Board` value, and bcrypt-verification support in `authorize()` are all implemented and committed.
+3. **Data cleaning & normalization.** Resolve the 2 duplicate `merdels` emails; resolve the 3 `passKind=0` miscellaneous `owned_passes` rows; resolve the 24 generic-`volunteer_status` rows (§5); reconcile any orphaned records surfaced during script development (none were found — every foreign key the scripts touch resolved cleanly against real data, verified by 0-warning runs on every FK lookup except the intentionally-flagged manual-review cases above).
+4. **Trial import into staging** *(scripts built and locally rehearsed; not yet run against a real `staging` environment)*. `scripts/migrate-legacy-data.ts` (`pnpm migrate-legacy-data`) reads from `LEGACY_MYSQL_URL` and writes to `DATABASE_URL`, transactionally — nothing commits unless every step succeeds. Rehearsal so far has been against an ephemeral, throwaway MySQL container (the dump) and a throwaway Postgres database (never the real dev/staging/production DB), with every migrated table's row count independently verified against direct `COUNT(*)` queries on the source. Two flags support repeated rehearsal: `--reset` (truncates every destination table first — refuses to run without it if `users.legacy_id` data already exists, as a guard against double-migrating into a real target) and `--cutover-date=YYYY-MM-DD` (only for reproducing a fixed future-vs-historical split against a dump whose own creation date has since fallen into the past — a real run always uses the actual moment it executes, per §4).
 5. **Reconciliation & validation** (see §9).
 6. **Cutover.** A defined freeze window on the legacy system's *member/booking/transaction* data (the model-request portion keeps running throughout, per §1). Take a final delta export, import it, validate again, then flip the new system to authoritative for members/bookings/transactions. **The future-vs-historical date split (§4) is computed relative to this actual cutover date, not any date fixed during planning.**
 7. **Rollback plan.** If post-cutover validation fails, the legacy system's member/booking/transaction data remains untouched (migration is read-only against the source), so rollback means reverting to the legacy system as authoritative and re-running cutover after fixing the identified issue — not a destructive recovery.
