@@ -151,10 +151,10 @@ Resolved directly with the org (this app's `session_type` codes have no document
 | gesture | `G` | |
 | regular | `R` | |
 | portrait | `P` | |
-| long pose | `L` | |
+| long pose | `L` | **`L` is a distinct concept from `X`/ELP, not a synonym** — a real mix-up caught by the org while reviewing a prototype report: `L` is the studio's two fixed weekly slots (Friday evening, Sunday morning); `X`/ELP is irregularly-scheduled, same-model-same-pose sessions over several weeks. **Verified clean 2026-08-19 against the real dump**: every one of the 460 legacy "long pose" (`typeId=5`) sessions falls inside exactly those two fixed slots (244 Friday evening, 216 Sunday morning) — zero exceptions, so no legacy session needs manual reclassification from `L` to `X`. |
 | special | `S` | also currently absorbs costume (below) |
 | costume | `S` | no dedicated code exists yet; org may add a `C` code later — not needed for this migration |
-| multiday pose | `X` | `X` = "ELP" (Extra Long Pose) in this app's own convention — a strong conceptual match for legacy's "same model repeating the same pose for two or more sessions" |
+| multiday pose | `X` | `X` = "ELP" (Extra Long Pose) in this app's own convention. **Verified 2026-08-19**: legacy has 40 rows with this type, but every one is from 2020 only with zero real registrations — a since-abandoned setup attempt (this type "was never fully implemented" in the legacy schedule, per the org directly), not real historical ELP usage. These 40 still migrate as real (empty) sessions since they're genuine calendar rows, just with no attendance data attached. |
 | empty (`UNDEF` placeholder) | — | not a real session type; sessions using it as a placeholder don't migrate a `session_type` value derived from it (fall back to whatever the session's actual type field indicates, or flag for manual review if genuinely ambiguous) |
 | *(no legacy equivalent)* | `Gallery`, `Party` | newer additions to this app; nothing migrates into these |
 
