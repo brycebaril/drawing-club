@@ -23,6 +23,8 @@ const AUTHENTICATED_ROLES: Role[] = ["ACCT", "MBR", "VOL_HOST", "VOL_MKT", "VOL_
 const ROUTE_RULES: RouteRule[] = [
   { pattern: "/auth/login", guestOnly: true },
   { pattern: "/auth/register", guestOnly: true },
+  { pattern: "/auth/forgot-password", guestOnly: true },
+  { pattern: "/auth/reset-password", public: true }, // reachable whether or not the clicker still has a session
   { pattern: "/auth/verify-email", public: true }, // reachable whether or not the clicker still has a session
   { pattern: "/auth/mfa-setup", allow: AUTHENTICATED_ROLES }, // forced here by middleware when mfaRequired && !mfaEnabled
   { pattern: "/app/*", allow: AUTHENTICATED_ROLES },

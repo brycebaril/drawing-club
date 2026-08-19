@@ -144,6 +144,9 @@ function LoginForm() {
         </button>
       </form>
       <p>
+        <a href="/auth/forgot-password">Forgot your password?</a>
+      </p>
+      <p>
         Need an account? <a href="/auth/register">Register</a>
       </p>
     </main>
