@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { pool } from "@/lib/db/pool";
 import { SiteNav } from "@/components/SiteNav";
+import { SortableTh } from "@/components/SortableTh";
+import { resolveSort } from "@/lib/sort";
 
 interface SessionRow {
   id: string;
@@ -15,7 +17,23 @@ interface SessionRow {
   series_id: string | null;
 }
 
-export default async function AdminSessionsPage() {
+const SORT_COLUMNS = {
+  type: "s.session_type",
+  start: "s.start_time",
+  end: "s.end_time",
+  booked: "booked_count",
+  host: "u.username",
+} as const;
+
+export default async function AdminSessionsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ sort?: string; dir?: string }>;
+}) {
+  const { sort, dir } = await searchParams;
+  const { state, orderBy } = resolveSort(sort, dir, SORT_COLUMNS, "start");
+  const currentParams = new URLSearchParams({ sort: state.key, dir: state.dir });
+
   const result = await pool.query<SessionRow>(
     `SELECT s.id, s.session_type, s.description, s.start_time, s.end_time, s.max_capacity,
             u.username AS host_username, s.recurrence_rule_id, s.series_id,
@@ -23,7 +41,7 @@ export default async function AdminSessionsPage() {
      FROM sessions s
      LEFT JOIN users u ON u.id = s.host_user_id
      WHERE s.status = 'Scheduled'
-     ORDER BY s.start_time ASC`,
+     ORDER BY ${orderBy}, s.id ASC`,
   );
 
   return (
@@ -42,11 +60,17 @@ export default async function AdminSessionsPage() {
         <table>
         <thead>
           <tr>
-            <th>Type</th>
-            <th>Start</th>
-            <th>End</th>
-            <th>Booked / Capacity</th>
-            <th>Host</th>
+            <SortableTh label="Type" columnKey="type" pathname="/admin/sessions" currentParams={currentParams} current={state} />
+            <SortableTh label="Start" columnKey="start" pathname="/admin/sessions" currentParams={currentParams} current={state} />
+            <SortableTh label="End" columnKey="end" pathname="/admin/sessions" currentParams={currentParams} current={state} />
+            <SortableTh
+              label="Booked / Capacity"
+              columnKey="booked"
+              pathname="/admin/sessions"
+              currentParams={currentParams}
+              current={state}
+            />
+            <SortableTh label="Host" columnKey="host" pathname="/admin/sessions" currentParams={currentParams} current={state} />
             <th></th>
           </tr>
         </thead>
