@@ -67,6 +67,17 @@ function deriveUsername(email: string, taken: Set<string>): string {
 export async function migrateUsers(client: PoolClient): Promise<MigrationReport> {
   const report = emptyReport("users");
 
+  // docs/MigrationPlan.md §5's users mapping: "no legacy equivalent; set to
+  // migration timestamp (a legacy account's email was implicitly trusted by
+  // years of use)" — a real, previously-undiscovered gap between that
+  // documented intent and this script's actual INSERT (which never set it
+  // at all) was found 2026-08-19 by checking real post-migration state: all
+  // 4,185 migrated accounts had email_verified_at NULL, meaning none of
+  // them could book or purchase anything (booking/purchasing requires a
+  // verified email — CLAUDE.md's core domain concepts). One timestamp,
+  // captured once, so every migrated row gets the exact same value.
+  const migratedAt = new Date();
+
   const [attendees, suspended, existingUsernames] = await Promise.all([
     legacyQuery<(LegacyAttendeeRow & RowDataPacket)[]>(
       `SELECT id, firstName, lastName, email, PasswordHash FROM session_attendees`,
@@ -105,10 +116,10 @@ export async function migrateUsers(client: PoolClient): Promise<MigrationReport>
     }
 
     const result = await client.query<{ id: string }>(
-      `INSERT INTO users (legacy_id, username, display_name, email, password_hash, base_role, status)
-       VALUES ($1, $2, $3, $4, $5, 'AccountHolder', $6)
+      `INSERT INTO users (legacy_id, username, display_name, email, password_hash, base_role, status, email_verified_at)
+       VALUES ($1, $2, $3, $4, $5, 'AccountHolder', $6, $7)
        RETURNING id`,
-      [String(row.id), username, displayName, row.email, passwordHash, status],
+      [String(row.id), username, displayName, row.email, passwordHash, status, migratedAt],
     );
     legacyAttendeeIdToNewId.set(row.id, result.rows[0].id);
     report.migrated += 1;
