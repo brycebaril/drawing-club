@@ -36,7 +36,7 @@ Analysis of `legacy_data/robo_backup_20260524.sql`, a MySQL dump of the current 
 | Orphaned `sessions` → model | 0 |
 | Orphaned `store_orders` → customer | 0 |
 | `session_attendees` with `numTickets > 0` | 1,120 of 4,185 (~27%) |
-| Undocumented `registration_logs.what` codes present in data | 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 18 (only 0–5 are documented in-schema) |
+| `registration_logs.what` codes 6–18 | Now fully documented — see the Appendix |
 
 ## Mapping matrix (31 tables)
 
@@ -78,37 +78,52 @@ Legend — **Migrate**: real ongoing data, needs a home in the new schema. **Tra
 ## Decisions (resolved 2026-08-18)
 
 1. **`session_attendees.numTickets` → individual `passes` rows.** **Decided: weighted-average price per user.** For each user, compute their average price paid per ticket across their full `store_order_components` purchase history (all single/5-pack/10-pack SKUs, member and non-member priced), then synthesize N pass rows at that average `effective_price`, where N = their current `numTickets`. Chosen over FIFO-from-most-recent-order (arbitrary when a user bought multiple pack sizes over time) and over a $0 lump-sum migration pass (throws away real yield/ROI accuracy) — this is the most defensible accuracy without guessing which specific historical purchase the remaining tickets came from.
-2. **`sessions.status`, `sessions.modelId` sentinels, and `registration_logs.what` codes 6–16/18 — no schema documentation, no legacy app source available during analysis.** **Decided: query the org's former Robostrar admin, non-blocking.** A specific written query for them is in the Appendix below. This does **not** block `MigrationPlan.md` from proceeding — these are narrow, isolated lookup-table questions (a session-status enum and an event-log code table) that don't ripple into the rest of the schema design. In the interim, `MigrationPlan.md` should use the best-guess correlations already explored (e.g. `status=10` covers ~83% of rows across the full date range, suggesting "normal/completed") as provisional mappings, clearly flagged as inferred, and swap in confirmed values once the admin responds.
+2. **`sessions.status` and `registration_logs.what` codes — resolved 2026-08-19, confirmed directly by the org's former Robostrar admin** (full mapping in the Appendix below). The confirmed meaning **overturns the original best-guess mapping, not just fills it in**: `sessions.status` is not a booking/cancellation state at all — it tracks the *model-confirmation daemon's workflow* (has the model been notified, have they confirmed, did they no-show), entirely orthogonal to whether the session itself was ever cancelled as a bookable slot. The migration script's original conservative fallback (treat any non-`10` code as `Canceled`) was actively wrong under this new information, not merely unconfirmed — it would have wrongly cancelled 220 real sessions (every `0`/`1`/`3`/`11` row) that legacy never actually cancelled. Fixed in `scripts/legacy-migration/sessions.ts`: cancellation is now determined solely by the `CANCELLED_SESSION` sentinel model, matching what this finding confirms is the *only* real cancellation signal in the legacy `sessions` table. `MODEL_NO_SHOW` (status `4`, zero rows in this dump but preserved for completeness) is appended as a plain note to the migrated session's description rather than discarded.
 3. **`session_times`'s 23 distinct weekly slots vs. this app's 3 fixed daily slots.** **Resolved as a non-issue, not a tradeoff** — see the updated `session_times` mapping-matrix row above. The app's 3 canonical slots only govern the multi-week-series checkbox picker and the schedule grid's display columns; ordinary recurring rules already store arbitrary real start/end times (confirmed live in the app today — e.g. two distinct existing evening rules at 6–9pm and 7–10pm). Legacy's real per-slot times migrate directly into `sessions.start_time`/`end_time` with no consolidation or loss.
 4. **Historical attendance (`seat_registrations`, 25,725 rows).** **Decided: migrate into a new table in this app's live schema**, not a CSV export — see the updated `seat_registrations` mapping-matrix row above. The user wants both to look back on legacy history and to confirm the live app can answer equivalent queries going forward; `MigrationPlan.md` should design this table's shape explicitly (fields needed for "who attended session X" style queries) rather than treating it as an afterthought.
 5. **`virtual_session_maillist` (206 emails).** **Decided: skip entirely**, along with the rest of the defunct virtual-session data (2021, COVID-era, confirmed inactive since — see Finding above). No outreach export requested.
 
-## Appendix: query for the former Robostrar admin
+## Appendix: confirmed enum mappings (from the org's former Robostrar admin, 2026-08-19)
 
-Non-blocking — send whenever convenient; `MigrationPlan.md` proceeds with provisional mappings in the meantime (see Decision 2).
+Both previously-undocumented enums are now fully resolved. Quoted directly from the admin's reply (which itself quotes an updated schema comment they added to the live legacy database).
 
-> Hi [Name],
->
-> We're migrating off Robostrar and I'm trying to pin down a few internal codes that aren't documented anywhere in the database itself. No rush on this — we can keep moving without it — but it'd help make the migration cleaner if you remember any of these.
->
-> **1. Session status codes.** Every session in the old system has a numeric "status." Looking at the data, I see 5 distinct values:
-> - Code 0: 194 sessions, spread across the full history (2020–2026)
-> - Code 1: only 2 sessions, both in a narrow window in March 2020
-> - Code 3: 129 sessions, spread across the full history
-> - Code 10: 1,991 sessions — the large majority, spread across the full history
-> - Code 11: 90 sessions, spread across the full history
->
-> In the Robostrar admin, what different states could a session be in (e.g. draft/tentative, confirmed, canceled, closed, completed, archived)? It doesn't need to map to these exact numbers — just a description of the possible states is enough, I can likely match them up myself.
->
-> **2. Event log codes.** There's a log of "what happened" events (logins, bookings, cancellations) with codes 0–5 already documented in the schema (login, logout, self-register a seat, self-cancel a seat, admin-register a seat for someone else, admin-cancel a seat for someone else). But the actual data also has codes 6 through 16, plus 18, that were never documented. The three most common undocumented ones are:
-> - Code 6: ~10,300 occurrences
-> - Code 7: ~9,200 occurrences
-> - Code 8: ~12,900 occurrences
->
-> Given how common these are (a similar magnitude to our ~10,400 order records), my best guess is they're related to the purchase/checkout flow (something like "order created," "order paid," "pass delivered") — does that sound right? And do you recall what the less common codes (9, 10, 11, 12, 13, 14, 15, 16, 18) might have logged? Even a partial answer is useful — for anything you don't remember we'll just fall back to a conservative default.
->
-> Thanks — this is genuinely optional/non-blocking, just trying to get it as accurate as possible.
+### `sessions.status` — the model-confirmation daemon's workflow, not a booking state
+
+> Status tracks the interaction between the periodic scheduling daemon who notifies models of upcoming sessions as well as models' possible response to those notifications.
+
+| Code | Name | Meaning | Rows in dump |
+|---|---|---|---|
+| 0 | `UNPROCESSED` | Has not yet entered the confirmation daemon's processing window, or entered the past without ever being processed. Terminal if already in the past. | 194 |
+| 1 | `CONFIRMATION_REQUESTED` | Processed; the model was emailed a confirmation request and hasn't yet responded. | 2 |
+| 3 | `WARNING_UNCONFIRMED` | No response from the model; a warning was issued to Bookers/session managers. May be terminal (model never confirmed). | 129 |
+| 4 | `MODEL_NO_SHOW` | The model did not show up. Terminal. (No dedicated legacy UI ever recorded this — 0 rows in this dump.) | 0 |
+| 10 | `MODEL_CONFIRMED` | Model or booker confirmed the session. All good. (`>=10` chosen deliberately for easy numeric filtering in MySQL admin tools.) | 1,991 |
+| 11 | `MODEL_CONFIRMED_LATE` | Confirmed after a warning was issued, but before the session occurred. | 90 |
+
+**This overturns, not just fills in, the original best-guess mapping** (`status=10` → `Scheduled`, everything else → `Canceled`) — that guess assumed `status` tracked booking availability. It doesn't. The *only* reliable legacy signal for "this session was cancelled as a bookable slot" is the `CANCELLED_SESSION` sentinel model (`sessions.modelId = 74`), confirmed separately during the original analysis. `docs/MigrationPlan.md` and `scripts/legacy-migration/sessions.ts` have been corrected accordingly — see `MigrationPlan.md` §5's `sessions` row.
+
+### `registration_logs.what` — full event vocabulary
+
+Codes 0–5 were already documented (login, logout, self-register/cancel a seat, admin-register/cancel a seat for another). The rest:
+
+| Code | Name | Meaning |
+|---|---|---|
+| 6 | `CREATED_ORDER_LOG_EVENT` | `$who` built `$whichOrder`, not necessarily paid yet. |
+| 7 | `PAID_ORDER_LOG_EVENT` | `$who` paid for `$whichOrder`, triggering auto-fulfillment. |
+| 8 | `RECEIVED_TICKETS_OR_PASSES_LOG_EVENT` | `$who` received `$howMany` tickets (if `$whichPass` is null) or a pass (`$whichPass`) from `$whom` (null = the store). `$howMany` can be negative for deductions. |
+| 9 | `NOTIFIED_ON_PASS_EXPIRATION_LOG_EVENT` | `$who` was notified `$whichPass` expired. |
+| 10 | `CREATED_ACCOUNT_LOG_EVENT` | `$who` signed up a new account. |
+| 11 | `CHANGED_ACCOUNT_PASSWORD_LOG_EVENT` | `$who` reset their own password. |
+| 12 | `ADMIN_INVALIDATED_PASS_LOG_EVENT` | `$who` set `validThru` on `$whose` `$whichPass` to yesterday. |
+| 13 | `SELF_SEAT_REFUNDED_LOG_EVENT` | `$who` cancelled their own seat in `$whichSession` and was issued a ticket refund. Only tracked after 2021-06-30. |
+| 14 | `ADMIN_SEAT_REFUNDED_LOG_EVENT` | Same as 13, but admin-initiated. Only tracked after 2021-06-30. |
+| 15 | `RENEWED_EXISTING_PASS_LOG_EVENT` | `$who` renewed `$whichPass` for some period. |
+| 16 | `SET_MANAGER_LOG_EVENT` | `$who` installed `$whom` as manager of `$whichSession`. |
+| 17 | `SUSPENDED_LOGIN_LOG_EVENT` | `$who` attempted to log in while suspended and saw the `suspended_attendee_accounts.userWarning` message. |
+| 18 | `SCHEDULED_SESSION_MANAGER` | `$who` assigned `$whom` as manager over a date range (an addition to `session_alt_managers`, not `session_general_schedule`). |
+
+No script changes follow from this — `registration_logs` is **Archive-only** (not migrated as live data, per the original mapping matrix), so this table is documentation-complete rather than migration-relevant. Kept here for completeness and in case a future archive export wants the full vocabulary.
 
 ## Recommended next steps
 
-This document satisfies `MigrationPlan.md` §3's stated blocker ("get the legacy schema/dump"), and all five open questions are now resolved (Decision 2 pending external, non-blocking confirmation). The natural next step is to fold the mapping-matrix verdicts and the decisions above into `MigrationPlan.md` itself — that document's job is the actual one-time cutover, which this analysis deliberately stopped short of.
+This document satisfies `MigrationPlan.md` §3's stated blocker ("get the legacy schema/dump"), and every open question — including the two enum groups above — is now fully resolved. `docs/MigrationPlan.md` and the migration scripts have already been updated to match; see `MigrationPlan.md` §2 and §5.

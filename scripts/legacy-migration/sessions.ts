@@ -10,6 +10,13 @@ const CANCELLED_SESSION_SENTINEL = 74;
 const MODEL_NOT_YET_BOOKED_SENTINEL = 100;
 const SENTINEL_MODEL_IDS = new Set([CANCELLED_SESSION_SENTINEL, MODEL_NOT_YET_BOOKED_SENTINEL]);
 
+// sessions.status codes, confirmed by the org's former Robostrar admin
+// (docs/LegacyDataAnalysis.md Appendix) — a model-confirmation-workflow
+// status, not a booking/cancellation one. Only MODEL_NO_SHOW (4) is acted
+// on directly by this script; the rest inform the comment above but don't
+// change migration behavior.
+const MODEL_NO_SHOW_STATUS = 4;
+
 interface LegacySessionRow {
   id: number;
   modelId: number;
@@ -109,24 +116,24 @@ export async function migrateSessions(client: PoolClient): Promise<MigrationRepo
 
     // A CANCELLED_SESSION sentinel model is legacy's own unambiguous "this
     // slot is deliberately blocked" marker (per its schema comment) —
-    // always Canceled, regardless of the row's own status code.
-    let status: "Scheduled" | "Canceled";
-    if (row.modelId === CANCELLED_SESSION_SENTINEL) {
-      status = "Canceled";
-    } else if (row.status === 10) {
-      status = "Scheduled";
-    } else {
-      // Conservative default for every other undocumented status code
-      // (docs/MigrationPlan.md §5) — safer to under- than over-migrate as
-      // bookable, especially pending the admin's input on what they mean.
-      status = "Canceled";
-      report.warnings.push(
-        `sessions.id ${row.id}: status code ${row.status} has no confirmed mapping — migrated as Canceled pending the admin's input (docs/LegacyDataAnalysis.md Appendix).`,
-      );
-    }
+    // always Canceled. Every other status code (confirmed by the org's
+    // former admin, docs/LegacyDataAnalysis.md Appendix) tracks the
+    // model-confirmation daemon's workflow (unprocessed / confirmation
+    // requested / warned-unconfirmed / no-show / confirmed / confirmed
+    // late) — it says nothing about whether the session itself was ever
+    // cancelled as a bookable slot, so none of those codes make a session
+    // Canceled. An earlier version of this script wrongly treated any
+    // non-"confirmed" code as Canceled before this was confirmed.
+    const status: "Scheduled" | "Canceled" = row.modelId === CANCELLED_SESSION_SENTINEL ? "Canceled" : "Scheduled";
 
     const rawDescription = altDescriptionBySession.get(row.id);
-    const description = rawDescription ? stripLegacyHtml(rawDescription) : null;
+    let description = rawDescription ? stripLegacyHtml(rawDescription) : null;
+    if (row.status === MODEL_NO_SHOW_STATUS) {
+      // Real, useful historical signal worth preserving even though this
+      // app's session_status enum has no "no-show" concept of its own.
+      const note = "[Legacy record: model did not show up for this session.]";
+      description = description ? `${description}\n\n${note}` : note;
+    }
 
     const hostUserId = row.mgrId !== null ? (legacyAttendeeIdToNewId.get(row.mgrId) ?? null) : null;
     if (row.mgrId !== null && !hostUserId) {
