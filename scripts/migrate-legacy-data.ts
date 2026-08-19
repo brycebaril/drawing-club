@@ -25,6 +25,7 @@ import { migratePasses } from "./legacy-migration/passes";
 import { migrateSessions } from "./legacy-migration/sessions";
 import { migrateAttendanceHistory } from "./legacy-migration/attendanceHistory";
 import { migrateRegistrationLogs } from "./legacy-migration/registrationLogs";
+import { createRegularSchedule } from "./legacy-migration/regularSchedule";
 import type { MigrationReport } from "./legacy-migration/types";
 
 // session_model_mapping isn't written by any migrate* function directly,
@@ -46,6 +47,9 @@ const RESET_TABLES = [
   "volunteer_roles",
   "transactions",
   "sessions",
+  // Deleted after sessions (which reference it) but before users (which it
+  // references via created_by/default_host_user_id) — see createRegularSchedule.
+  "recurrence_rules",
   "models",
   "users",
 ] as const;
@@ -139,6 +143,12 @@ async function main() {
   } finally {
     client.release();
   }
+
+  // Deliberately outside the main transaction — see createRegularSchedule's
+  // own docstring for why (it uses generateSessionsForRule, which manages
+  // its own transaction via the shared pool).
+  console.log("Creating regular schedule...");
+  printReport(await createRegularSchedule());
 }
 
 main()
