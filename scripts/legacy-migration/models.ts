@@ -34,8 +34,13 @@ export async function migrateModels(client: PoolClient): Promise<MigrationReport
   for (const row of rows) {
     const email = row.EMail.trim().toLowerCase();
     if (seenEmails.has(email)) {
+      // Resolved with the org: confirmed via distinct first/last names on
+      // both rows that these are two real, different people who happen to
+      // share a contact email — not a duplicate entry. Both migrate
+      // normally as-is; this app's models table has no email-uniqueness
+      // constraint. Informational only, not a pending decision.
       report.warnings.push(
-        `Duplicate model email: merdels.id ${seenEmails.get(email)} and ${row.id} — both migrated, needs manual review (docs/LegacyDataAnalysis.md finding #6).`,
+        `Duplicate model email (merdels.id ${seenEmails.get(email)} and ${row.id}): confirmed two different people sharing an email, both migrated normally (docs/LegacyDataAnalysis.md finding #6).`,
       );
     } else {
       seenEmails.set(email, row.id);

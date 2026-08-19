@@ -68,8 +68,13 @@ export async function migrateRolesAndMembership(client: PoolClient): Promise<Mig
     const entitlements = row.entitlementNames.split(",");
 
     if (row.passKind === 0) {
+      // Resolved with the org: confirmed these 3 rows belong to 3 different
+      // real, early (low-numbered) accounts, not one shared test account —
+      // read as real if quirky early admin/founder passes, not junk data.
+      // Migrated normally through the same entitlement logic as everything
+      // else. Informational only, not a pending decision.
       report.warnings.push(
-        `owned_passes.id ${row.id} ("${row.passName}"): passKind=0 miscellaneous row — needs manual review (docs/MigrationPlan.md §5).`,
+        `owned_passes.id ${row.id} ("${row.passName}"): passKind=0 miscellaneous row, migrated normally per the org's confirmation (docs/MigrationPlan.md §5).`,
       );
     }
 
@@ -107,8 +112,14 @@ export async function migrateRolesAndMembership(client: PoolClient): Promise<Mig
     }
 
     if (!assignedSpecificRole && entitlements.includes("volunteer_status")) {
+      // Resolved with the org, not an open question (docs/MigrationPlan.md
+      // §5): most of these categories are volunteer-labor compensation (a
+      // free pass for work — cleaning, supply runs, etc.), not an RBAC
+      // role, and this app has no generic "volunteer, unspecified" role to
+      // assign anyway. Deliberately no volunteer_roles row for any of
+      // these — informational only, not a blocker or pending decision.
       report.warnings.push(
-        `owned_passes.id ${row.id} ("${row.passName}"): only generic volunteer_status, no specific role destination — needs manual review (docs/MigrationPlan.md §5).`,
+        `owned_passes.id ${row.id} ("${row.passName}"): no RBAC role assigned by design — labor-compensation category, not an access role (docs/MigrationPlan.md §5).`,
       );
     }
   }
