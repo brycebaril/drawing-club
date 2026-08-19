@@ -28,6 +28,19 @@ function isDisabledLegacyHash(hash: string | null): boolean {
   return hash === null || hash.length < 20;
 }
 
+// scripts/seed.ts's dev/test account usernames — reserved so a real
+// migrated member's email-derived username can never collide with one.
+// Real bug found by actually running the migration then pnpm seed against
+// the same database: a legacy member's email happened to derive to
+// exactly "admin", and seed.ts's `ON CONFLICT (username) DO UPDATE SET
+// password_hash = EXCLUDED.password_hash` silently overwrote that real
+// person's migrated password with the shared dev password, leaving
+// base_role untouched (AccountHolder) rather than creating the intended
+// separate synthetic "admin" test account at all. seed.ts also runs
+// against `staging` between migration rehearsals (ArchitectureDocument.md
+// §4), so this collision risk isn't just a local-dev nicety.
+const RESERVED_USERNAMES = new Set(["admin", "member", "basic", "host", "modelbooker", "controller"]);
+
 function sanitizeUsernameBase(localPart: string): string {
   const cleaned = localPart.toLowerCase().replace(/[^a-z0-9_]/g, "");
   const padded = cleaned.length >= 3 ? cleaned : `${cleaned}usr`.slice(0, 3).padEnd(3, "0");
@@ -63,7 +76,10 @@ export async function migrateUsers(client: PoolClient): Promise<MigrationReport>
   ]);
 
   const suspendedIds = new Set(suspended.map((row) => row.suspendedAttendeeID));
-  const takenUsernames = new Set(existingUsernames.rows.map((row) => row.username.toLowerCase()));
+  const takenUsernames = new Set([
+    ...existingUsernames.rows.map((row) => row.username.toLowerCase()),
+    ...RESERVED_USERNAMES,
+  ]);
 
   for (const row of attendees) {
     const displayName = [row.firstName, row.lastName].filter(Boolean).join(" ").trim();

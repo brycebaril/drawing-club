@@ -26,9 +26,19 @@ import { migrateSessions } from "./legacy-migration/sessions";
 import { migrateAttendanceHistory } from "./legacy-migration/attendanceHistory";
 import type { MigrationReport } from "./legacy-migration/types";
 
+// session_model_mapping isn't written by any migrate* function directly,
+// but it references both sessions and models — both reset below — so its
+// rows have to go before sessions/models can be deleted.
+//
+// Order matters: children before parents, so each DELETE only ever removes
+// rows whose own outbound foreign keys point at rows already gone (or at
+// tables outside this list, which is fine — DELETE only cares about
+// *inbound* references to the row being deleted, not its own outbound
+// ones).
 const RESET_TABLES = [
   "legacy_attendance_history",
   "seat_reservations",
+  "session_model_mapping",
   "passes",
   "membership_history",
   "volunteer_roles",
@@ -46,7 +56,29 @@ async function alreadyMigrated(): Promise<boolean> {
 async function resetDestinationTables(): Promise<void> {
   // Only ever run against a throwaway staging DB dedicated to migration
   // rehearsal — never intended for a DB with real post-cutover activity.
-  await pool.query(`TRUNCATE ${RESET_TABLES.join(", ")} CASCADE`);
+  //
+  // DELETE, not TRUNCATE — a real, previously-undiscovered bug found by
+  // actually running this against the real local dev database: TRUNCATE's
+  // CASCADE doesn't respect a referencing column's own ON DELETE SET NULL —
+  // it has no row-level "SET NULL and truncate anyway" option, so it just
+  // truncates the *entire referencing table* too, transitively, however
+  // far the FK graph reaches. That silently wiped system_settings,
+  // static_pages, news_posts, and api_keys — none of them in RESET_TABLES,
+  // none of them anything this migration should ever touch — because each
+  // has a column (e.g. system_settings.updated_by) that references users.
+  //
+  // Removing CASCADE doesn't fix it either: Postgres's non-cascading
+  // TRUNCATE refuses if *any* table anywhere has a foreign key constraint
+  // referencing the table being truncated — checked by constraint
+  // existence, not live row content, confirmed by testing directly (it
+  // fails even when every referencing value is already NULL). DELETE is
+  // the actual fix: it respects each column's real ON DELETE behavior
+  // (SET NULL for system_settings.updated_by and friends), so tables
+  // outside this list are left untouched — not wiped, not blocking —
+  // exactly the property CASCADE and plain TRUNCATE both failed to give.
+  for (const table of RESET_TABLES) {
+    await pool.query(`DELETE FROM ${table}`);
+  }
 }
 
 function printReport(report: MigrationReport) {
