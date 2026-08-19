@@ -29,7 +29,7 @@ export async function GET(request: Request): Promise<NextResponse> {
   const role = params.get("role") ?? undefined;
 
   const result = await pool.query<UserRow>(
-    `SELECT u.id, u.username, u.email, u.status, u.base_role, u.membership_expires_at,
+    `SELECT u.id, u.username, u.display_name, u.email, u.status, u.base_role, u.membership_expires_at,
             COALESCE(array_agg(vr.role::text) FILTER (WHERE vr.role IS NOT NULL), '{}') AS volunteer_roles
      FROM users u
      LEFT JOIN volunteer_roles vr ON vr.user_id = u.id
@@ -40,11 +40,12 @@ export async function GET(request: Request): Promise<NextResponse> {
   const now = new Date();
   const rows = filterUserRows(result.rows, { status, tier, role }, now);
 
-  const lines = ["Username,Email,Status,Tier,Roles"];
+  const lines = ["Username,Display Name,Email,Status,Tier,Roles"];
   for (const row of rows) {
     lines.push(
       [
         csvEscape(row.username),
+        csvEscape(row.display_name ?? ""),
         csvEscape(row.email),
         row.status,
         isMemberTier(row, now) ? "MBR" : "ACCT",

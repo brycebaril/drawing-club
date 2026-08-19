@@ -10,6 +10,7 @@ import { removeVolunteerRoleAction } from "./actions";
 interface UserDetail {
   id: string;
   username: string;
+  display_name: string | null;
   email: string;
   status: "Active" | "Suspended" | "Banned";
   base_role: "AccountHolder" | "Admin";
@@ -47,7 +48,7 @@ export default async function AdminUserDetailPage({
   const { id } = await params;
 
   const userResult = await pool.query<UserDetail>(
-    `SELECT id, username, email, status, base_role, membership_expires_at FROM users WHERE id = $1`,
+    `SELECT id, username, display_name, email, status, base_role, membership_expires_at FROM users WHERE id = $1`,
     [id],
   );
   if (userResult.rowCount === 0) notFound();
@@ -87,10 +88,10 @@ export default async function AdminUserDetailPage({
     <>
       <SiteNav />
       <main>
-      <h1>{user.username}</h1>
+      <h1>{user.display_name ?? user.username}</h1>
       <p>
-        {user.email} · {user.base_role} · Status: {user.status} · Tier: {isMember ? "MBR" : "ACCT"} ·
-        Available passes: {passCountResult.rows[0].count}
+        {user.username} · {user.email} · {user.base_role} · Status: {user.status} · Tier:{" "}
+        {isMember ? "MBR" : "ACCT"} · Available passes: {passCountResult.rows[0].count}
       </p>
 
       <section>

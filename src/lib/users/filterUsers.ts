@@ -1,6 +1,7 @@
 export interface UserRow {
   id: string;
   username: string;
+  display_name: string | null;
   email: string;
   status: "Active" | "Suspended" | "Banned";
   base_role: "AccountHolder" | "Admin";

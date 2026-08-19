@@ -14,7 +14,7 @@ export default async function AdminUsersPage({
   const { status, tier, role } = await searchParams;
 
   const result = await pool.query<UserRow>(
-    `SELECT u.id, u.username, u.email, u.status, u.base_role, u.membership_expires_at,
+    `SELECT u.id, u.username, u.display_name, u.email, u.status, u.base_role, u.membership_expires_at,
             COALESCE(array_agg(vr.role::text) FILTER (WHERE vr.role IS NOT NULL), '{}') AS volunteer_roles
      FROM users u
      LEFT JOIN volunteer_roles vr ON vr.user_id = u.id
@@ -84,6 +84,7 @@ export default async function AdminUsersPage({
         <thead>
           <tr>
             <th>Username</th>
+            <th>Display name</th>
             <th>Email</th>
             <th>Status</th>
             <th>Tier</th>
@@ -99,6 +100,7 @@ export default async function AdminUsersPage({
                 <td>
                   <a href={`/admin/users/${row.id}`}>{row.username}</a>
                 </td>
+                <td>{row.display_name ?? "—"}</td>
                 <td>{row.email}</td>
                 <td>{row.status}</td>
                 <td>{isMember ? "MBR" : "ACCT"}</td>
