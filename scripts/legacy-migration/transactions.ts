@@ -30,6 +30,13 @@ function itemTypeForSku(sku: number): "SinglePass" | "PassPack" | "MembershipRen
  * membership pass back to the transaction that paid for it. */
 export const legacyPassIdToTransactionId = new Map<number, string>();
 
+/** legacy store_orders.invoiceId -> migrated transactions.id —
+ * registration_logs.whichOrder resolves through this (registrationLogs.ts).
+ * ~1% of orders bundle >1 component/transaction; last write wins, which is
+ * fine for a best-effort customer-service cross-reference, not a strict
+ * accounting join. */
+export const legacyInvoiceIdToTransactionId = new Map<number, string>();
+
 export async function migrateTransactions(client: PoolClient): Promise<MigrationReport> {
   const report = emptyReport("transactions");
 
@@ -81,6 +88,7 @@ export async function migrateTransactions(client: PoolClient): Promise<Migration
     if (row.passId !== null) {
       legacyPassIdToTransactionId.set(row.passId, result.rows[0].id);
     }
+    legacyInvoiceIdToTransactionId.set(row.invoiceId, result.rows[0].id);
     report.migrated += 1;
   }
 

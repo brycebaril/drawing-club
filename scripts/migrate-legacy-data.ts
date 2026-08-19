@@ -24,6 +24,7 @@ import { migrateRolesAndMembership } from "./legacy-migration/rolesAndMembership
 import { migratePasses } from "./legacy-migration/passes";
 import { migrateSessions } from "./legacy-migration/sessions";
 import { migrateAttendanceHistory } from "./legacy-migration/attendanceHistory";
+import { migrateRegistrationLogs } from "./legacy-migration/registrationLogs";
 import type { MigrationReport } from "./legacy-migration/types";
 
 // session_model_mapping isn't written by any migrate* function directly,
@@ -36,6 +37,7 @@ import type { MigrationReport } from "./legacy-migration/types";
 // *inbound* references to the row being deleted, not its own outbound
 // ones).
 const RESET_TABLES = [
+  "legacy_registration_logs",
   "legacy_attendance_history",
   "seat_reservations",
   "session_model_mapping",
@@ -126,6 +128,7 @@ async function main() {
     printReport(await migratePasses(client));
     printReport(await migrateSessions(client));
     printReport(await migrateAttendanceHistory(client, cutoverDate));
+    printReport(await migrateRegistrationLogs(client));
 
     await client.query("COMMIT");
     console.log("Migration committed.");

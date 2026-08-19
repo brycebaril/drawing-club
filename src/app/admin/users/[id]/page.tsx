@@ -29,6 +29,18 @@ interface BookingRow {
   start_time: Date;
 }
 
+interface LegacyActivityRow {
+  occurred_at: Date;
+  event_label: string;
+  how_many: number;
+  comment: string | null;
+  target_username: string | null;
+  session_start_time: Date | null;
+  session_type: string | null;
+  transaction_item_type: string | null;
+  transaction_amount: string | null;
+}
+
 const VOLUNTEER_ROLE_LABELS: Record<string, string> = {
   SessionManager: "Session Manager (VOL_HOST)",
   ContentEditor: "Content Editor (VOL_MKT)",
@@ -54,7 +66,7 @@ export default async function AdminUserDetailPage({
   if (userResult.rowCount === 0) notFound();
   const user = userResult.rows[0];
 
-  const [passCountResult, historyResult, volunteerRolesResult, bookingsResult] = await Promise.all([
+  const [passCountResult, historyResult, volunteerRolesResult, bookingsResult, legacyActivityResult] = await Promise.all([
     pool.query<{ count: string }>(
       `SELECT count(*) FROM passes WHERE owner_id = $1 AND status = 'Available'`,
       [id],
@@ -74,6 +86,20 @@ export default async function AdminUserDetailPage({
        JOIN sessions s ON s.id = p.session_id
        WHERE p.owner_id = $1 AND p.status = 'Used' AND s.start_time > now()
        ORDER BY s.start_time ASC`,
+      [id],
+    ),
+    pool.query<LegacyActivityRow>(
+      `SELECT l.occurred_at, l.event_label, l.how_many, l.comment,
+              target.username AS target_username,
+              s.start_time AS session_start_time, s.session_type,
+              t.item_type::text AS transaction_item_type, t.amount_paid AS transaction_amount
+       FROM legacy_registration_logs l
+       LEFT JOIN users target ON target.id = l.target_user_id
+       LEFT JOIN sessions s ON s.id = l.session_id
+       LEFT JOIN transactions t ON t.id = l.transaction_id
+       WHERE l.actor_user_id = $1
+       ORDER BY l.occurred_at DESC
+       LIMIT 100`,
       [id],
     ),
   ]);
@@ -170,6 +196,50 @@ export default async function AdminUserDetailPage({
           </ul>
         )}
       </section>
+
+      {legacyActivityResult.rows.length > 0 && (
+        <section>
+          <h2>Legacy activity</h2>
+          <p className="section-note">
+            Pre-cutover history from the previous booking system (Robostrar), for customer-service reference only —
+            most recent 100 events, excluding plain logins/logouts.
+          </p>
+          <div className="table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>When</th>
+                  <th>Event</th>
+                  <th>Details</th>
+                </tr>
+              </thead>
+              <tbody>
+                {legacyActivityResult.rows.map((row, i) => (
+                  <tr key={i}>
+                    <td>{new Date(row.occurred_at).toLocaleString()}</td>
+                    <td>{row.event_label}</td>
+                    <td>
+                      {row.target_username && <>Involving {row.target_username}. </>}
+                      {row.session_type && row.session_start_time && (
+                        <>
+                          Session: {row.session_type} on {new Date(row.session_start_time).toLocaleString()}.{" "}
+                        </>
+                      )}
+                      {row.transaction_item_type && (
+                        <>
+                          Order: {row.transaction_item_type} (${row.transaction_amount}).{" "}
+                        </>
+                      )}
+                      {row.how_many !== 0 && <>Qty: {row.how_many}. </>}
+                      {row.comment && <>{row.comment}</>}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
     </main>
     </>
   );
