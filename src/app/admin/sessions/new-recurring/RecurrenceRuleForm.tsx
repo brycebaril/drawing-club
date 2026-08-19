@@ -3,10 +3,18 @@
 import { useActionState } from "react";
 import { createRecurrenceRuleAction, type CreateRecurrenceRuleState } from "../actions";
 import { SESSION_TYPES, DAYS_OF_WEEK } from "@/lib/sessions/shared";
+import { HostSelect } from "@/components/HostSelect";
+import type { HostCandidate } from "@/lib/sessions/host";
 
 const initialState: CreateRecurrenceRuleState = {};
 
-export function RecurrenceRuleForm({ defaultCapacity }: { defaultCapacity: number }) {
+export function RecurrenceRuleForm({
+  defaultCapacity,
+  hostCandidates,
+}: {
+  defaultCapacity: number;
+  hostCandidates: HostCandidate[];
+}) {
   const [state, formAction, pending] = useActionState(createRecurrenceRuleAction, initialState);
 
   return (
@@ -48,8 +56,8 @@ export function RecurrenceRuleForm({ defaultCapacity }: { defaultCapacity: numbe
         <input id="rr-maxCapacity" name="maxCapacity" type="number" min={1} />
       </div>
       <div>
-        <label htmlFor="rr-hostUsername">Host username (optional — leave blank for an open host slot)</label>
-        <input id="rr-hostUsername" name="hostUsername" />
+        <label htmlFor="rr-hostUsername">Host</label>
+        <HostSelect id="rr-hostUsername" candidates={hostCandidates} />
       </div>
       <div>
         <label htmlFor="rr-startDate">Start date</label>

@@ -2,12 +2,20 @@
 
 import { useActionState } from "react";
 import { createSessionAction, type CreateSessionState } from "../actions";
+import { HostSelect } from "@/components/HostSelect";
+import type { HostCandidate } from "@/lib/sessions/host";
 
 const SESSION_TYPES = ["L", "R", "G", "P", "S", "X", "Gallery", "Party"] as const;
 
 const initialState: CreateSessionState = {};
 
-export function SessionForm({ defaultCapacity }: { defaultCapacity: number }) {
+export function SessionForm({
+  defaultCapacity,
+  hostCandidates,
+}: {
+  defaultCapacity: number;
+  hostCandidates: HostCandidate[];
+}) {
   const [state, formAction, pending] = useActionState(createSessionAction, initialState);
 
   return (
@@ -46,8 +54,8 @@ export function SessionForm({ defaultCapacity }: { defaultCapacity: number }) {
         />
       </div>
       <div>
-        <label htmlFor="hostUsername">Host username (optional — leave blank for an open host slot)</label>
-        <input id="hostUsername" name="hostUsername" />
+        <label htmlFor="hostUsername">Host</label>
+        <HostSelect id="hostUsername" candidates={hostCandidates} />
       </div>
       {state.error && <p role="alert">{state.error}</p>}
       <button type="submit" disabled={pending}>

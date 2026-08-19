@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { pool } from "@/lib/db/pool";
 import { SiteNav } from "@/components/SiteNav";
 import { getSettingNumber } from "@/lib/settings";
+import { getSessionManagerCandidates } from "@/lib/sessions/host";
 import { toDateOnly } from "@/lib/sessions/shared";
 import { RecurrenceRuleEditForm } from "./RecurrenceRuleEditForm";
 
@@ -36,7 +37,10 @@ export default async function RecurrenceRuleDetailPage({
   if (result.rowCount === 0) notFound();
   const rule = result.rows[0];
 
-  const defaultCapacity = await getSettingNumber("SESSION_DEFAULT_CAPACITY");
+  const [defaultCapacity, hostCandidates] = await Promise.all([
+    getSettingNumber("SESSION_DEFAULT_CAPACITY"),
+    getSessionManagerCandidates(),
+  ]);
 
   return (
     <>
@@ -46,6 +50,7 @@ export default async function RecurrenceRuleDetailPage({
       <RecurrenceRuleEditForm
         ruleId={rule.id}
         defaultCapacity={defaultCapacity}
+        hostCandidates={hostCandidates}
         rule={{
           sessionType: rule.session_type,
           description: rule.description ?? "",

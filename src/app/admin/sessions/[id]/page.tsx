@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { pool } from "@/lib/db/pool";
 import { SiteNav } from "@/components/SiteNav";
+import { getSessionManagerCandidates } from "@/lib/sessions/host";
 import {
   cancelOccurrenceAction,
   cancelSeriesAction,
@@ -53,6 +54,8 @@ export default async function AdminSessionDetailPage({
   const isRecurring = session.recurrence_rule_id !== null;
   const isSeries = session.series_id !== null;
   const isCanceled = session.status === "Canceled";
+
+  const hostCandidates = await getSessionManagerCandidates();
 
   const attendeesResult = isSeries
     ? { rows: [] as AttendeeRow[], rowCount: 0 }
@@ -131,6 +134,7 @@ export default async function AdminSessionDetailPage({
             description={session.description ?? ""}
             maxCapacity={session.max_capacity}
             hostUsername={session.host_username ?? ""}
+            hostCandidates={hostCandidates}
           />
         </>
       )}

@@ -3,6 +3,8 @@
 import { useActionState } from "react";
 import { updateSessionDetailsAction, type UpdateSessionDetailsState } from "./actions";
 import { SESSION_TYPES } from "@/lib/sessions/shared";
+import { HostSelect } from "@/components/HostSelect";
+import type { HostCandidate } from "@/lib/sessions/host";
 
 const initialState: UpdateSessionDetailsState = {};
 
@@ -12,12 +14,14 @@ export function SessionDetailsEditForm({
   description,
   maxCapacity,
   hostUsername,
+  hostCandidates,
 }: {
   sessionId: string;
   sessionType: string;
   description: string;
   maxCapacity: number;
   hostUsername: string;
+  hostCandidates: HostCandidate[];
 }) {
   const [state, formAction, pending] = useActionState(updateSessionDetailsAction, initialState);
 
@@ -50,8 +54,8 @@ export function SessionDetailsEditForm({
         />
       </div>
       <div>
-        <label htmlFor="sde-hostUsername">Host username (optional — leave blank for an open host slot)</label>
-        <input id="sde-hostUsername" name="hostUsername" defaultValue={hostUsername} />
+        <label htmlFor="sde-hostUsername">Host</label>
+        <HostSelect id="sde-hostUsername" candidates={hostCandidates} defaultValue={hostUsername} />
       </div>
       {state.error && <p role="alert">{state.error}</p>}
       <button type="submit" disabled={pending}>

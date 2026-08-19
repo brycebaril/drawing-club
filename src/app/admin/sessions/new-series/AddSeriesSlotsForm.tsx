@@ -3,6 +3,8 @@
 import { useActionState } from "react";
 import { addSeriesSlotsAction, type AddSeriesSlotsState } from "@/app/admin/sessions/series/[id]/actions";
 import { SESSION_TYPES, SLOTS, toDateOnly } from "@/lib/sessions/shared";
+import { HostSelect } from "@/components/HostSelect";
+import type { HostCandidate } from "@/lib/sessions/host";
 
 const initialState: AddSeriesSlotsState = {};
 
@@ -10,9 +12,10 @@ interface Props {
   seriesId: string;
   days: Date[];
   occupied: Record<string, string>;
+  hostCandidates: HostCandidate[];
 }
 
-export function AddSeriesSlotsForm({ seriesId, days, occupied }: Props) {
+export function AddSeriesSlotsForm({ seriesId, days, occupied, hostCandidates }: Props) {
   const [state, formAction, pending] = useActionState(addSeriesSlotsAction, initialState);
 
   return (
@@ -33,8 +36,8 @@ export function AddSeriesSlotsForm({ seriesId, days, occupied }: Props) {
         <textarea id="ass-description" name="description" />
       </div>
       <div>
-        <label htmlFor="ass-hostUsername">Host username (optional — leave blank for an open host slot)</label>
-        <input id="ass-hostUsername" name="hostUsername" />
+        <label htmlFor="ass-hostUsername">Host</label>
+        <HostSelect id="ass-hostUsername" candidates={hostCandidates} />
       </div>
 
       <div style={{ overflowX: "auto" }}>

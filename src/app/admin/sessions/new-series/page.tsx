@@ -1,6 +1,7 @@
 import { pool } from "@/lib/db/pool";
 import { SiteNav } from "@/components/SiteNav";
 import { getSettingNumber } from "@/lib/settings";
+import { getSessionManagerCandidates } from "@/lib/sessions/host";
 import { slotFor, startOfDay, dayIndex, toDateOnly, parseDateOnly } from "@/lib/sessions/shared";
 import { SeriesSlotPickerForm } from "./SeriesSlotPickerForm";
 import { AddSeriesSlotsForm } from "./AddSeriesSlotsForm";
@@ -37,7 +38,10 @@ export default async function NewSeriesPage({
 
   const days = Array.from({ length: WINDOW_DAYS }, (_, i) => new Date(gridStart.getTime() + i * ONE_DAY_MS));
 
-  const defaultSeatCount = await getSettingNumber("SESSION_DEFAULT_CAPACITY");
+  const [defaultSeatCount, hostCandidates] = await Promise.all([
+    getSettingNumber("SESSION_DEFAULT_CAPACITY"),
+    getSessionManagerCandidates(),
+  ]);
 
   const seriesIdParam = seriesId ? `&seriesId=${seriesId}` : "";
   const prevStart = toDateOnly(new Date(gridStart.getTime() - WINDOW_DAYS * ONE_DAY_MS));
@@ -70,9 +74,14 @@ export default async function NewSeriesPage({
         <a href={`?start=${nextStart}${seriesIdParam}`}>Next {WINDOW_DAYS / 7} weeks &rarr;</a>
       </p>
       {seriesId && existingSeriesName ? (
-        <AddSeriesSlotsForm seriesId={seriesId} days={days} occupied={occupied} />
+        <AddSeriesSlotsForm seriesId={seriesId} days={days} occupied={occupied} hostCandidates={hostCandidates} />
       ) : (
-        <SeriesSlotPickerForm days={days} occupied={occupied} defaultSeatCount={defaultSeatCount} />
+        <SeriesSlotPickerForm
+          days={days}
+          occupied={occupied}
+          defaultSeatCount={defaultSeatCount}
+          hostCandidates={hostCandidates}
+        />
       )}
     </main>
     </>

@@ -92,12 +92,14 @@ test("series editing: seat-count guard, add more dates, instance editor", async 
     expect(Number(afterAdd.rows[0].count)).toBe(3);
   }).toPass({ timeout: 5000 });
 
-  // Instance editor: edit session2's own capacity/host in place.
-  // Any user can be a host — resolveHostUsername has no role restriction.
+  // Instance editor: edit session2's own capacity/host in place. The host
+  // dropdown only offers SessionManager-tagged users (HostSelect), so this
+  // test user needs that role to be selectable at all.
   const editedHost = await createTestUser({ username: `e2eseriesediteditbook${Date.now()}` });
+  await pool.query(`INSERT INTO volunteer_roles (user_id, role) VALUES ($1, 'SessionManager')`, [editedHost.id]);
   await page.goto(`/admin/sessions/${session2.id}`);
   await page.getByLabel(/^Capacity/).fill("7");
-  await page.getByLabel(/^Host username/).fill(editedHost.username);
+  await page.getByLabel(/^Host$/).selectOption(editedHost.username);
   await page.getByRole("button", { name: "Save changes" }).click();
   await page.waitForURL(`**/admin/sessions/${session2.id}`);
 

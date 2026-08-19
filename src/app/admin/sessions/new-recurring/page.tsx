@@ -1,10 +1,14 @@
 import Link from "next/link";
 import { getSettingNumber } from "@/lib/settings";
+import { getSessionManagerCandidates } from "@/lib/sessions/host";
 import { SiteNav } from "@/components/SiteNav";
 import { RecurrenceRuleForm } from "./RecurrenceRuleForm";
 
 export default async function NewRecurringSessionPage() {
-  const defaultCapacity = await getSettingNumber("SESSION_DEFAULT_CAPACITY");
+  const [defaultCapacity, hostCandidates] = await Promise.all([
+    getSettingNumber("SESSION_DEFAULT_CAPACITY"),
+    getSessionManagerCandidates(),
+  ]);
 
   return (
     <>
@@ -17,7 +21,7 @@ export default async function NewRecurringSessionPage() {
         <Link href="/admin/sessions/recurring">recurring rules page</Link>) to extend a perpetual
         series further as time passes.
       </p>
-      <RecurrenceRuleForm defaultCapacity={defaultCapacity} />
+      <RecurrenceRuleForm defaultCapacity={defaultCapacity} hostCandidates={hostCandidates} />
     </main>
     </>
   );

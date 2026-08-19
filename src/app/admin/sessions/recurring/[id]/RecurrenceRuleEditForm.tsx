@@ -3,12 +3,15 @@
 import { useActionState, useState } from "react";
 import { editRecurrenceRuleAction, type EditRecurrenceRuleState } from "./actions";
 import { SESSION_TYPES, DAYS_OF_WEEK } from "@/lib/sessions/shared";
+import { HostSelect } from "@/components/HostSelect";
+import type { HostCandidate } from "@/lib/sessions/host";
 
 const initialState: EditRecurrenceRuleState = {};
 
 interface Props {
   ruleId: string;
   defaultCapacity: number;
+  hostCandidates: HostCandidate[];
   rule: {
     sessionType: string;
     description: string;
@@ -22,7 +25,7 @@ interface Props {
   };
 }
 
-export function RecurrenceRuleEditForm({ ruleId, defaultCapacity, rule }: Props) {
+export function RecurrenceRuleEditForm({ ruleId, defaultCapacity, hostCandidates, rule }: Props) {
   const [state, formAction, pending] = useActionState(editRecurrenceRuleAction, initialState);
   const [scopeType, setScopeType] = useState<"entire" | "this-and-future">("entire");
 
@@ -72,8 +75,8 @@ export function RecurrenceRuleEditForm({ ruleId, defaultCapacity, rule }: Props)
         <input id="rre-maxCapacity" name="maxCapacity" type="number" min={1} defaultValue={rule.maxCapacity} />
       </div>
       <div>
-        <label htmlFor="rre-hostUsername">Host username (optional — leave blank for an open host slot)</label>
-        <input id="rre-hostUsername" name="hostUsername" defaultValue={rule.hostUsername} />
+        <label htmlFor="rre-hostUsername">Host</label>
+        <HostSelect id="rre-hostUsername" candidates={hostCandidates} defaultValue={rule.hostUsername} />
       </div>
       <div>
         <label htmlFor="rre-startDate">Start date</label>

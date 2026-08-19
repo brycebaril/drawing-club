@@ -3,6 +3,8 @@
 import { useActionState } from "react";
 import { createSeriesAction, type CreateSeriesState } from "../actions";
 import { SESSION_TYPES, SLOTS, toDateOnly } from "@/lib/sessions/shared";
+import { HostSelect } from "@/components/HostSelect";
+import type { HostCandidate } from "@/lib/sessions/host";
 
 const initialState: CreateSeriesState = {};
 
@@ -10,9 +12,10 @@ interface Props {
   days: Date[];
   occupied: Record<string, string>;
   defaultSeatCount: number;
+  hostCandidates: HostCandidate[];
 }
 
-export function SeriesSlotPickerForm({ days, occupied, defaultSeatCount }: Props) {
+export function SeriesSlotPickerForm({ days, occupied, defaultSeatCount, hostCandidates }: Props) {
   const [state, formAction, pending] = useActionState(createSeriesAction, initialState);
 
   return (
@@ -47,8 +50,8 @@ export function SeriesSlotPickerForm({ days, occupied, defaultSeatCount }: Props
         />
       </div>
       <div>
-        <label htmlFor="series-hostUsername">Host username (optional — leave blank for an open host slot)</label>
-        <input id="series-hostUsername" name="hostUsername" />
+        <label htmlFor="series-hostUsername">Host</label>
+        <HostSelect id="series-hostUsername" candidates={hostCandidates} />
       </div>
 
       <div style={{ overflowX: "auto" }}>
