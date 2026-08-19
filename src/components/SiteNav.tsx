@@ -18,6 +18,7 @@ const ADMIN_LINKS: StaffLink[] = [
   { href: "/admin/passes", label: "Passes" },
   { href: "/admin/audit-logs", label: "Audit Logs" },
   { href: "/admin/dashboard", label: "Reporting" },
+  { href: "/admin/reports", label: "Reports" },
   { href: "/admin/api-keys", label: "API Keys" },
   { href: "/admin/settings", label: "Settings" },
 ];
