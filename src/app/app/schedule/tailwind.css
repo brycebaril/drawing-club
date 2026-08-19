@@ -1,0 +1,87 @@
+/**
+ * Scoped to /app/schedule only — imported solely by this route's page.tsx,
+ * so Next's per-route CSS chunking keeps it out of every other page's
+ * bundle. Deliberately imports only theme+utilities, not the full
+ * `tailwindcss` umbrella (which also pulls in preflight, a global
+ * browser-default reset for <button>/<ul>/<table>/etc. that would fight
+ * every other page's plain CSS, including SiteNav which renders on this
+ * page too). This app uses plain CSS everywhere else by earlier deliberate
+ * choice — Tailwind utilities are opt-in per class name, so scoping this
+ * way lets the schedule page use them without that choice affecting
+ * anything else.
+ */
+@import "tailwindcss/theme.css";
+@import "tailwindcss/utilities.css";
+
+/**
+ * Design tokens — aliases onto the SAME custom properties src/app/globals.css
+ * already defines (--color-accent, --color-surface, etc.), never a second,
+ * independent palette. Because these are var() indirections (not copied
+ * literal values), light/dark mode and any future palette tweak in
+ * globals.css apply here automatically with zero changes to this file or
+ * any component using these utilities.
+ *
+ * Deliberately NOT reusing globals.css's own custom-property names
+ * (--color-accent etc.) as the Tailwind theme key — Tailwind's compiled
+ * output would then emit `:root { --color-accent: var(--color-accent) }`,
+ * a self-referential declaration the browser can't resolve. Distinct
+ * semantic names (brand/canvas/panel/ink/line) sidestep that while still
+ * tracking the exact same source values.
+ *
+ * Any future Tailwind-based page should extend/reuse THIS file (or a
+ * shared one factored out of it) rather than inventing its own palette —
+ * that's what keeps new UI cohesive with the rest of the site by
+ * construction instead of by manual eyeballing.
+ */
+@theme {
+  --color-brand: var(--color-accent);
+  --color-brand-strong: var(--color-accent-hover);
+  --color-canvas: var(--color-bg);
+  --color-panel: var(--color-surface);
+  --color-ink: var(--color-text);
+  --color-ink-soft: var(--color-text-muted);
+  --color-line: var(--color-border);
+
+  --color-warn: var(--color-alert-text);
+  --color-warn-bg: var(--color-alert-bg);
+  --color-warn-line: var(--color-alert-border);
+
+  --color-good: var(--color-status-text);
+  --color-good-bg: var(--color-status-bg);
+  --color-good-line: var(--color-status-border);
+
+  /* The site's one flat --radius (6px), applied across Tailwind's whole
+     scale — every rounded-* utility below resolves to the same tight
+     corner the rest of the app uses, not Tailwind's much rounder stock
+     scale (rounded-3xl is 24px by default). */
+  --radius-sm: var(--radius);
+  --radius-md: var(--radius);
+  --radius-lg: var(--radius);
+  --radius-xl: var(--radius);
+  --radius-2xl: var(--radius);
+  --radius-3xl: var(--radius);
+
+  /* Matches main's own subtle shadow (0 1px 3px rgba(0,0,0,.04)) and the
+     staff-menu dropdown's slightly stronger one — not Tailwind's stock,
+     more pronounced shadow scale. */
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.04);
+  --shadow-md: 0 2px 6px rgba(0, 0, 0, 0.06);
+  --shadow-lg: 0 4px 12px rgba(0, 0, 0, 0.12);
+  --shadow-xl: 0 8px 24px rgba(0, 0, 0, 0.16);
+  --shadow-2xl: 0 12px 32px rgba(0, 0, 0, 0.2);
+
+  /* Session-type category colors — a small palette of its own (the rest of
+     the site has no per-category color language to reuse), deliberately
+     chosen as warm/muted tones analogous to --color-accent's terracotta
+     rather than Tailwind's default blue/purple/indigo, which would read as
+     a completely different, colder visual world next to the rest of the
+     app. */
+  --color-type-l: #8a4a3d;
+  --color-type-r: #6b7a4f;
+  --color-type-g: #b8863a;
+  --color-type-p: #8a5a72;
+  --color-type-s: #a8566b;
+  --color-type-x: #6f4a35;
+  --color-type-gallery: #7a6f63;
+  --color-type-party: #c2694a;
+}

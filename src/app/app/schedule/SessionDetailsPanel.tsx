@@ -1,0 +1,123 @@
+import { Info, Lock, UserX } from "lucide-react";
+import { bookSessionAction, cancelBookingAction, joinWaitlistAction } from "./actions";
+import { sessionTypeInfo } from "./scheduleTypes";
+import type { SessionStatus } from "@/lib/booking/sessionStatus";
+
+interface SessionInfo {
+  id: string;
+  session_type: string;
+  description: string | null;
+  start_time: Date;
+  end_time: Date;
+  max_capacity: number;
+  host_username: string | null;
+  booked_count: number;
+}
+
+export function SessionDetailsPanel({
+  session,
+  status,
+  needsModel,
+  bookingError,
+}: {
+  session: SessionInfo;
+  status: SessionStatus;
+  needsModel: boolean;
+  bookingError?: string;
+}) {
+  const info = sessionTypeInfo(session.session_type);
+  const dateStr = new Date(session.start_time).toLocaleDateString(undefined, {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+  });
+  const timeStr = `${new Date(session.start_time).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}–${new Date(session.end_time).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}`;
+
+  return (
+    <>
+      <div className="border-b border-line bg-canvas p-6">
+        <div className="flex items-center gap-4">
+          <div
+            className={`flex h-16 w-16 shrink-0 items-center justify-center rounded-lg border border-line bg-panel text-3xl font-black shadow-sm ${info.textClass}`}
+          >
+            {info.display}
+          </div>
+          <div>
+            <h2 className="text-xl font-bold text-ink">{info.label}</h2>
+            <p className="text-sm font-medium text-ink-soft">
+              {dateStr} · {timeStr}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div className="space-y-5 p-6">
+        {status === "TooFarFuture" && (
+          <div className="flex items-center gap-2 rounded-lg bg-canvas p-3 text-sm font-medium text-ink">
+            <Info className="h-4 w-4 shrink-0" /> Not yet bookable for your account tier.
+          </div>
+        )}
+        {needsModel && (
+          <div className="flex items-center gap-2 rounded-lg border border-warn-line bg-warn-bg p-3 text-sm font-medium text-warn">
+            <UserX className="h-4 w-4 shrink-0" /> We&rsquo;re still confirming a model for this session.
+          </div>
+        )}
+        {status === "NonCancelable" && (
+          <div className="flex items-start gap-2 rounded-lg border border-warn-line bg-warn-bg p-3 text-sm font-medium text-warn">
+            <Lock className="mt-0.5 h-4 w-4 shrink-0" />
+            <span>You&rsquo;re booked. This starts too soon to cancel.</span>
+          </div>
+        )}
+        {bookingError && (
+          <p role="alert" className="rounded-lg border border-warn-line bg-warn-bg p-3 text-sm font-medium text-warn">
+            Couldn&rsquo;t complete that: {bookingError}
+          </p>
+        )}
+
+        {session.description && <p className="text-sm leading-relaxed text-ink-soft">{session.description}</p>}
+
+        <p className="text-sm text-ink-soft">
+          Host: {session.host_username ?? "Open — needs a host"} · Capacity: {session.booked_count}/
+          {session.max_capacity}
+        </p>
+
+        {status === "Available" && (
+          <form action={bookSessionAction}>
+            <input type="hidden" name="sessionId" value={session.id} />
+            <button
+              type="submit"
+              className="w-full rounded-lg bg-brand py-3.5 font-bold text-white shadow-sm transition-all hover:bg-brand-strong hover:shadow-md"
+            >
+              Book (uses 1 pass)
+            </button>
+          </form>
+        )}
+        {status === "Registered" && (
+          <form action={cancelBookingAction}>
+            <input type="hidden" name="sessionId" value={session.id} />
+            <button
+              type="submit"
+              className="w-full rounded-lg bg-brand py-3.5 font-bold text-white shadow-sm transition-all hover:bg-brand-strong hover:shadow-md"
+            >
+              Cancel registration
+            </button>
+          </form>
+        )}
+        {status === "Full" && (
+          <form action={joinWaitlistAction}>
+            <input type="hidden" name="sessionId" value={session.id} />
+            <button
+              type="submit"
+              className="w-full rounded-lg bg-brand py-3.5 font-bold text-white shadow-sm transition-all hover:bg-brand-strong hover:shadow-md"
+            >
+              Join waitlist
+            </button>
+          </form>
+        )}
+        {status === "OnWaitlist" && (
+          <p className="text-sm text-ink-soft">You&rsquo;re on the waitlist — we&rsquo;ll email you if a spot opens.</p>
+        )}
+      </div>
+    </>
+  );
+}

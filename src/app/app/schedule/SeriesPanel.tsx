@@ -78,20 +78,27 @@ export async function SeriesPanel({
   const chosenRow = viewerRow ?? (selectedSeat ? grid.find((row) => row.seatNumber === selectedSeat) : undefined);
 
   return (
-    <section>
-      <h2>{series.name} — numbered seats</h2>
-      {bookingError && <p role="alert">Couldn&apos;t complete that: {bookingError}</p>}
+    <div className="p-6">
+      <h2 className="text-xl font-bold text-ink">{series.name} — numbered seats</h2>
+      {bookingError && (
+        <p role="alert" className="mt-4 rounded-lg border border-warn-line bg-warn-bg p-3 text-sm font-medium text-warn">
+          Couldn&apos;t complete that: {bookingError}
+        </p>
+      )}
 
       {!chosenRow ? (
         <>
-          <p>Pick a seat to see which dates are open:</p>
-          <ul>
+          <p className="mt-4 text-sm text-ink-soft">Pick a seat to see which dates are open:</p>
+          <ul className="mt-3 space-y-1.5">
             {grid.map((row) => (
-              <li key={row.seatNumber}>
+              <li key={row.seatNumber} className="text-sm">
                 {row.status === "FullyReserved" ? (
-                  `Seat ${row.seatNumber}: fully reserved`
+                  <span className="text-ink-soft">Seat {row.seatNumber}: fully reserved</span>
                 ) : (
-                  <a href={`?session_id=${clickedSessionId}&seat=${row.seatNumber}`}>
+                  <a
+                    href={`?session_id=${clickedSessionId}&seat=${row.seatNumber}`}
+                    className="font-medium text-brand hover:text-brand-strong hover:underline"
+                  >
                     Seat {row.seatNumber} (
                     {row.status === "FullSeriesAvailable" ? "all dates open" : "some dates open"})
                   </a>
@@ -102,8 +109,8 @@ export async function SeriesPanel({
         </>
       ) : (
         <>
-          <p>Seat {chosenRow.seatNumber}</p>
-          <form action={bookSeriesSeatAction}>
+          <p className="mt-4 text-sm font-semibold text-ink">Seat {chosenRow.seatNumber}</p>
+          <form action={bookSeriesSeatAction} className="mt-2">
             <input type="hidden" name="seriesId" value={series.id} />
             <input type="hidden" name="clickedSessionId" value={clickedSessionId} />
             <input type="hidden" name="seatNumber" value={chosenRow.seatNumber} />
@@ -127,25 +134,37 @@ export async function SeriesPanel({
               </tbody>
               </table>
             </div>
-            <button type="submit">Reserve checked dates (1 pass each)</button>
+            <button
+              type="submit"
+              className="mt-3 w-full rounded-lg bg-brand py-3.5 font-bold text-white shadow-sm transition-all hover:bg-brand-strong hover:shadow-md"
+            >
+              Reserve checked dates (1 pass each)
+            </button>
           </form>
 
           {chosenRow.cells.some((cell) => cell.state === "Yours") && (
             <>
-              <h3>Cancel a booked date</h3>
-              {chosenRow.cells
-                .filter((cell) => cell.state === "Yours")
-                .map((cell) => (
-                  <form action={cancelSeriesSeatDateAction} key={cell.sessionId}>
-                    <input type="hidden" name="sessionId" value={cell.sessionId} />
-                    <input type="hidden" name="clickedSessionId" value={clickedSessionId} />
-                    <button type="submit">Cancel {new Date(cell.startTime).toLocaleDateString()}</button>
-                  </form>
-                ))}
+              <h3 className="mt-6 text-sm font-bold text-ink">Cancel a booked date</h3>
+              <div className="mt-2 space-y-2">
+                {chosenRow.cells
+                  .filter((cell) => cell.state === "Yours")
+                  .map((cell) => (
+                    <form action={cancelSeriesSeatDateAction} key={cell.sessionId}>
+                      <input type="hidden" name="sessionId" value={cell.sessionId} />
+                      <input type="hidden" name="clickedSessionId" value={clickedSessionId} />
+                      <button
+                        type="submit"
+                        className="w-full rounded-lg bg-brand py-2.5 text-sm font-semibold text-white transition-colors hover:bg-brand-strong"
+                      >
+                        Cancel {new Date(cell.startTime).toLocaleDateString()}
+                      </button>
+                    </form>
+                  ))}
+              </div>
             </>
           )}
         </>
       )}
-    </section>
+    </div>
   );
 }

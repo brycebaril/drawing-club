@@ -1,13 +1,18 @@
+import "./tailwind.css";
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { pool } from "@/lib/db/pool";
 import { getUserAuthContext } from "@/lib/auth/roles";
 import { getSettingNumber } from "@/lib/settings";
-import { computeSessionStatus, type SessionStatus } from "@/lib/booking/sessionStatus";
-import { SLOTS, slotFor, startOfDay, dayIndex } from "@/lib/sessions/shared";
-import { bookSessionAction, cancelBookingAction, joinWaitlistAction } from "./actions";
+import { computeSessionStatus } from "@/lib/booking/sessionStatus";
+import { slotFor, startOfDay, dayIndex } from "@/lib/sessions/shared";
 import { SeriesPanel } from "./SeriesPanel";
+import { SessionDetailsPanel } from "./SessionDetailsPanel";
+import { ScheduleGrid } from "./ScheduleGrid";
+import { Legend } from "./Legend";
+import { Modal } from "./Modal";
 import { SiteNav } from "@/components/SiteNav";
+import type { GridCellData } from "./scheduleTypes";
 
 interface SessionRow {
   id: string;
@@ -19,6 +24,8 @@ interface SessionRow {
   host_username: string | null;
   booked_count: number;
   series_id: string | null;
+  model_required: boolean;
+  has_model: boolean;
 }
 
 export default async function SchedulePage({
@@ -47,7 +54,8 @@ export default async function SchedulePage({
 
   const sessionsResult = await pool.query<SessionRow>(
     `SELECT s.id, s.session_type, s.description, s.start_time, s.end_time, s.max_capacity,
-            u.username AS host_username, s.series_id,
+            u.username AS host_username, s.series_id, s.model_required,
+            EXISTS(SELECT 1 FROM session_model_mapping smm WHERE smm.session_id = s.id) AS has_model,
             COALESCE(bc.booked_count, 0)::int AS booked_count
      FROM sessions s
      LEFT JOIN users u ON u.id = s.host_user_id
@@ -78,17 +86,35 @@ export default async function SchedulePage({
   const bookedSessionIds = new Set(bookedRows.rows.map((r) => r.session_id));
   const waitlistedSessionIds = new Set(waitlistRows.rows.map((r) => r.session_id));
 
-  const grid = new Map<string, SessionRow>(); // key: `${dayIdx}:${slot}` -> first session in that cell
+  const viewerRoles = ctx.roles;
+  function statusFor(s: SessionRow) {
+    return computeSessionStatus({
+      session: { startTime: new Date(s.start_time), maxCapacity: s.max_capacity },
+      roles: viewerRoles,
+      bookedCount: s.booked_count,
+      viewerHasBooking: bookedSessionIds.has(s.id),
+      viewerOnWaitlist: waitlistedSessionIds.has(s.id),
+      cancellationCutoffHours: cutoffHours,
+      bookingWindowAccountDays: accountDays,
+      bookingWindowMemberDays: memberDays,
+    });
+  }
+
+  const grid = new Map<string, GridCellData>(); // key: `${dayIdx}:${slot}` -> first session in that cell
   for (const s of sessions) {
     const idx = dayIndex(gridStart, new Date(s.start_time));
     const key = `${idx}:${slotFor(new Date(s.start_time))}`;
-    if (!grid.has(key)) grid.set(key, s); // one session per cell for this phase (no overlap handling yet)
+    if (!grid.has(key)) {
+      grid.set(key, {
+        id: s.id,
+        sessionType: s.session_type,
+        status: statusFor(s),
+        needsModel: s.model_required && !s.has_model,
+      }); // one session per cell for this phase (no overlap handling yet)
+    }
   }
 
-  const days = Array.from({ length: gridDays }, (_, i) => {
-    const d = new Date(gridStart.getTime() + i * 24 * 60 * 60 * 1000);
-    return d;
-  });
+  const days = Array.from({ length: gridDays }, (_, i) => new Date(gridStart.getTime() + i * 24 * 60 * 60 * 1000));
 
   const { session_id: selectedId, bookingError, seat } = await searchParams;
   const selectedSession = selectedId ? sessions.find((s) => s.id === selectedId) : undefined;
@@ -99,131 +125,34 @@ export default async function SchedulePage({
       <SiteNav />
       <main>
         <h1>Schedule</h1>
-      <p>
-        Viewing as {ctx.username} ({ctx.roles.join(", ")})
-      </p>
+        <p>
+          Viewing as {ctx.username} ({ctx.roles.join(", ")}) · next {gridDays} days
+        </p>
 
-      <div style={{ overflowX: "auto" }}>
-        <table border={1} cellPadding={4}>
-          <thead>
-            <tr>
-              <th>Slot</th>
-              {days.map((d) => (
-                <th key={d.toISOString()}>{d.toLocaleDateString(undefined, { month: "short", day: "numeric" })}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {SLOTS.map((slot) => (
-              <tr key={slot}>
-                <th>{slot}</th>
-                {days.map((_, dayIdx) => {
-                  const cellSession = grid.get(`${dayIdx}:${slot}`);
-                  if (!cellSession) return <td key={dayIdx}>—</td>;
+        <ScheduleGrid days={days} grid={grid} />
+        <Legend />
 
-                  const status = computeSessionStatus({
-                    session: {
-                      startTime: new Date(cellSession.start_time),
-                      maxCapacity: cellSession.max_capacity,
-                    },
-                    roles: ctx.roles,
-                    bookedCount: cellSession.booked_count,
-                    viewerHasBooking: bookedSessionIds.has(cellSession.id),
-                    viewerOnWaitlist: waitlistedSessionIds.has(cellSession.id),
-                    cancellationCutoffHours: cutoffHours,
-                    bookingWindowAccountDays: accountDays,
-                    bookingWindowMemberDays: memberDays,
-                  });
-
-                  return (
-                    <td key={dayIdx}>
-                      <a href={`?session_id=${cellSession.id}`}>
-                        {cellSession.session_type} ({status})
-                      </a>
-                    </td>
-                  );
-                })}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-
-      {selectedSession &&
-        (selectedSession.series_id ? (
-          <SeriesPanel
-            seriesId={selectedSession.series_id}
-            clickedSessionId={selectedSession.id}
-            viewerId={ctx.id}
-            selectedSeat={selectedSeat}
-            bookingError={bookingError}
-          />
-        ) : (
-          <SessionDetails
-            session={selectedSession}
-            status={computeSessionStatus({
-              session: {
-                startTime: new Date(selectedSession.start_time),
-                maxCapacity: selectedSession.max_capacity,
-              },
-              roles: ctx.roles,
-              bookedCount: selectedSession.booked_count,
-              viewerHasBooking: bookedSessionIds.has(selectedSession.id),
-              viewerOnWaitlist: waitlistedSessionIds.has(selectedSession.id),
-              cancellationCutoffHours: cutoffHours,
-              bookingWindowAccountDays: accountDays,
-              bookingWindowMemberDays: memberDays,
-            })}
-            bookingError={bookingError}
-          />
-        ))}
+        {selectedSession && (
+          <Modal>
+            {selectedSession.series_id ? (
+              <SeriesPanel
+                seriesId={selectedSession.series_id}
+                clickedSessionId={selectedSession.id}
+                viewerId={ctx.id}
+                selectedSeat={selectedSeat}
+                bookingError={bookingError}
+              />
+            ) : (
+              <SessionDetailsPanel
+                session={selectedSession}
+                status={statusFor(selectedSession)}
+                needsModel={selectedSession.model_required && !selectedSession.has_model}
+                bookingError={bookingError}
+              />
+            )}
+          </Modal>
+        )}
       </main>
     </>
-  );
-}
-
-function SessionDetails({
-  session,
-  status,
-  bookingError,
-}: {
-  session: SessionRow;
-  status: SessionStatus;
-  bookingError?: string;
-}) {
-  return (
-    <section>
-      <h2>
-        {session.session_type} — {new Date(session.start_time).toLocaleString()}
-      </h2>
-      <p>{session.description}</p>
-      <p>
-        Host: {session.host_username ?? "Open — needs a host"} · Capacity: {session.booked_count}/
-        {session.max_capacity}
-      </p>
-      {bookingError && <p role="alert">Couldn&apos;t complete that: {bookingError}</p>}
-
-      {status === "Available" && (
-        <form action={bookSessionAction}>
-          <input type="hidden" name="sessionId" value={session.id} />
-          <button type="submit">Book (uses 1 pass)</button>
-        </form>
-      )}
-      {status === "Registered" && (
-        <form action={cancelBookingAction}>
-          <input type="hidden" name="sessionId" value={session.id} />
-          <button type="submit">Cancel registration</button>
-        </form>
-      )}
-      {status === "NonCancelable" && <p>You&apos;re registered. Too close to start time to cancel.</p>}
-      {status === "Full" && (
-        <form action={joinWaitlistAction}>
-          <input type="hidden" name="sessionId" value={session.id} />
-          <button type="submit">Join waitlist</button>
-        </form>
-      )}
-      {status === "OnWaitlist" && <p>You&apos;re on the waitlist — we&apos;ll email you if a spot opens.</p>}
-      {status === "TooFarFuture" && <p>Not yet bookable for your account tier.</p>}
-    </section>
   );
 }

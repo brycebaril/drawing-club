@@ -70,7 +70,10 @@ test("waitlisting: a second user is notified after the booked user cancels a ful
   await expect(page.getByRole("button", { name: "Join waitlist" })).toBeVisible();
   await page.getByRole("button", { name: "Join waitlist" }).click();
   await page.waitForURL(`**/app/schedule?session_id=${sessionId}`);
-  await expect(page.getByText(/on the waitlist/)).toBeVisible();
+  // Specific enough not to also match the schedule page's own status-key
+  // Legend, which has its own shorter "You're on the waitlist" text as a
+  // permanent, always-visible part of the page (not scoped to this session).
+  await expect(page.getByText(/on the waitlist — we.ll email you/)).toBeVisible();
 
   // First user cancels, freeing the only spot.
   await loginAsUser(page, first);
