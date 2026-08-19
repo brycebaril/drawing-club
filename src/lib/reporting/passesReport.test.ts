@@ -51,6 +51,12 @@ describe("buildPassesQuery", () => {
     expect(values).toEqual([["legacy"]]);
   });
 
+  it("casts the enum column, not the value, for cost-basis-source filtering", () => {
+    const { sql, values } = buildPassesQuery({ filters: { costBasisSource: ["Estimated"] } });
+    expect(sql).toContain("p.cost_basis_source::text = ANY($1::text[])");
+    expect(values).toEqual([["Estimated"]]);
+  });
+
   it("combines multiple filters with sequential, non-colliding param numbers", () => {
     const { sql, values } = buildPassesQuery({
       filters: { status: ["Available"], isTransferable: false, ownerRole: ["Admin"] },

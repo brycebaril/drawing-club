@@ -11,6 +11,7 @@ const SORT_COLUMNS = {
   status: "p.status",
   batch: "pb.organization_name",
   price: "p.effective_price",
+  basis: "p.cost_basis_source",
   created: "p.created_at",
 } as const;
 
@@ -21,10 +22,13 @@ interface PassRow {
   is_transferable: boolean;
   status: string;
   effective_price: string;
+  cost_basis_source: "Exact" | "Estimated";
   created_at: Date;
   batch_id: string | null;
   organization_name: string | null;
 }
+
+const COST_BASIS_SOURCES = ["Exact", "Estimated"] as const;
 
 interface BatchOption {
   id: string;
@@ -42,20 +46,21 @@ function isRevocable(pass: PassRow): boolean {
 export default async function AdminPassesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string; batchId?: string; sort?: string; dir?: string }>;
+  searchParams: Promise<{ status?: string; batchId?: string; costBasisSource?: string; sort?: string; dir?: string }>;
 }) {
-  const { status, batchId, sort, dir } = await searchParams;
+  const { status, batchId, costBasisSource, sort, dir } = await searchParams;
   const { state, orderBy } = resolveSort(sort, dir, SORT_COLUMNS, "created", "desc");
   const currentParams = new URLSearchParams({
     ...(status ? { status } : {}),
     ...(batchId ? { batchId } : {}),
+    ...(costBasisSource ? { costBasisSource } : {}),
     sort: state.key,
     dir: state.dir,
   });
 
   const passesResult = await pool.query<PassRow>(
     `SELECT p.id, owner.username AS owner_username, recipient.username AS pending_recipient_username,
-            p.is_transferable, p.status, p.effective_price, p.created_at,
+            p.is_transferable, p.status, p.effective_price, p.cost_basis_source::text AS cost_basis_source, p.created_at,
             pb.id AS batch_id, pb.organization_name
      FROM passes p
      LEFT JOIN users owner ON owner.id = p.owner_id
@@ -63,9 +68,10 @@ export default async function AdminPassesPage({
      LEFT JOIN pass_batches pb ON pb.id = p.batch_id
      WHERE ($1::text IS NULL OR p.status::text = $1)
        AND ($2::uuid IS NULL OR p.batch_id = $2)
+       AND ($3::text IS NULL OR p.cost_basis_source::text = $3)
      ORDER BY ${orderBy}, p.id ASC
      LIMIT 200`,
-    [status || null, batchId || null],
+    [status || null, batchId || null, costBasisSource || null],
   );
 
   const batchesResult = await pool.query<BatchOption>(
@@ -98,6 +104,16 @@ export default async function AdminPassesPage({
           {batchesResult.rows.map((batch) => (
             <option key={batch.id} value={batch.id}>
               {batch.organization_name} ({new Date(batch.created_at).toLocaleDateString()})
+            </option>
+          ))}
+        </select>
+
+        <label htmlFor="costBasisSource">Cost basis</label>
+        <select id="costBasisSource" name="costBasisSource" defaultValue={costBasisSource ?? ""}>
+          <option value="">All</option>
+          {COST_BASIS_SOURCES.map((s) => (
+            <option key={s} value={s}>
+              {s}
             </option>
           ))}
         </select>
@@ -136,6 +152,7 @@ export default async function AdminPassesPage({
                 currentParams={currentParams}
                 current={state}
               />
+              <SortableTh label="Basis" columnKey="basis" pathname="/admin/passes" currentParams={currentParams} current={state} />
               <SortableTh label="Created" columnKey="created" pathname="/admin/passes" currentParams={currentParams} current={state} />
               <th></th>
             </tr>
@@ -152,6 +169,7 @@ export default async function AdminPassesPage({
                 <td>{pass.status}</td>
                 <td>{pass.organization_name ?? "—"}</td>
                 <td>${pass.effective_price}</td>
+                <td>{pass.cost_basis_source}</td>
                 <td>{new Date(pass.created_at).toLocaleDateString()}</td>
                 <td>{isRevocable(pass) ? <PassRowActions passId={pass.id} /> : "—"}</td>
               </tr>

@@ -3,7 +3,12 @@ import type { RowDataPacket } from "mysql2/promise";
 import { legacyQuery } from "./mysqlSource";
 import { emptyReport, type MigrationReport } from "./types";
 import { legacyAttendeeIdToNewId } from "./users";
-import { loadTicketSpendByCustomer, weightedAverageTicketPrice } from "./ticketPricing";
+import {
+  loadTicketGrantEventsByCustomer,
+  loadTicketSpendByCustomer,
+  resolveTicketBalanceBatches,
+  weightedAverageTicketPrice,
+} from "./ticketPricing";
 
 interface LegacyBalanceRow {
   id: number;
@@ -13,9 +18,16 @@ interface LegacyBalanceRow {
 /**
  * Converts session_attendees.numTickets (a single running balance, no
  * per-purchase price/date lineage) into individual passes rows, each
- * carrying its own effective_price — docs/MigrationPlan.md Decision 1
- * (docs/LegacyDataAnalysis.md): weighted-average price paid per ticket
- * across the user's full purchase history, not FIFO/LIFO or a flat $0.
+ * carrying its own effective_price. Originally a single weighted-average
+ * price applied to a user's entire balance (docs/MigrationPlan.md
+ * Decision 1) — replaced 2026-08-19 after a real member (a long-tenured
+ * volunteer) reported their whole wallet priced at a nonzero cost basis
+ * that should have been $0. The average itself was never wrong (it only
+ * ever averaged real purchases), but applying it to *every* unit of a
+ * balance — including free volunteer/comp grants — was. Now uses
+ * resolveTicketBalanceBatches (ticketPricing.ts) to reconstruct which of
+ * the current balance's units are free vs. paid via the registration_logs
+ * ledger, per-user, before pricing anything.
  *
  * Deliberately does NOT synthesize passes for owned_passes rows carrying
  * free_studio_seat (role-linked "free unlimited attendance") — that legacy
@@ -30,11 +42,12 @@ interface LegacyBalanceRow {
 export async function migratePasses(client: PoolClient): Promise<MigrationReport> {
   const report = emptyReport("passes (from numTickets balance)");
 
-  const [balances, spend] = await Promise.all([
+  const [balances, spend, grantEvents] = await Promise.all([
     legacyQuery<(LegacyBalanceRow & RowDataPacket)[]>(
       `SELECT id, numTickets FROM session_attendees WHERE numTickets > 0`,
     ),
     loadTicketSpendByCustomer(),
+    loadTicketGrantEventsByCustomer(),
   ]);
 
   for (const balance of balances) {
@@ -46,20 +59,24 @@ export async function migratePasses(client: PoolClient): Promise<MigrationReport
     }
 
     const averagePrice = weightedAverageTicketPrice(spend, balance.id);
-    const effectivePrice = averagePrice ?? "0.00";
-    if (averagePrice === null) {
+    const events = grantEvents.get(balance.id) ?? [];
+    const batches = resolveTicketBalanceBatches(events, balance.numTickets, averagePrice);
+
+    if (events.length === 0) {
       report.warnings.push(
-        `session_attendees.id ${balance.id}: numTickets=${balance.numTickets} but no ticket-purchase history found — migrated at $0.00 effective_price (likely an admin-granted balance).`,
+        `session_attendees.id ${balance.id}: numTickets=${balance.numTickets} but no registration_logs grant history found — priced at $${averagePrice ?? "0.00"} (fallback, likely predates the source data), marked Estimated.`,
       );
     }
 
-    for (let i = 0; i < balance.numTickets; i += 1) {
-      await client.query(
-        `INSERT INTO passes (owner_id, status, is_transferable, effective_price)
-         VALUES ($1, 'Available', false, $2)`,
-        [userId, effectivePrice],
-      );
-      report.migrated += 1;
+    for (const batch of batches) {
+      for (let i = 0; i < batch.qty; i += 1) {
+        await client.query(
+          `INSERT INTO passes (owner_id, status, is_transferable, effective_price, cost_basis_source)
+           VALUES ($1, 'Available', false, $2, $3)`,
+          [userId, batch.price, batch.costBasisSource],
+        );
+        report.migrated += 1;
+      }
     }
   }
 

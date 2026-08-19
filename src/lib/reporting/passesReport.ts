@@ -7,6 +7,9 @@ export type PassStatus = (typeof PASS_STATUSES)[number];
 export const PASS_ORIGINS = ["legacy", "stripe", "batch", "admin_grant"] as const;
 export type PassOrigin = (typeof PASS_ORIGINS)[number];
 
+export const COST_BASIS_SOURCES = ["Exact", "Estimated"] as const;
+export type CostBasisSource = (typeof COST_BASIS_SOURCES)[number];
+
 export interface PassesReportFilters {
   status?: PassStatus[];
   isTransferable?: boolean;
@@ -14,6 +17,7 @@ export interface PassesReportFilters {
   costBasisMin?: number;
   costBasisMax?: number;
   origin?: PassOrigin[];
+  costBasisSource?: CostBasisSource[];
 }
 
 export interface PassesReportParams {
@@ -29,6 +33,7 @@ export interface PassesReportRow {
   ownerRole?: string;
   costBasis?: string;
   origin?: string;
+  costBasisSource?: string;
   count: number;
   total_value: string;
 }
@@ -79,6 +84,12 @@ const PASSES_DIMENSIONS = {
   ownerRole: "u.base_role",
   costBasis: COST_BASIS_BUCKET_EXPRESSION,
   origin: ORIGIN_EXPRESSION,
+  // Distinguishes a deliberately-set exact price (a real transaction, an
+  // admin-typed grant/batch price, or a migrated free grant confirmed by
+  // the legacy ledger) from a migration-time weighted-average estimate —
+  // directly answers "how much of the migrated wallet data is still a
+  // guess" for validation purposes.
+  costBasisSource: "p.cost_basis_source",
 } as const;
 export type PassesGroupByKey = keyof typeof PASSES_DIMENSIONS;
 
@@ -115,6 +126,12 @@ export function buildPassesQuery(params: PassesReportParams): QueryPlan {
   if (filters.origin && filters.origin.length > 0) {
     values.push(filters.origin);
     conditions.push(`(${ORIGIN_EXPRESSION}) = ANY($${values.length}::text[])`);
+  }
+  if (filters.costBasisSource && filters.costBasisSource.length > 0) {
+    // Enum column, not text — must cast the column, not the value (see
+    // CLAUDE.md's recurring "operator does not exist" bug class).
+    values.push(filters.costBasisSource);
+    conditions.push(`p.cost_basis_source::text = ANY($${values.length}::text[])`);
   }
 
   const dateFragment = dateRangeClause("p.created_at", params.dateRange, values.length);

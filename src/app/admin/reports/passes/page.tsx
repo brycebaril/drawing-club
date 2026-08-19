@@ -1,6 +1,12 @@
 import Link from "next/link";
 import { SiteNav } from "@/components/SiteNav";
-import { getPassesReport, PASS_ORIGINS, PASS_STATUSES, type PassesGroupByKey } from "@/lib/reporting/passesReport";
+import {
+  COST_BASIS_SOURCES,
+  getPassesReport,
+  PASS_ORIGINS,
+  PASS_STATUSES,
+  type PassesGroupByKey,
+} from "@/lib/reporting/passesReport";
 import {
   GRANULARITIES,
   parseBooleanParam,
@@ -16,6 +22,7 @@ const GROUP_BY_OPTIONS: { key: PassesGroupByKey; label: string }[] = [
   { key: "ownerRole", label: "Owner role" },
   { key: "costBasis", label: "Cost basis" },
   { key: "origin", label: "Origin" },
+  { key: "costBasisSource", label: "Cost basis type (exact/estimated)" },
 ];
 
 export default async function PassesReportPage({
@@ -32,6 +39,9 @@ export default async function PassesReportPage({
   const origin = parseListParam(params, "origin")?.filter((o): o is (typeof PASS_ORIGINS)[number] =>
     (PASS_ORIGINS as readonly string[]).includes(o),
   );
+  const costBasisSource = parseListParam(params, "costBasisSource")?.filter(
+    (s): s is (typeof COST_BASIS_SOURCES)[number] => (COST_BASIS_SOURCES as readonly string[]).includes(s),
+  );
   const groupBy = (parseListParam(params, "groupBy") as PassesGroupByKey[] | undefined) ?? [];
   const granularity = parseGranularityParam(params.get("granularity"));
   const isTransferable = parseBooleanParam(params.get("isTransferable"));
@@ -44,6 +54,7 @@ export default async function PassesReportPage({
       costBasisMin: parseNumberParam(params.get("costBasisMin")),
       costBasisMax: parseNumberParam(params.get("costBasisMax")),
       origin,
+      costBasisSource,
     },
     groupBy,
     dateRange: { from: parseDateParam(params.get("dateFrom")), to: parseDateParam(params.get("dateTo")) },
@@ -89,6 +100,20 @@ export default async function PassesReportPage({
             {PASS_ORIGINS.map((o) => (
               <label key={o}>
                 <input type="checkbox" name="origin" value={o} defaultChecked={origin?.includes(o)} /> {o}
+              </label>
+            ))}
+          </fieldset>
+          <fieldset>
+            <legend>Cost basis type</legend>
+            {COST_BASIS_SOURCES.map((s) => (
+              <label key={s}>
+                <input
+                  type="checkbox"
+                  name="costBasisSource"
+                  value={s}
+                  defaultChecked={costBasisSource?.includes(s)}
+                />{" "}
+                {s}
               </label>
             ))}
           </fieldset>

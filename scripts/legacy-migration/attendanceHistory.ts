@@ -67,10 +67,18 @@ export async function migrateAttendanceHistory(
     } else {
       const effectivePrice =
         fundedBy === "membership" ? "0.00" : (weightedAverageTicketPrice(spend, row.attendeeId) ?? "0.00");
+      // Membership-funded seats have a real, deliberate $0 per-seat charge
+      // (Exact). A ticket_balance-funded seat's price is still a weighted
+      // average standing in for an unrecoverable exact historical price —
+      // same "Estimated" reasoning as passes.ts's balance conversion, just
+      // not given that function's full per-batch free/paid reconstruction
+      // (a future booking isn't traceable to a specific historical grant the
+      // way a current wallet balance's FIFO composition is).
+      const costBasisSource = fundedBy === "membership" ? "Exact" : "Estimated";
       await client.query(
-        `INSERT INTO passes (owner_id, session_id, checked_in, status, is_transferable, effective_price)
-         VALUES ($1, $2, $3, 'Assigned', false, $4)`,
-        [userId, session.id, row.attended === 1, effectivePrice],
+        `INSERT INTO passes (owner_id, session_id, checked_in, status, is_transferable, effective_price, cost_basis_source)
+         VALUES ($1, $2, $3, 'Assigned', false, $4, $5)`,
+        [userId, session.id, row.attended === 1, effectivePrice, costBasisSource],
       );
     }
     report.migrated += 1;

@@ -1,7 +1,13 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { getUserAuthContext } from "@/lib/auth/roles";
-import { getPassesReport, PASS_ORIGINS, PASS_STATUSES, type PassesGroupByKey } from "@/lib/reporting/passesReport";
+import {
+  COST_BASIS_SOURCES,
+  getPassesReport,
+  PASS_ORIGINS,
+  PASS_STATUSES,
+  type PassesGroupByKey,
+} from "@/lib/reporting/passesReport";
 import { parseBooleanParam, parseDateParam, parseGranularityParam, parseListParam } from "@/lib/reporting/queryFilters";
 
 function csvEscape(value: string): string {
@@ -33,6 +39,9 @@ export async function GET(request: Request): Promise<NextResponse> {
   const origin = parseListParam(params, "origin")?.filter((o): o is (typeof PASS_ORIGINS)[number] =>
     (PASS_ORIGINS as readonly string[]).includes(o),
   );
+  const costBasisSource = parseListParam(params, "costBasisSource")?.filter(
+    (s): s is (typeof COST_BASIS_SOURCES)[number] => (COST_BASIS_SOURCES as readonly string[]).includes(s),
+  );
   const groupBy = (parseListParam(params, "groupBy") as PassesGroupByKey[] | undefined) ?? [];
   const granularity = parseGranularityParam(params.get("granularity"));
 
@@ -42,6 +51,7 @@ export async function GET(request: Request): Promise<NextResponse> {
       isTransferable: parseBooleanParam(params.get("isTransferable")),
       ownerRole: parseListParam(params, "ownerRole"),
       origin,
+      costBasisSource,
     },
     groupBy,
     dateRange: { from: parseDateParam(params.get("dateFrom")), to: parseDateParam(params.get("dateTo")) },
