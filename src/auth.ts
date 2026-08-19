@@ -22,7 +22,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   providers: [
     Credentials({
       credentials: {
-        username: { label: "Username" },
+        username: { label: "Username or email" },
         password: { label: "Password" },
         totpCode: { label: "Authenticator code" },
       },
@@ -40,8 +40,12 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           return null;
         }
 
+        // Accepts email as an alternate identifier — migrated legacy members
+        // (docs/MigrationPlan.md) only ever knew their email, never the
+        // derived username. Unambiguous: users.email now has a DB-level
+        // unique constraint (see the accompanying migration).
         const userRow = await pool.query<{ id: string; password_hash: string }>(
-          `SELECT id, password_hash FROM users WHERE username = $1`,
+          `SELECT id, password_hash FROM users WHERE username = $1 OR email = $1`,
           [username],
         );
         if (userRow.rowCount === 0) {

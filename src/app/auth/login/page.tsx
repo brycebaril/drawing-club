@@ -116,7 +116,7 @@ function LoginForm() {
       <h1>Log in</h1>
       <form onSubmit={handleCredentialsSubmit}>
         <div>
-          <label htmlFor="username">Username</label>
+          <label htmlFor="username">Username or email</label>
           <input
             id="username"
             name="username"
