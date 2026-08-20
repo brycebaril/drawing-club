@@ -42,6 +42,16 @@ describe("requestPasswordReset", () => {
     expect(await tokenCountFor(userId)).toBe(1);
   });
 
+  it("matches email case-insensitively (username stays case-sensitive)", async () => {
+    await requestPasswordReset(email.toUpperCase());
+    expect(await tokenCountFor(userId)).toBe(1);
+  });
+
+  it("does not match username with the wrong case", async () => {
+    await requestPasswordReset(username.toUpperCase());
+    expect(await tokenCountFor(userId)).toBe(0);
+  });
+
   it("is a silent no-op for an unknown identifier", async () => {
     await expect(requestPasswordReset("no-such-account-at-all")).resolves.toBeUndefined();
   });

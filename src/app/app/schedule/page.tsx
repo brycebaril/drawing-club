@@ -141,6 +141,7 @@ export default async function SchedulePage({
                 viewerId={ctx.id}
                 selectedSeat={selectedSeat}
                 bookingError={bookingError}
+                cutoffHours={cutoffHours}
               />
             ) : (
               <SessionDetailsPanel

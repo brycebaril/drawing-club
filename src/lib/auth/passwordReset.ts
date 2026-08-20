@@ -32,8 +32,10 @@ function hashToken(token: string): string {
  * registered usernames/emails.
  */
 export async function requestPasswordReset(identifier: string): Promise<void> {
+  // Case-insensitive on email (matching src/auth.ts's login lookup), not
+  // on username.
   const userResult = await pool.query<{ id: string; email: string; username: string }>(
-    `SELECT id, email, username FROM users WHERE username = $1 OR email = $1`,
+    `SELECT id, email, username FROM users WHERE username = $1 OR lower(email) = lower($1)`,
     [identifier],
   );
   if (userResult.rowCount === 0) return;

@@ -76,9 +76,10 @@ export async function migrateAttendanceHistory(
       // way a current wallet balance's FIFO composition is).
       const costBasisSource = fundedBy === "membership" ? "Exact" : "Estimated";
       await client.query(
-        `INSERT INTO passes (owner_id, session_id, checked_in, status, is_transferable, effective_price, cost_basis_source)
-         VALUES ($1, $2, $3, 'Assigned', false, $4, $5)`,
-        [userId, session.id, row.attended === 1, effectivePrice, costBasisSource],
+        `INSERT INTO passes
+           (owner_id, session_id, checked_in, status, is_transferable, effective_price, cost_basis_source, legacy_id)
+         VALUES ($1, $2, $3, 'Assigned', false, $4, $5, $6)`,
+        [userId, session.id, row.attended === 1, effectivePrice, costBasisSource, String(row.id)],
       );
     }
     report.migrated += 1;

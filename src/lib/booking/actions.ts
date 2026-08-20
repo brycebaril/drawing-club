@@ -136,9 +136,13 @@ export async function bookSession(userId: string, sessionId: string): Promise<Bo
 export type CancelBookingResult = { ok: true } | { ok: false; reason: "not-found" };
 
 /**
- * Shared by the user-initiated cancel path and the admin-forced release
- * path (Phase 4's ban/suspend auto-cancellation) — must run inside an
- * already-open transaction that holds a lock on the session row, so the
+ * Shared by the user-initiated cancel path (this file's cancelBooking and
+ * src/lib/series/actions.ts's cancelSeriesSeatDate — exported specifically
+ * so the series path doesn't reimplement this same booked-count/refund-vs-
+ * forfeit branching, a real "series path drifts from the generic path" risk
+ * CLAUDE.md already documents happening once before) and the admin-forced
+ * release path (Phase 4's ban/suspend auto-cancellation) — must run inside
+ * an already-open transaction that holds a lock on the session row, so the
  * capacity count and the release are atomic together.
  *
  * `refund`: false means the pass is marked 'Forfeited' instead of
@@ -149,7 +153,7 @@ export type CancelBookingResult = { ok: true } | { ok: false; reason: "not-found
  * session cancellation) isn't the member choosing to cancel late, so it
  * shouldn't cost them the pass.
  */
-async function releaseBookedPass(
+export async function releaseBookedPass(
   client: PoolClient,
   sessionId: string,
   passId: string,

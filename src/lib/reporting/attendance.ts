@@ -34,8 +34,13 @@ export function summarizeAttendance(rows: WeeklyAttendanceRow[]): WeeklyAttendan
  */
 export async function getAttendanceTrend(): Promise<WeeklyAttendanceSummary[]> {
   const result = await pool.query<WeeklyAttendanceRow>(
+    // p.status = 'Used' matches every other consumer of this same concept
+    // (check-in's roster query, reporting/flags.ts's capacity check) — a
+    // 'Forfeited' pass (a late cancellation that never resulted in
+    // attendance) keeps session_id set on purpose, but shouldn't count as
+    // a booking here any more than it does anywhere else.
     `WITH bookings AS (
-       SELECT p.session_id, p.checked_in FROM passes p WHERE p.session_id IS NOT NULL
+       SELECT p.session_id, p.checked_in FROM passes p WHERE p.session_id IS NOT NULL AND p.status = 'Used'
        UNION ALL
        SELECT sr.session_id, sr.checked_in FROM seat_reservations sr
      ),

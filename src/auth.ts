@@ -42,10 +42,13 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 
         // Accepts email as an alternate identifier — migrated legacy members
         // (docs/MigrationPlan.md) only ever knew their email, never the
-        // derived username. Unambiguous: users.email now has a DB-level
-        // unique constraint (see the accompanying migration).
+        // derived username. Case-insensitive on the email side (a legacy
+        // email's casing is arbitrary, per the dump) but not on username,
+        // which is a real, case-sensitive identifier elsewhere in the app.
+        // Unambiguous: users.email has a case-insensitive DB-level unique
+        // index (see the accompanying migration).
         const userRow = await pool.query<{ id: string; password_hash: string }>(
-          `SELECT id, password_hash FROM users WHERE username = $1 OR email = $1`,
+          `SELECT id, password_hash FROM users WHERE username = $1 OR lower(email) = lower($1)`,
           [username],
         );
         if (userRow.rowCount === 0) {

@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { createTestUser, loginAsUser, pool } from "./helpers";
+import { createTestUser, findOpenSlotBase, loginAsUser, pool } from "./helpers";
 import { bookSeriesSeat } from "@/lib/series/actions";
 
 function toDateOnly(date: Date): string {
@@ -15,12 +15,13 @@ test("series editing: seat-count guard, add more dates, instance editor", async 
 
   const name = `series-edit-test-${Date.now()}`;
   const now = new Date();
-  // Randomized base offset, same reasoning as series.spec.ts (avoids
-  // colliding with leftover sessions from a previous run against a
-  // non-reset local DB) — but picked on the Morning slot rather than
-  // Evening, so it can't collide with series.spec.ts or either recurring
-  // test file (all Evening-only) regardless of which days get picked.
-  const base = 3 + Math.floor(Math.random() * 20);
+  // DB-checked base offset, same reasoning as series.spec.ts (avoids
+  // colliding with leftover sessions from a previous run, or with a
+  // genuinely busy migrated/recurring near-term calendar) — but picked on
+  // the Morning slot rather than Evening, so it can't collide with
+  // series.spec.ts (Afternoon) or either recurring test file (Evening-only)
+  // regardless of which days get picked.
+  const base = await findOpenSlotBase(now, "Morning", [0, 7, 14], 3, 22);
   const day1 = toDateOnly(new Date(now.getTime() + base * 86400000));
   const day2 = toDateOnly(new Date(now.getTime() + (base + 7) * 86400000));
   const day3 = toDateOnly(new Date(now.getTime() + (base + 14) * 86400000));

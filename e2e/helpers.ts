@@ -11,6 +11,57 @@ import { hashPassword } from "@/lib/auth/password";
 // the pool"). Connections close naturally when the worker process exits.
 export const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
+const SLOT_HOUR_RANGE: Record<"Morning" | "Afternoon" | "Evening", [number, number]> = {
+  Morning: [0, 13],
+  Afternoon: [14, 17],
+  Evening: [18, 23],
+};
+
+function toDateOnly(date: Date): string {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+}
+
+/**
+ * Finds the smallest base day-offset (searching minBase..maxBase) whose
+ * `offsets`-derived dates (e.g. [base, base+7, base+21]) are all free of an
+ * existing Scheduled session in the given slot's hour range — a plain
+ * random offset used to collide reliably once the dev DB holds real
+ * migrated/recurring session data instead of just sparse fixtures (a
+ * legacy-migration re-run populates a genuinely busy near-term calendar),
+ * since the admin slot picker shows an occupied slot as a disabled "Booked"
+ * label with no checkbox to check. Falls back to minBase if every candidate
+ * in range collides (matching the previous unconditional random-offset
+ * behavior), so this can't turn a real app bug into a hung test.
+ */
+export async function findOpenSlotBase(
+  now: Date,
+  slot: "Morning" | "Afternoon" | "Evening",
+  offsets: number[],
+  minBase: number,
+  maxBase: number,
+): Promise<number> {
+  const [hourStart, hourEnd] = SLOT_HOUR_RANGE[slot];
+  const maxOffset = Math.max(...offsets);
+  const windowStart = new Date(now.getTime() + minBase * 86400000);
+  const windowEnd = new Date(now.getTime() + (maxBase + maxOffset + 1) * 86400000);
+  const occupiedResult = await pool.query<{ day: string }>(
+    `SELECT DISTINCT start_time::date::text AS day FROM sessions
+     WHERE status = 'Scheduled' AND start_time >= $1 AND start_time < $2
+       AND EXTRACT(HOUR FROM start_time) BETWEEN $3 AND $4`,
+    [windowStart, windowEnd, hourStart, hourEnd],
+  );
+  const occupiedDays = new Set(occupiedResult.rows.map((r) => r.day));
+
+  for (let base = minBase; base <= maxBase; base++) {
+    const candidates = offsets.map((offset) => toDateOnly(new Date(now.getTime() + (base + offset) * 86400000)));
+    if (candidates.every((day) => !occupiedDays.has(day))) {
+      return base;
+    }
+  }
+  return minBase;
+}
+
 export async function createTestUser(opts: {
   username: string;
   baseRole?: "AccountHolder" | "Admin";

@@ -1,5 +1,4 @@
 import { pool } from "@/lib/db/pool";
-import { getSettingNumber } from "@/lib/settings";
 import { isCancellable } from "@/lib/cancellation";
 import { computeSeatGrid } from "@/lib/series/seatStatus";
 import { bookSeriesSeatAction, cancelSeriesSeatDateAction } from "./actions";
@@ -35,12 +34,14 @@ export async function SeriesPanel({
   viewerId,
   selectedSeat,
   bookingError,
+  cutoffHours,
 }: {
   seriesId: string;
   clickedSessionId: string;
   viewerId: string;
   selectedSeat: number | null;
   bookingError?: string;
+  cutoffHours: number;
 }) {
   const seriesResult = await pool.query<SeriesInfo>(`SELECT id, name, seat_count FROM series WHERE id = $1`, [
     seriesId,
@@ -78,8 +79,6 @@ export async function SeriesPanel({
 
   const viewerRow = grid.find((row) => row.status === "UserReserved");
   const chosenRow = viewerRow ?? (selectedSeat ? grid.find((row) => row.seatNumber === selectedSeat) : undefined);
-
-  const cutoffHours = await getSettingNumber("CANCELLATION_CUTOFF_HOURS");
 
   return (
     <div className="p-6">

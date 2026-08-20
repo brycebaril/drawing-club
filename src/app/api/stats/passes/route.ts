@@ -1,6 +1,12 @@
 import { NextResponse } from "next/server";
 import { requireApiKeyScope } from "@/lib/auth/apiKey";
-import { getPassesReport, PASS_ORIGINS, PASS_STATUSES, type PassesGroupByKey } from "@/lib/reporting/passesReport";
+import {
+  COST_BASIS_SOURCES,
+  getPassesReport,
+  PASS_ORIGINS,
+  PASS_STATUSES,
+  type PassesGroupByKey,
+} from "@/lib/reporting/passesReport";
 import {
   parseBooleanParam,
   parseDateParam,
@@ -19,6 +25,7 @@ import {
  *
  * ?status=Available&status=Used&isTransferable=false&ownerRole=Admin
  * &costBasisMin=10&costBasisMax=20&origin=legacy&origin=stripe
+ * &costBasisSource=Estimated
  * &groupBy=costBasis&groupBy=origin&dateFrom=2026-01-01&dateTo=2026-06-01&granularity=month
  */
 export async function GET(request: Request): Promise<NextResponse> {
@@ -35,6 +42,9 @@ export async function GET(request: Request): Promise<NextResponse> {
   const origin = parseListParam(params, "origin")?.filter((o): o is (typeof PASS_ORIGINS)[number] =>
     (PASS_ORIGINS as readonly string[]).includes(o),
   );
+  const costBasisSource = parseListParam(params, "costBasisSource")?.filter(
+    (s): s is (typeof COST_BASIS_SOURCES)[number] => (COST_BASIS_SOURCES as readonly string[]).includes(s),
+  );
 
   const report = await getPassesReport({
     filters: {
@@ -44,6 +54,7 @@ export async function GET(request: Request): Promise<NextResponse> {
       costBasisMin: parseNumberParam(params.get("costBasisMin")),
       costBasisMax: parseNumberParam(params.get("costBasisMax")),
       origin,
+      costBasisSource,
     },
     groupBy: parseListParam(params, "groupBy") as PassesGroupByKey[] | undefined,
     dateRange: {

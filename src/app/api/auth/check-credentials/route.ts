@@ -30,7 +30,7 @@ export async function POST(request: Request) {
   // Accepts email as an alternate identifier, matching src/auth.ts's
   // authorize() — see that file's comment for why this is unambiguous.
   const userRow = await pool.query<{ id: string; password_hash: string }>(
-    `SELECT id, password_hash FROM users WHERE username = $1 OR email = $1`,
+    `SELECT id, password_hash FROM users WHERE username = $1 OR lower(email) = lower($1)`,
     [username],
   );
   if (userRow.rowCount === 0) {

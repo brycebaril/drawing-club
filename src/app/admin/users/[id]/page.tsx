@@ -34,6 +34,9 @@ interface LegacyActivityRow {
   event_label: string;
   how_many: number;
   comment: string | null;
+  actor_user_id: string | null;
+  actor_username: string | null;
+  target_user_id: string | null;
   target_username: string | null;
   session_start_time: Date | null;
   session_type: string | null;
@@ -89,15 +92,23 @@ export default async function AdminUserDetailPage({
       [id],
     ),
     pool.query<LegacyActivityRow>(
+      // actor_user_id = $1 OR target_user_id = $1: this user's own legacy
+      // activity includes events where an admin/other member acted ON them
+      // (e.g. "Admin registered a seat for another member"), not just
+      // events they themselves performed — found by code review, the
+      // original actor-only WHERE clause silently missed those on exactly
+      // the profile they're about.
       `SELECT l.occurred_at, l.event_label, l.how_many, l.comment,
-              target.username AS target_username,
+              l.actor_user_id, actor.username AS actor_username,
+              l.target_user_id, target.username AS target_username,
               s.start_time AS session_start_time, s.session_type,
               t.item_type::text AS transaction_item_type, t.amount_paid AS transaction_amount
        FROM legacy_registration_logs l
+       LEFT JOIN users actor ON actor.id = l.actor_user_id
        LEFT JOIN users target ON target.id = l.target_user_id
        LEFT JOIN sessions s ON s.id = l.session_id
        LEFT JOIN transactions t ON t.id = l.transaction_id
-       WHERE l.actor_user_id = $1
+       WHERE l.actor_user_id = $1 OR l.target_user_id = $1
        ORDER BY l.occurred_at DESC
        LIMIT 100`,
       [id],
@@ -219,7 +230,10 @@ export default async function AdminUserDetailPage({
                     <td>{new Date(row.occurred_at).toLocaleString()}</td>
                     <td>{row.event_label}</td>
                     <td>
-                      {row.target_username && <>Involving {row.target_username}. </>}
+                      {row.actor_user_id !== user.id && row.actor_username && <>By {row.actor_username}. </>}
+                      {row.target_user_id !== user.id && row.target_username && (
+                        <>Involving {row.target_username}. </>
+                      )}
                       {row.session_type && row.session_start_time && (
                         <>
                           Session: {row.session_type} on {new Date(row.session_start_time).toLocaleString()}.{" "}

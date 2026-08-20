@@ -51,6 +51,17 @@ describe("buildPassesQuery", () => {
     expect(values).toEqual([["legacy"]]);
   });
 
+  it("classifies origin via p.legacy_id before falling back to the transaction join", () => {
+    // Migrated balance-conversion passes never get a transaction_id (see
+    // the comment above ORIGIN_EXPRESSION) — p.legacy_id is the real signal
+    // for them, checked first so they don't fall through to 'admin_grant'.
+    const { sql } = buildPassesQuery({ groupBy: ["origin"] });
+    const legacyIdIndex = sql.indexOf("p.legacy_id IS NOT NULL");
+    const gatewayRefIndex = sql.indexOf("t.gateway_ref_id LIKE 'legacy-%'");
+    expect(legacyIdIndex).toBeGreaterThan(-1);
+    expect(legacyIdIndex).toBeLessThan(gatewayRefIndex);
+  });
+
   it("casts the enum column, not the value, for cost-basis-source filtering", () => {
     const { sql, values } = buildPassesQuery({ filters: { costBasisSource: ["Estimated"] } });
     expect(sql).toContain("p.cost_basis_source::text = ANY($1::text[])");

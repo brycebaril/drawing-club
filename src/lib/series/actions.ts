@@ -3,6 +3,7 @@ import { getSettingNumber } from "@/lib/settings";
 import { isCancellable } from "@/lib/cancellation";
 import {
   releaseAllBookingsForSession,
+  releaseBookedPass,
   broadcastWaitlistOpening,
   resolveViewerEligibility,
   resolveBookingWindowEnd,
@@ -191,19 +192,17 @@ export async function cancelSeriesSeatDate(
     // only this one session's pass, not the seat's other reserved dates.
     const refund = isCancellable(new Date(startTime), cutoffHours);
 
-    const countRow = await client.query<{ count: string }>(
-      `SELECT count(*) FROM passes WHERE session_id = $1 AND status = 'Used'`,
-      [sessionId],
+    // Shared with cancelBooking (src/lib/booking/actions.ts) rather than
+    // reimplementing the same booked-count/refund-vs-forfeit branching —
+    // found by code review as the same "series path drifts from the
+    // generic path" pattern this codebase has hit before.
+    shouldNotifyWaitlist = await releaseBookedPass(
+      client,
+      sessionId,
+      reservationRow.rows[0].pass_id,
+      maxCapacity,
+      refund,
     );
-    shouldNotifyWaitlist = Number(countRow.rows[0].count) >= maxCapacity;
-
-    if (refund) {
-      await client.query(`UPDATE passes SET status = 'Available', session_id = NULL WHERE id = $1`, [
-        reservationRow.rows[0].pass_id,
-      ]);
-    } else {
-      await client.query(`UPDATE passes SET status = 'Forfeited' WHERE id = $1`, [reservationRow.rows[0].pass_id]);
-    }
     await client.query(`DELETE FROM seat_reservations WHERE id = $1`, [reservationRow.rows[0].id]);
 
     await client.query("COMMIT");

@@ -8,7 +8,13 @@ import {
   PASS_STATUSES,
   type PassesGroupByKey,
 } from "@/lib/reporting/passesReport";
-import { parseBooleanParam, parseDateParam, parseGranularityParam, parseListParam } from "@/lib/reporting/queryFilters";
+import {
+  parseBooleanParam,
+  parseDateParam,
+  parseGranularityParam,
+  parseListParam,
+  parseNumberParam,
+} from "@/lib/reporting/queryFilters";
 
 function csvEscape(value: string): string {
   return /[",\n]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value;
@@ -50,6 +56,12 @@ export async function GET(request: Request): Promise<NextResponse> {
       status,
       isTransferable: parseBooleanParam(params.get("isTransferable")),
       ownerRole: parseListParam(params, "ownerRole"),
+      // Found by code review: the CSV export never applied these two
+      // filters, even though the on-page report and this route's own
+      // query-string come from the exact same URL — an admin filtering by
+      // cost basis on the page would silently get a wider, unfiltered CSV.
+      costBasisMin: parseNumberParam(params.get("costBasisMin")),
+      costBasisMax: parseNumberParam(params.get("costBasisMax")),
       origin,
       costBasisSource,
     },

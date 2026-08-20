@@ -71,9 +71,9 @@ export async function migratePasses(client: PoolClient): Promise<MigrationReport
     for (const batch of batches) {
       for (let i = 0; i < batch.qty; i += 1) {
         await client.query(
-          `INSERT INTO passes (owner_id, status, is_transferable, effective_price, cost_basis_source)
-           VALUES ($1, 'Available', false, $2, $3)`,
-          [userId, batch.price, batch.costBasisSource],
+          `INSERT INTO passes (owner_id, status, is_transferable, effective_price, cost_basis_source, legacy_id)
+           VALUES ($1, 'Available', false, $2, $3, $4)`,
+          [userId, batch.price, batch.costBasisSource, String(balance.id)],
         );
         report.migrated += 1;
       }

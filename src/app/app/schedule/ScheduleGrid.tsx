@@ -2,6 +2,9 @@ import { SLOTS } from "@/lib/sessions/shared";
 import { EmptyCell, SessionCell } from "./SessionCell";
 import type { GridCellData } from "./scheduleTypes";
 
+const WEEKDAY_FORMAT = new Intl.DateTimeFormat("en-US", { weekday: "short" });
+const DAY_NUMBER_FORMAT = new Intl.DateTimeFormat("en-US", { day: "numeric" });
+
 export function ScheduleGrid({ days, grid }: { days: Date[]; grid: Map<string, GridCellData> }) {
   return (
     <div className="rounded-lg border border-line bg-panel shadow-sm">
@@ -11,7 +14,7 @@ export function ScheduleGrid({ days, grid }: { days: Date[]; grid: Map<string, G
             {days.map((d, i) => (
               <div key={d.toISOString()} className="flex w-11 shrink-0 flex-col items-center justify-end pb-1">
                 <span className="mb-0.5 text-[10px] font-bold uppercase tracking-widest text-ink-soft">
-                  {new Intl.DateTimeFormat("en-US", { weekday: "short" }).format(d)}
+                  {WEEKDAY_FORMAT.format(d)}
                 </span>
                 <span
                   className={
@@ -20,7 +23,7 @@ export function ScheduleGrid({ days, grid }: { days: Date[]; grid: Map<string, G
                       : "text-sm font-black text-ink"
                   }
                 >
-                  {new Intl.DateTimeFormat("en-US", { day: "numeric" }).format(d)}
+                  {DAY_NUMBER_FORMAT.format(d)}
                 </span>
               </div>
             ))}

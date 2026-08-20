@@ -7,6 +7,8 @@
  * string-interpolated.
  */
 
+import { parseDateOnly } from "@/lib/sessions/shared";
+
 export interface DateRange {
   from?: Date;
   to?: Date;
@@ -25,6 +27,13 @@ export interface SqlFragment {
  * starting param numbering at `paramOffset + 1`. Returns an empty clause
  * ("1=1", no values) when neither bound is set, so callers can always
  * splice this into an AND-chain without a special no-op case.
+ *
+ * `to` is treated as a whole calendar day (parseDateParam below parses it
+ * as local midnight), so the upper bound compares against the start of the
+ * *next* day with `<`, not `<=` against midnight itself — comparing `<=`
+ * against literal midnight would exclude nearly the entire selected day,
+ * a real bug found by code review: an admin picking dateTo=2026-08-19
+ * would have gotten a report that silently dropped almost all of the 19th.
  */
 export function dateRangeClause(column: string, range: DateRange | undefined, paramOffset: number): SqlFragment {
   if (!range || (!range.from && !range.to)) {
@@ -37,8 +46,9 @@ export function dateRangeClause(column: string, range: DateRange | undefined, pa
     parts.push(`${column} >= $${paramOffset + values.length}`);
   }
   if (range.to) {
-    values.push(range.to);
-    parts.push(`${column} <= $${paramOffset + values.length}`);
+    const exclusiveUpperBound = new Date(range.to.getTime() + 24 * 60 * 60 * 1000);
+    values.push(exclusiveUpperBound);
+    parts.push(`${column} < $${paramOffset + values.length}`);
   }
   return { clause: parts.join(" AND "), values };
 }
@@ -100,9 +110,19 @@ export function parseNumberParam(value: string | null): number | undefined {
   return Number.isFinite(n) ? n : undefined;
 }
 
+const DATE_ONLY_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * Parses a "YYYY-MM-DD" query param as LOCAL midnight — deliberately not
+ * `new Date(value)`, which parses a bare date string as UTC midnight and
+ * silently shifts the calendar day by one on any server not running in
+ * UTC (the same class of bug CLAUDE.md documents fixing repeatedly
+ * elsewhere via parseDateOnly/toDateOnly). Reuses parseDateOnly directly
+ * rather than duplicating its logic.
+ */
 export function parseDateParam(value: string | null): Date | undefined {
-  if (!value) return undefined;
-  const d = new Date(value);
+  if (!value || !DATE_ONLY_RE.test(value)) return undefined;
+  const d = parseDateOnly(value);
   return Number.isNaN(d.getTime()) ? undefined : d;
 }
 

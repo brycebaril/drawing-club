@@ -40,15 +40,27 @@ export interface PassesReportRow {
 
 /**
  * "Where did this pass come from" — a real migration-validation hook, not
- * just a nicety: `legacy-%` is the reserved gateway-ref prefix the legacy
- * migration stamps on its synthesized transactions (docs/MigrationPlan.md
- * §5), so this can separate migrated-history passes from real Stripe
- * activity at a glance, the same distinction /ops/financials and
- * /admin/dashboard's revenue queries still can't make (a known gap, not
- * solved here — see the reporting-overhaul plan's Phase 2 scope).
+ * just a nicety.
+ *
+ * `p.legacy_id IS NOT NULL` is the primary signal: a real, previously-missing
+ * marker (added by code review) stamped on every pass the legacy migration
+ * creates from a numTickets balance or a future seat_registration —
+ * deliberately NOT p.transaction_id, which CLAUDE.md documents leaving NULL
+ * for these on purpose ("they don't correspond to one specific historical
+ * purchase, and forcing a link... would misrepresent the data"). Before this
+ * fix, every migrated wallet pass had neither transaction_id nor batch_id
+ * set and fell through to 'admin_grant', indistinguishable from a real
+ * manual admin grant.
+ *
+ * `t.gateway_ref_id LIKE 'legacy-%'` (the reserved prefix the migration
+ * stamps on its synthesized transactions, docs/MigrationPlan.md §5) is kept
+ * as a defensive second check — currently always false for passes
+ * specifically, since nothing sets transaction_id on a migration-created
+ * pass, but harmless to keep in case a future data path ever links one.
  */
 const ORIGIN_EXPRESSION = `
   CASE
+    WHEN p.legacy_id IS NOT NULL THEN 'legacy'
     WHEN t.gateway_ref_id LIKE 'legacy-%' THEN 'legacy'
     WHEN p.batch_id IS NOT NULL THEN 'batch'
     WHEN p.transaction_id IS NOT NULL THEN 'stripe'

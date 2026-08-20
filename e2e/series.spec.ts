@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { createTestUser, loginAsUser, pool } from "./helpers";
+import { createTestUser, findOpenSlotBase, loginAsUser, pool } from "./helpers";
 import { bookSeriesSeat } from "@/lib/series/actions";
 
 function toDateOnly(date: Date): string {
@@ -17,17 +17,19 @@ test("multi-week series lifecycle: create, partial-date seat booking, seat conte
 
   const name = `series-test-${Date.now()}`;
   const now = new Date();
-  // A randomized base offset (rather than a fixed +7 days) so repeated runs
-  // against a non-reset local DB don't collide with a previous run's
-  // leftover sessions on the exact same calendar dates — the admin picker
-  // shows an already-occupied slot as a disabled "Booked" label with no
-  // checkbox, which would make this test flaky without a full DB reset
-  // between every run. Kept small enough (day1 stays <= 10 days out) that
+  // A DB-checked base offset (rather than a fixed +7 days, or plain
+  // randomization) so repeated runs against a non-reset local DB don't
+  // collide with a previous run's leftover sessions — or, once the dev DB
+  // holds real migrated/recurring data, with a genuinely busy near-term
+  // calendar — on the exact same calendar dates. The admin picker shows an
+  // already-occupied slot as a disabled "Booked" label with no checkbox,
+  // which would make this test flaky without checking first. Kept small
+  // enough (day1 stays <= 10 days out) that
   // it's always comfortably inside an Account Holder's 14-day booking
   // window — the member2-vs-member1 seat conflict check below deliberately
   // runs before member2 has a membership, so day1 must never trip the
   // window check first and mask the seat-conflict one it's meant to test.
-  const base = 3 + Math.floor(Math.random() * 8);
+  const base = await findOpenSlotBase(now, "Afternoon", [0, 7, 21], 3, 10);
   // Non-consecutive: base and base+7 days, then skip a week and pick base+21.
   const day1 = toDateOnly(new Date(now.getTime() + base * 86400000));
   const day2 = toDateOnly(new Date(now.getTime() + (base + 7) * 86400000));
