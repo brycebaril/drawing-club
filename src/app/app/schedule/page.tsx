@@ -123,7 +123,7 @@ export default async function SchedulePage({
   return (
     <>
       <SiteNav />
-      <main>
+      <main className="main--wide">
         <h1>Schedule</h1>
         <p>
           Viewing as {ctx.username} ({ctx.roles.join(", ")}) · next {gridDays} days
