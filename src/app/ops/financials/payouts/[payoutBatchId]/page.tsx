@@ -44,7 +44,7 @@ export default async function PayoutBatchDetailPage({
   return (
     <>
       <SiteNav />
-      <main>
+      <main className="main--wide">
       <h1>Payout batch {payoutBatchId}</h1>
       <p>
         <a href={`/ops/financials/payouts/csv?payoutBatchId=${encodeURIComponent(payoutBatchId)}`}>

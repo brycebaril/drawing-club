@@ -82,7 +82,7 @@ export default async function AdminSessionDetailPage({
   return (
     <>
       <SiteNav />
-      <main>
+      <main className="main--wide">
       <h1>
         {session.session_type} — {new Date(session.start_time).toLocaleString()}
       </h1>

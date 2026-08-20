@@ -58,7 +58,7 @@ export default async function ModelBookingPage({
   return (
     <>
       <SiteNav />
-      <main>
+      <main className="main--wide">
       <h1>Model booking</h1>
       <form>
         <label htmlFor="filter">Show</label>

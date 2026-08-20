@@ -28,7 +28,7 @@ export default async function ApiKeysPage({
   return (
     <>
       <SiteNav />
-      <main>
+      <main className="main--wide">
       <h1>API keys</h1>
       <p>
         Bearer-token keys for the Stats API (<code>/api/stats/*</code>), scoped per report type. Each key is

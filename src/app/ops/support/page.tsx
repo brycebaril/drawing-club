@@ -42,7 +42,7 @@ export default async function SupportInboxPage({
   return (
     <>
       <SiteNav />
-      <main>
+      <main className="main--wide">
         <h1>Support inbox</h1>
         <form>
           <label htmlFor="filter">Show</label>

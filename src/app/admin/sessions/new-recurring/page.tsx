@@ -13,7 +13,7 @@ export default async function NewRecurringSessionPage() {
   return (
     <>
       <SiteNav />
-      <main>
+      <main className="main--wide">
       <h1>Create a recurring session</h1>
       <p>
         Generates occurrences up to 90 days out immediately; run <code>pnpm rollforward</code> (or use

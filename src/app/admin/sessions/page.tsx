@@ -47,7 +47,7 @@ export default async function AdminSessionsPage({
   return (
     <>
       <SiteNav />
-      <main>
+      <main className="main--wide">
       <h1>Sessions</h1>
       <p>
         <Link href="/admin/sessions/new">+ Create one-off session</Link> ·{" "}

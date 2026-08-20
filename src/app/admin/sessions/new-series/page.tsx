@@ -60,7 +60,7 @@ export default async function NewSeriesPage({
   return (
     <>
       <SiteNav />
-      <main>
+      <main className="main--wide">
       <h1>{existingSeriesName ? `Add dates to "${existingSeriesName}"` : "Create a multi-week series"}</h1>
       <p>
         Pick any open slots below — consecutive or not, any week —{" "}

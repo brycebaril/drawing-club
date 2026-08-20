@@ -56,7 +56,7 @@ export default async function AdminTransactionDetailPage({
   return (
     <>
       <SiteNav />
-      <main>
+      <main className="main--wide">
       <h1>Transaction</h1>
       <p>
         Buyer:{" "}

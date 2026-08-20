@@ -50,7 +50,7 @@ export default async function AdminSettingsPage() {
   return (
     <>
       <SiteNav />
-      <main>
+      <main className="main--wide">
       <h1>Settings</h1>
       <p>Changes apply immediately to future activity — historical transactions and already-spent pass values are never retroactively altered.</p>
 

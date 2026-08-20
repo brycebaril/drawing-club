@@ -29,7 +29,7 @@ export default async function EditStaticPagePage({
   return (
     <>
       <SiteNav />
-      <main>
+      <main className="main--wide">
       <h1>Edit page: {slug}</h1>
       <StaticPageForm slug={slug} initialTitle={page.title} initialContent={page.content} />
     </main>

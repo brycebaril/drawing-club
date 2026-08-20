@@ -72,7 +72,7 @@ export default async function MembersReportPage({
   return (
     <>
       <SiteNav />
-      <main>
+      <main className="main--wide">
         <h1>Members report</h1>
         <p>
           <Link href="/admin/reports">← Reports</Link>

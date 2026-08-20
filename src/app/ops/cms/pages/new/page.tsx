@@ -10,7 +10,7 @@ export default async function NewStaticPagePage() {
   return (
     <>
       <SiteNav />
-      <main>
+      <main className="main--wide">
       <h1>New page</h1>
       <NewStaticPageForm />
     </main>

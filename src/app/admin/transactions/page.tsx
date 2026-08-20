@@ -52,7 +52,7 @@ export default async function AdminTransactionsPage({
   return (
     <>
       <SiteNav />
-      <main>
+      <main className="main--wide">
       <h1>Transactions</h1>
       <form>
         <label htmlFor="chargeStatus">Charge status</label>

@@ -47,7 +47,7 @@ export default async function AdminAuditLogsPage({
   return (
     <>
       <SiteNav />
-      <main>
+      <main className="main--wide">
       <h1>Audit logs</h1>
       <form>
         <label htmlFor="actionType">Action type</label>

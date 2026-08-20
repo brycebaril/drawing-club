@@ -33,7 +33,7 @@ export default async function RecurringRulesPage() {
   return (
     <>
       <SiteNav />
-      <main>
+      <main className="main--wide">
       <h1>Recurring rules</h1>
       <p>
         <Link href="/admin/sessions/new-recurring">+ Create recurring session</Link>

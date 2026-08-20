@@ -105,7 +105,7 @@ export default async function CheckInPage({
   return (
     <>
       <SiteNav />
-      <main>
+      <main className="main--wide">
       <h1>
         Check-in — {session.session_type} — {new Date(session.start_time).toLocaleString()}
       </h1>

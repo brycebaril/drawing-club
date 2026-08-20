@@ -84,7 +84,7 @@ export default async function FinancialsPage({
   return (
     <>
       <SiteNav />
-      <main>
+      <main className="main--wide">
       <h1>Financials</h1>
 
       <h2>Generate model payout report</h2>

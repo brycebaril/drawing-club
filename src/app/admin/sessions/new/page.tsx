@@ -9,7 +9,7 @@ export default async function NewSessionPage() {
   ]);
 
   return (
-    <main>
+    <main className="main--wide">
       <h1>Create a one-off session</h1>
       <SessionForm defaultCapacity={defaultCapacity} hostCandidates={hostCandidates} />
     </main>

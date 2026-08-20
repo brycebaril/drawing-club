@@ -24,7 +24,7 @@ export default async function SeriesDetailPage({
   return (
     <>
       <SiteNav />
-      <main>
+      <main className="main--wide">
       <h1>Edit series</h1>
       <SeriesMetadataEditForm seriesId={series.id} name={series.name} seatCount={series.seat_count} />
       <p>

@@ -11,7 +11,7 @@ export default function AdminReportsIndexPage() {
   return (
     <>
       <SiteNav />
-      <main>
+      <main className="main--wide">
         <h1>Reports</h1>
         <p>Flexible, filterable lookups — a work in progress alongside the existing dashboard.</p>
         <ul>

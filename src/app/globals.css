@@ -129,14 +129,15 @@ main {
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
 }
 
-/* Opt-in full-width override for data-dense pages (e.g. /admin/users) —
-   nav and other page chrome intentionally stay at the boxed width above;
-   this only widens the main content card itself. width: auto (not the
-   inherited width: 100%) matters here — width: 100% plus a fixed non-auto
-   margin adds up to more than 100% of the viewport and causes horizontal
-   overflow; width: auto is a block element's normal "fill what's left after
-   margins" behavior, which is what the base main {} rule's margin: ... auto
-   gets for free from auto margins instead. */
+/* Opt-in full-width override for data-dense pages — every /admin/* and
+   /ops/* page (tables, reports, staff tooling), not the public/member-app
+   side, which stays boxed since a mostly-empty full-width card reads worse
+   on sparse content (About, Dashboard, auth forms) than the boxed default.
+   width: auto (not the inherited width: 100%) matters here — width: 100%
+   plus a fixed non-auto margin adds up to more than 100% of the viewport
+   and causes horizontal overflow; width: auto is a block element's normal
+   "fill what's left after margins" behavior, which is what the base main {}
+   rule's margin: ... auto gets for free from auto margins instead. */
 main.main--wide {
   max-width: none;
   width: auto;

@@ -11,7 +11,7 @@ export default async function NewNewsPostPage() {
   return (
     <>
       <SiteNav />
-      <main>
+      <main className="main--wide">
       <h1>New post</h1>
       <NewsPostForm
         mode="create"

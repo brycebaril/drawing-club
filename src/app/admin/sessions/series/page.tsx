@@ -34,7 +34,7 @@ export default async function SeriesListPage() {
   return (
     <>
       <SiteNav />
-      <main>
+      <main className="main--wide">
       <h1>Multi-week series</h1>
       <p>
         <Link href="/admin/sessions/new-series">+ Create multi-week series</Link>

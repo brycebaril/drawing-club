@@ -67,7 +67,7 @@ export default async function PassesReportPage({
   return (
     <>
       <SiteNav />
-      <main>
+      <main className="main--wide">
         <h1>Passes report</h1>
         <p>
           <Link href="/admin/reports">← Reports</Link>

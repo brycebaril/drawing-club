@@ -33,7 +33,7 @@ export default async function CmsDashboardPage() {
   return (
     <>
       <SiteNav />
-      <main>
+      <main className="main--wide">
       <h1>CMS</h1>
       <p>
         <Link href="/ops/cms/uploads">Upload a file</Link>

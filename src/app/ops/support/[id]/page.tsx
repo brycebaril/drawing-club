@@ -47,7 +47,7 @@ export default async function OpsTicketPage({ params }: { params: Promise<{ id: 
   return (
     <>
       <SiteNav />
-      <main>
+      <main className="main--wide">
         <p>
           <Link href="/ops/support">&larr; Back to inbox</Link>
         </p>

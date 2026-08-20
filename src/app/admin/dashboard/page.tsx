@@ -20,7 +20,7 @@ export default async function AdminDashboardPage() {
   return (
     <>
       <SiteNav />
-      <main>
+      <main className="main--wide">
       <h1>Reporting dashboard</h1>
 
       <h2>Accounts</h2>

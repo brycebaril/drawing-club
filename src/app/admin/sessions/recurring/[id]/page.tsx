@@ -45,7 +45,7 @@ export default async function RecurrenceRuleDetailPage({
   return (
     <>
       <SiteNav />
-      <main>
+      <main className="main--wide">
       <h1>Edit recurring rule</h1>
       <RecurrenceRuleEditForm
         ruleId={rule.id}

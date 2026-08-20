@@ -129,7 +129,7 @@ export default async function AdminUserDetailPage({
   return (
     <>
       <SiteNav />
-      <main>
+      <main className="main--wide">
       <h1>{user.display_name ?? user.username}</h1>
       <p>
         {user.username} · {user.email}{" "}

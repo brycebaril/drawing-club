@@ -81,7 +81,7 @@ export default async function AdminPassesPage({
   return (
     <>
       <SiteNav />
-      <main>
+      <main className="main--wide">
       <h1>Passes</h1>
       <p>
         <Link href="/admin/passes/new-batch">New batch</Link>

@@ -10,7 +10,7 @@ export default async function CmsUploadsPage() {
   return (
     <>
       <SiteNav />
-      <main>
+      <main className="main--wide">
       <h1>Upload a file</h1>
       <p>
         Upload an image or PDF to get a URL — paste it into a news post&apos;s image field, or into any

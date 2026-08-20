@@ -31,7 +31,7 @@ export default async function EditNewsPostPage({ params }: { params: Promise<{ i
   return (
     <>
       <SiteNav />
-      <main>
+      <main className="main--wide">
       <h1>Edit post</h1>
       <NewsPostForm
         mode="edit"
