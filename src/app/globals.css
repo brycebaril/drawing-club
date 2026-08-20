@@ -15,6 +15,24 @@
   --color-status-border: #a8cf9f;
   --color-status-text: #33622c;
 
+  /* Badge tone triads (src/components/Badge.tsx) — same tinted-pill shape as
+     alert/status above, not the solid-fill style buttons/the urgent
+     notification banner use. --color-danger/-hover stay solid-fill,
+     reserved for that banner; -bg/-border/-text here is a separate, parallel
+     token set for the "Banned" status badge. */
+  --color-danger-bg: #fdeceb;
+  --color-danger-border: #e29b93;
+  --color-danger-text: #8f1e18;
+  --color-accent-bg: #f5e9e6;
+  --color-accent-border: #d3a79c;
+  --color-accent-text: #6f3b30;
+  --color-role-admin-bg: #f1e9f7;
+  --color-role-admin-border: #c9a3dd;
+  --color-role-admin-text: #5b2d7a;
+  --color-role-volunteer-bg: #e8f0f7;
+  --color-role-volunteer-border: #a3c2dd;
+  --color-role-volunteer-text: #2d5273;
+
   --space-1: 0.25rem;
   --space-2: 0.5rem;
   --space-3: 0.75rem;
@@ -46,6 +64,19 @@
     --color-status-bg: #1f2e1c;
     --color-status-border: #3f6b36;
     --color-status-text: #b9e0ae;
+
+    --color-danger-bg: #3a1917;
+    --color-danger-border: #7a332c;
+    --color-danger-text: #f2a29b;
+    --color-accent-bg: #3a2a26;
+    --color-accent-border: #8a5c4f;
+    --color-accent-text: #e8bcae;
+    --color-role-admin-bg: #2c1f36;
+    --color-role-admin-border: #7a4f96;
+    --color-role-admin-text: #d9b8ea;
+    --color-role-volunteer-bg: #1c2936;
+    --color-role-volunteer-border: #4f7a96;
+    --color-role-volunteer-text: #b8d3ea;
 
     --background: var(--color-bg);
     --foreground: var(--color-text);
@@ -96,6 +127,20 @@ main {
   border: 1px solid var(--color-border);
   border-radius: var(--radius);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+/* Opt-in full-width override for data-dense pages (e.g. /admin/users) —
+   nav and other page chrome intentionally stay at the boxed width above;
+   this only widens the main content card itself. width: auto (not the
+   inherited width: 100%) matters here — width: 100% plus a fixed non-auto
+   margin adds up to more than 100% of the viewport and causes horizontal
+   overflow; width: auto is a block element's normal "fill what's left after
+   margins" behavior, which is what the base main {} rule's margin: ... auto
+   gets for free from auto margins instead. */
+main.main--wide {
+  max-width: none;
+  width: auto;
+  margin: var(--space-6) var(--space-5);
 }
 
 /* ---- Typography ---- */
@@ -282,6 +327,30 @@ form {
   margin-bottom: var(--space-5);
 }
 
+/* Lays a form's labeled fields out in a row that wraps naturally on narrow
+   screens — no media query needed, flex-wrap handles both ends. Opt-in via
+   className, so it doesn't change every plain single-field form site-wide. */
+.filter-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-4);
+}
+
+.filter-form label {
+  margin-top: 0;
+  /* Flex items default to min-width: auto, which refuses to shrink below
+     the input's own content size (e.g. the placeholder text) — without
+     this, the search field alone pushes the whole page wider than a phone
+     viewport instead of wrapping/shrinking. */
+  min-width: 0;
+}
+
+.filter-form input,
+.filter-form select {
+  width: auto;
+}
+
 label {
   display: block;
   font-weight: 500;
@@ -387,6 +456,63 @@ button:disabled {
   color: var(--color-status-text);
 }
 
+/* ---- Badges (src/components/Badge.tsx) ---- */
+/* A compact pill, not the boxier var(--radius) used elsewhere — reads
+   better as a short inline label inside a table cell than a callout does. */
+
+.badge {
+  display: inline-block;
+  padding: 2px 8px;
+  margin: 2px 4px 2px 0;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
+.badge--active {
+  background: var(--color-status-bg);
+  border: 1px solid var(--color-status-border);
+  color: var(--color-status-text);
+}
+
+.badge--member {
+  background: var(--color-accent-bg);
+  border: 1px solid var(--color-accent-border);
+  color: var(--color-accent-text);
+}
+
+.badge--suspended {
+  background: var(--color-alert-bg);
+  border: 1px solid var(--color-alert-border);
+  color: var(--color-alert-text);
+}
+
+.badge--banned {
+  background: var(--color-danger-bg);
+  border: 1px solid var(--color-danger-border);
+  color: var(--color-danger-text);
+}
+
+.badge--neutral {
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  color: var(--color-text-muted);
+}
+
+.badge--admin {
+  background: var(--color-role-admin-bg);
+  border: 1px solid var(--color-role-admin-border);
+  color: var(--color-role-admin-text);
+}
+
+.badge--volunteer {
+  background: var(--color-role-volunteer-bg);
+  border: 1px solid var(--color-role-volunteer-border);
+  color: var(--color-role-volunteer-text);
+}
+
 /* ---- Notification banner ---- */
 /* Distinct from [role=status]/[role=alert] on purpose — those are
    transient, post-action confirmations inside the page's own content card.
@@ -481,4 +607,67 @@ button:disabled {
 
 .staff-menu-panel .nav-group-label:first-child {
   margin-top: 0;
+}
+
+/* ---- Mobile (first screen-width breakpoint in this codebase — everything
+   else here is prefers-color-scheme only) ---- */
+
+@media (max-width: 640px) {
+  main {
+    padding: var(--space-4);
+    margin: var(--space-4) auto;
+  }
+
+  /* Turns any .table-scroll table into a stacked, labeled card list instead
+     of a table that only fits a phone screen via horizontal scrolling — the
+     standard data-label-driven technique. Each <td> needs a matching
+     data-label="..." attribute (see src/app/admin/users/page.tsx) for the
+     ::before rule below to have something to show; a table without those
+     attributes just loses its visible column headers on narrow screens
+     rather than breaking, so this is safe to apply broadly even though only
+     one page's cells carry the attribute today. */
+  .table-scroll table,
+  .table-scroll thead,
+  .table-scroll tbody,
+  .table-scroll tr,
+  .table-scroll th,
+  .table-scroll td {
+    display: block;
+  }
+
+  .table-scroll thead {
+    display: none;
+  }
+
+  .table-scroll tr {
+    margin-bottom: var(--space-3);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    padding: var(--space-3);
+  }
+
+  .table-scroll td {
+    border-bottom: none;
+    padding: var(--space-1) 0;
+  }
+
+  .table-scroll td::before {
+    content: attr(data-label);
+    display: block;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--color-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+    margin-bottom: 2px;
+  }
+
+  .filter-form {
+    align-items: stretch;
+  }
+
+  .filter-form input,
+  .filter-form select {
+    width: 100%;
+  }
 }

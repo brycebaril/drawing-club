@@ -1,12 +1,17 @@
 import { pool } from "@/lib/db/pool";
 import { SiteNav } from "@/components/SiteNav";
 import { SortableTh } from "@/components/SortableTh";
+import { Badge, roleTone, statusTone, tierTone } from "@/components/Badge";
 import { resolveSort } from "@/lib/sort";
 import { filterUserRows, isMemberTier, mappedRolesFor, type UserRow } from "@/lib/users/filterUsers";
 
 const STATUS_OPTIONS = ["Active", "Suspended", "Banned"] as const;
 const TIER_OPTIONS = ["ACCT", "MBR"] as const;
-const ROLE_OPTIONS = ["ADMIN", "VOL_HOST", "VOL_MKT", "VOL_MBR", "VOL_CTRL"] as const;
+// VOL_SUPPORT was missing here (and from filterUsers.ts's own VOLUNTEER_ROLE_MAP,
+// fixed alongside this) even though src/lib/auth/roles.ts's copy of the map
+// already had it — a support agent showed as the raw "SupportAgent" DB enum
+// value and couldn't be filtered by role at all until now.
+const ROLE_OPTIONS = ["ADMIN", "VOL_HOST", "VOL_MKT", "VOL_MBR", "VOL_CTRL", "VOL_SUPPORT"] as const;
 
 const SORT_COLUMNS = {
   username: "u.username",
@@ -57,10 +62,10 @@ export default async function AdminUsersPage({
   return (
     <>
       <SiteNav />
-      <main>
+      <main className="main--wide">
       <h1>Users</h1>
 
-      <form>
+      <form className="filter-form">
         <label>
           Search (display name or email)
           <input type="text" name="q" defaultValue={q ?? ""} placeholder="e.g. jane@example.com" />
@@ -130,14 +135,28 @@ export default async function AdminUsersPage({
             const mappedRoles = mappedRolesFor(row);
             return (
               <tr key={row.id}>
-                <td>
+                <td data-label="Username">
                   <a href={`/admin/users/${row.id}`}>{row.username}</a>
                 </td>
-                <td>{row.display_name ?? "—"}</td>
-                <td>{row.email}</td>
-                <td>{row.status}</td>
-                <td>{isMember ? "MBR" : "ACCT"}</td>
-                <td>{mappedRoles.join(", ") || "—"}</td>
+                <td data-label="Display name">{row.display_name ?? "—"}</td>
+                <td data-label="Email">{row.email}</td>
+                <td data-label="Status">
+                  <Badge tone={statusTone(row.status)}>{row.status}</Badge>
+                </td>
+                <td data-label="Tier">
+                  <Badge tone={tierTone(isMember)}>{isMember ? "MBR" : "ACCT"}</Badge>
+                </td>
+                <td data-label="Roles">
+                  {mappedRoles.length > 0 ? (
+                    mappedRoles.map((r) => (
+                      <Badge key={r} tone={roleTone(r)}>
+                        {r}
+                      </Badge>
+                    ))
+                  ) : (
+                    <span>—</span>
+                  )}
+                </td>
               </tr>
             );
           })}

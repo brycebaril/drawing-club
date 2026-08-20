@@ -14,6 +14,7 @@ export const VOLUNTEER_ROLE_MAP: Record<string, string> = {
   ContentEditor: "VOL_MKT",
   ModelBooker: "VOL_MBR",
   Controller: "VOL_CTRL",
+  SupportAgent: "VOL_SUPPORT",
 };
 
 /** "Paid Member" is derived from membership validity, never a stored flag (CLAUDE.md's core domain concepts). */

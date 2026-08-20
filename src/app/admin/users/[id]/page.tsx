@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { pool } from "@/lib/db/pool";
 import { SiteNav } from "@/components/SiteNav";
+import { Badge, statusTone, tierTone } from "@/components/Badge";
 import { StatusForm } from "./StatusForm";
 import { GrantPassForm } from "./GrantPassForm";
 import { MembershipForm } from "./MembershipForm";
@@ -53,6 +54,10 @@ const VOLUNTEER_ROLE_LABELS: Record<string, string> = {
   // comes from base_role='Admin'; this is a descriptive volunteer-type tag,
   // not a route-gating one.
   Board: "Board Member",
+  // Was missing here (same gap as filterUsers.ts's own separate copy of
+  // this map, fixed alongside this) — a support agent showed as the raw
+  // "SupportAgent" DB enum value on this page until now.
+  SupportAgent: "Support Agent (VOL_SUPPORT)",
 };
 
 export default async function AdminUserDetailPage({
@@ -127,8 +132,11 @@ export default async function AdminUserDetailPage({
       <main>
       <h1>{user.display_name ?? user.username}</h1>
       <p>
-        {user.username} · {user.email} · {user.base_role} · Status: {user.status} · Tier:{" "}
-        {isMember ? "MBR" : "ACCT"} · Available passes: {passCountResult.rows[0].count}
+        {user.username} · {user.email}{" "}
+        {user.base_role === "Admin" && <Badge tone="admin">ADMIN</Badge>}{" "}
+        <Badge tone={statusTone(user.status)}>{user.status}</Badge>{" "}
+        <Badge tone={tierTone(isMember)}>{isMember ? "MBR" : "ACCT"}</Badge> · Available passes:{" "}
+        {passCountResult.rows[0].count}
       </p>
 
       <section>
