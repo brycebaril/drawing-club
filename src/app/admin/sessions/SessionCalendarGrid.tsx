@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { SLOTS, type Slot } from "@/lib/sessions/shared";
+import { SLOTS, toDateOnly, type Slot } from "@/lib/sessions/shared";
 import type { HostCandidate } from "@/lib/sessions/host";
 import { AddSessionModal } from "./AddSessionModal";
 import { EditSessionModal } from "./EditSessionModal";
@@ -44,6 +44,7 @@ export function SessionCalendarGrid({
   defaultSeatCount: number;
 }) {
   const [modal, setModal] = useState<ModalState>(null);
+  const todayStr = toDateOnly(new Date());
 
   return (
     <>
@@ -52,13 +53,20 @@ export function SessionCalendarGrid({
           <thead>
             <tr>
               <th>Slot</th>
-              {days.map((d) => (
-                <th key={d.toISOString()}>
-                  <span className="calendar-grid-weekday">{WEEKDAY_FORMAT.format(d)}</span>
-                  <br />
-                  {DAY_FORMAT.format(d)}
-                </th>
-              ))}
+              {days.map((d) => {
+                const isWeekend = d.getDay() === 0 || d.getDay() === 6;
+                const isToday = toDateOnly(d) === todayStr;
+                return (
+                  <th
+                    key={d.toISOString()}
+                    className={`${isWeekend ? "calendar-grid-weekend" : ""}${isToday ? " calendar-grid-today" : ""}`}
+                  >
+                    <span className="calendar-grid-weekday">{WEEKDAY_FORMAT.format(d)}</span>
+                    <br />
+                    {DAY_FORMAT.format(d)}
+                  </th>
+                );
+              })}
             </tr>
           </thead>
           <tbody>
@@ -68,8 +76,10 @@ export function SessionCalendarGrid({
                 {days.map((d, dayIdx) => {
                   const cell = occupied[`${dayIdx}:${slot}`];
                   const incomplete = cell && (cell.needsHost || cell.needsModel);
+                  const isWeekend = d.getDay() === 0 || d.getDay() === 6;
+                  const isToday = toDateOnly(d) === todayStr;
                   return (
-                    <td key={dayIdx}>
+                    <td key={dayIdx} className={`${isWeekend ? "calendar-grid-weekend" : ""}${isToday ? " calendar-grid-today" : ""}`}>
                       {cell ? (
                         <button
                           type="button"

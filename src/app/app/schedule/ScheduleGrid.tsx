@@ -11,22 +11,31 @@ export function ScheduleGrid({ days, grid }: { days: Date[]; grid: Map<string, G
       <div className="schedule-scroll overflow-x-auto p-5">
         <div className="w-max">
           <div className="mb-2 ml-[76px] flex gap-1.5">
-            {days.map((d, i) => (
-              <div key={d.toISOString()} className="flex w-11 shrink-0 flex-col items-center justify-end pb-1">
-                <span className="mb-0.5 text-[10px] font-bold uppercase tracking-widest text-ink-soft">
-                  {WEEKDAY_FORMAT.format(d)}
-                </span>
-                <span
-                  className={
-                    i === 0
-                      ? "flex h-6 w-6 items-center justify-center rounded-full bg-brand text-sm font-black text-white"
-                      : "text-sm font-black text-ink"
-                  }
+            {days.map((d, i) => {
+              // days[0] is always today — the grid has no pagination, it's
+              // always drawn from startOfDay(new Date()) (see page.tsx).
+              const isToday = i === 0;
+              const isWeekend = d.getDay() === 0 || d.getDay() === 6;
+              return (
+                <div
+                  key={d.toISOString()}
+                  className={`flex w-11 shrink-0 flex-col items-center justify-end rounded-md p-0.5 pb-1 ${isWeekend ? "bg-ink/5" : ""} ${isToday ? "ring-2 ring-brand" : ""}`}
                 >
-                  {DAY_NUMBER_FORMAT.format(d)}
-                </span>
-              </div>
-            ))}
+                  <span className="mb-0.5 text-[10px] font-bold uppercase tracking-widest text-ink-soft">
+                    {WEEKDAY_FORMAT.format(d)}
+                  </span>
+                  <span
+                    className={
+                      isToday
+                        ? "flex h-6 w-6 items-center justify-center rounded-full bg-brand text-sm font-black text-white"
+                        : "text-sm font-black text-ink"
+                    }
+                  >
+                    {DAY_NUMBER_FORMAT.format(d)}
+                  </span>
+                </div>
+              );
+            })}
           </div>
 
           <div className="space-y-1.5">
@@ -37,8 +46,13 @@ export function ScheduleGrid({ days, grid }: { days: Date[]; grid: Map<string, G
                 </div>
                 {days.map((d, dayIdx) => {
                   const cell = grid.get(`${dayIdx}:${slot}`);
+                  const isToday = dayIdx === 0;
+                  const isWeekend = d.getDay() === 0 || d.getDay() === 6;
                   return (
-                    <div key={dayIdx} className="shrink-0">
+                    <div
+                      key={dayIdx}
+                      className={`shrink-0 rounded-lg p-0.5 ${isWeekend ? "bg-ink/5" : ""} ${isToday ? "ring-2 ring-brand" : ""}`}
+                    >
                       {cell ? <SessionCell cell={cell} href={`?session_id=${cell.id}`} /> : <EmptyCell />}
                     </div>
                   );
@@ -51,4 +65,3 @@ export function ScheduleGrid({ days, grid }: { days: Date[]; grid: Map<string, G
     </div>
   );
 }
-
