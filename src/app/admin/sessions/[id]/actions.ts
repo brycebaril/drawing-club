@@ -17,6 +17,86 @@ import {
   cancelSeriesThisAndFuture,
 } from "@/lib/series/actions";
 
+export interface SessionDetail {
+  id: string;
+  session_type: string;
+  description: string | null;
+  start_time: Date;
+  end_time: Date;
+  max_capacity: number;
+  status: "Scheduled" | "Canceled";
+  host_username: string | null;
+  recurrence_rule_id: string | null;
+  series_id: string | null;
+}
+
+export interface AttendeeRow {
+  username: string;
+}
+
+export interface SeatRow {
+  seat_number: number;
+  username: string;
+}
+
+export interface SessionDetailData {
+  session: SessionDetail;
+  attendees: AttendeeRow[];
+  seats: SeatRow[];
+}
+
+/**
+ * Shared by the standalone /admin/sessions/[id] page and EditSessionModal
+ * (the admin/sessions calendar grid's "click a filled cell" flow) — a
+ * Server Function rather than a plain server-only module, specifically so
+ * the modal (a client component) can call it directly as an RPC. That's
+ * also why it re-checks requireAdmin() itself even though the standalone
+ * page's render is already covered by src/proxy.ts's /admin/* rule: a
+ * Server Function invoked this way isn't a page render Proxy matches
+ * against — same "Server Functions must re-check auth themselves" rule
+ * every mutation in this codebase already follows, just for a read instead.
+ */
+export async function getSessionDetail(sessionId: string): Promise<SessionDetailData | null> {
+  const ctx = await requireAdmin();
+  if (!ctx) return null;
+
+  const sessionResult = await pool.query<SessionDetail>(
+    `SELECT s.id, s.session_type, s.description, s.start_time, s.end_time, s.max_capacity, s.status,
+            u.username AS host_username, s.recurrence_rule_id, s.series_id
+     FROM sessions s
+     LEFT JOIN users u ON u.id = s.host_user_id
+     WHERE s.id = $1`,
+    [sessionId],
+  );
+  if (sessionResult.rowCount === 0) return null;
+  const session = sessionResult.rows[0];
+  const isSeries = session.series_id !== null;
+
+  const attendeesResult = isSeries
+    ? { rows: [] as AttendeeRow[] }
+    : await pool.query<AttendeeRow>(
+        `SELECT u.username
+         FROM passes p
+         JOIN users u ON u.id = p.owner_id
+         WHERE p.session_id = $1 AND p.status = 'Used'
+         ORDER BY u.username`,
+        [sessionId],
+      );
+
+  const seatsResult = isSeries
+    ? await pool.query<SeatRow>(
+        `SELECT sr.seat_number, u.username
+         FROM seat_reservations sr
+         JOIN users u ON u.id = sr.user_id
+         WHERE sr.session_id = $1
+         ORDER BY sr.seat_number`,
+        [sessionId],
+      )
+    : { rows: [] as SeatRow[] };
+
+  return { session, attendees: attendeesResult.rows, seats: seatsResult.rows };
+}
+
 function revalidateSessionPages(sessionId: string) {
   revalidatePath(`/admin/sessions/${sessionId}`);
   revalidatePath("/admin/sessions");

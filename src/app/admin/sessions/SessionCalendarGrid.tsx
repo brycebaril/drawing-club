@@ -1,29 +1,34 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
 import { SLOTS, type Slot } from "@/lib/sessions/shared";
 import type { HostCandidate } from "@/lib/sessions/host";
 import { AddSessionModal } from "./AddSessionModal";
+import { EditSessionModal } from "./EditSessionModal";
 
 export interface OccupiedCell {
   sessionId: string;
   sessionType: string;
+  needsHost: boolean;
+  needsModel: boolean;
 }
+
+type ModalState = { kind: "add"; date: Date; slot: Slot } | { kind: "edit"; sessionId: string } | null;
 
 const WEEKDAY_FORMAT = new Intl.DateTimeFormat(undefined, { weekday: "short" });
 const DAY_FORMAT = new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" });
 
 /**
  * A day x slot grid over the admin sessions window (see page.tsx's
- * GRID_WINDOW_DAYS) — an occupied cell links to that session's existing
- * Manage page; an open cell is a "+" button that opens AddSessionModal,
- * pre-filled with the clicked date/slot. Client-side (not the query-param
- * deep-linking convention /app/schedule's Modal uses) on purpose: this modal
- * has real interactive state (a type tab-switcher, a growable list of series
- * dates) that's worth instant switching rather than a round-trip per click,
- * and "which empty slot is currently open" isn't something worth bookmarking
- * the way an existing session's detail view is.
+ * GRID_WINDOW_DAYS) — a filled cell opens EditSessionModal (the full
+ * /admin/sessions/[id] content, reproduced in a modal rather than
+ * navigating away, per explicit user request); an open cell opens
+ * AddSessionModal, pre-filled with the clicked date/slot. Both are client-
+ * side (not the query-param deep-linking convention /app/schedule's Modal
+ * uses) on purpose: real interactive state (a type tab-switcher, a growable
+ * list of series dates) is worth instant switching rather than a round-trip
+ * per click, and "which cell is currently open" isn't worth bookmarking the
+ * way, say, a wallet transfer's modal state is.
  */
 export function SessionCalendarGrid({
   days,
@@ -38,7 +43,7 @@ export function SessionCalendarGrid({
   defaultCapacity: number;
   defaultSeatCount: number;
 }) {
-  const [picked, setPicked] = useState<{ date: Date; slot: Slot } | null>(null);
+  const [modal, setModal] = useState<ModalState>(null);
 
   return (
     <>
@@ -62,18 +67,34 @@ export function SessionCalendarGrid({
                 <th>{slot}</th>
                 {days.map((d, dayIdx) => {
                   const cell = occupied[`${dayIdx}:${slot}`];
+                  const incomplete = cell && (cell.needsHost || cell.needsModel);
                   return (
                     <td key={dayIdx}>
                       {cell ? (
-                        <Link href={`/admin/sessions/${cell.sessionId}`} className="grid-cell grid-cell--filled">
+                        <button
+                          type="button"
+                          className={`grid-cell grid-cell--filled${incomplete ? " grid-cell--incomplete" : ""}`}
+                          aria-label={`Edit ${cell.sessionType} session on ${d.toLocaleDateString()} (${slot})`}
+                          onClick={() => setModal({ kind: "edit", sessionId: cell.sessionId })}
+                        >
+                          {cell.needsModel && (
+                            <span className="grid-cell-flag grid-cell-flag--model" title="Needs a model">
+                              M
+                            </span>
+                          )}
+                          {cell.needsHost && (
+                            <span className="grid-cell-flag grid-cell-flag--host" title="Needs a host">
+                              H
+                            </span>
+                          )}
                           {cell.sessionType}
-                        </Link>
+                        </button>
                       ) : (
                         <button
                           type="button"
                           className="grid-cell grid-cell--empty"
                           aria-label={`Add a session on ${d.toLocaleDateString()} (${slot})`}
-                          onClick={() => setPicked({ date: d, slot })}
+                          onClick={() => setModal({ kind: "add", date: d, slot })}
                         >
                           +
                         </button>
@@ -87,15 +108,19 @@ export function SessionCalendarGrid({
         </table>
       </div>
 
-      {picked && (
+      {modal?.kind === "add" && (
         <AddSessionModal
-          date={picked.date}
-          slot={picked.slot}
+          date={modal.date}
+          slot={modal.slot}
           hostCandidates={hostCandidates}
           defaultCapacity={defaultCapacity}
           defaultSeatCount={defaultSeatCount}
-          onClose={() => setPicked(null)}
+          onClose={() => setModal(null)}
         />
+      )}
+
+      {modal?.kind === "edit" && (
+        <EditSessionModal sessionId={modal.sessionId} hostCandidates={hostCandidates} onClose={() => setModal(null)} />
       )}
     </>
   );
