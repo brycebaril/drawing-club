@@ -42,24 +42,36 @@ test("VOL_MKT creates a new static page, it renders at /pages/[slug] and shows u
   const title = `Code of Conduct ${Date.now()}`;
   const body = "No photography of the model, of any kind.";
 
-  await loginAsUser(page, editor);
-  await page.goto("/ops/cms/pages/new");
-  await page.getByLabel("Title").fill(title);
-  await page.getByLabel("Content (Markdown)").fill(body);
-  await page.getByRole("button", { name: "Create page" }).click();
-  // Not just /\/ops\/cms\/pages\/[a-z0-9-]+$/ — that also matches the
-  // *starting* URL (/ops/cms/pages/new, since "new" itself matches
-  // [a-z0-9-]+), so it could resolve before any real navigation happens.
-  await page.waitForURL((url) => /\/ops\/cms\/pages\/[a-z0-9-]+$/.test(url.pathname) && !url.pathname.endsWith("/new"));
-  const slug = page.url().split("/").pop()!;
+  // Unlike a test user or a session, a created static page is directly
+  // visible in the real SiteNav on every page — leftover ones don't just
+  // sit invisibly in the DB the way most other e2e fixtures do, they
+  // permanently clutter the live nav for anyone using this dev environment.
+  // try/finally so a failed assertion above still cleans up.
+  let slug: string | undefined;
+  try {
+    await loginAsUser(page, editor);
+    await page.goto("/ops/cms/pages/new");
+    await page.getByLabel("Title").fill(title);
+    await page.getByLabel("Content (Markdown)").fill(body);
+    await page.getByRole("button", { name: "Create page" }).click();
+    // Not just /\/ops\/cms\/pages\/[a-z0-9-]+$/ — that also matches the
+    // *starting* URL (/ops/cms/pages/new, since "new" itself matches
+    // [a-z0-9-]+), so it could resolve before any real navigation happens.
+    await page.waitForURL(
+      (url) => /\/ops\/cms\/pages\/[a-z0-9-]+$/.test(url.pathname) && !url.pathname.endsWith("/new"),
+    );
+    slug = page.url().split("/").pop()!;
 
-  await page.goto(`/pages/${slug}`);
-  await expect(page.getByRole("heading", { name: title })).toBeVisible();
-  await expect(page.getByText(body)).toBeVisible();
+    await page.goto(`/pages/${slug}`);
+    await expect(page.getByRole("heading", { name: title })).toBeVisible();
+    await expect(page.getByText(body)).toBeVisible();
 
-  // Reachable from the nav, not just by typing the URL directly.
-  await page.goto("/");
-  await expect(page.getByRole("link", { name: title })).toBeVisible();
+    // Reachable from the nav, not just by typing the URL directly.
+    await page.goto("/");
+    await expect(page.getByRole("link", { name: title })).toBeVisible();
+  } finally {
+    if (slug) await pool.query(`DELETE FROM static_pages WHERE slug = $1`, [slug]);
+  }
 });
 
 test("creating a static page with a reserved slug or a duplicate slug is rejected", async ({ page }) => {
@@ -89,17 +101,24 @@ test("creating a static page with a reserved slug or a duplicate slug is rejecte
   await expect(page.getByText("is a reserved slug")).toBeVisible();
 
   const title = `Getting Here ${Date.now()}`;
-  await page.goto("/ops/cms/pages/new");
-  await page.getByLabel("Title").fill(title);
-  await page.getByLabel("Content (Markdown)").fill("Take the SkyTrain.");
-  await page.getByRole("button", { name: "Create page" }).click();
-  await page.waitForURL((url) => /\/ops\/cms\/pages\/[a-z0-9-]+$/.test(url.pathname) && !url.pathname.endsWith("/new"));
+  // Same nav-clutter reasoning as the "creates a new static page" test above.
+  try {
+    await page.goto("/ops/cms/pages/new");
+    await page.getByLabel("Title").fill(title);
+    await page.getByLabel("Content (Markdown)").fill("Take the SkyTrain.");
+    await page.getByRole("button", { name: "Create page" }).click();
+    await page.waitForURL(
+      (url) => /\/ops\/cms\/pages\/[a-z0-9-]+$/.test(url.pathname) && !url.pathname.endsWith("/new"),
+    );
 
-  await page.goto("/ops/cms/pages/new");
-  await page.getByLabel("Title").fill(title);
-  await page.getByLabel("Content (Markdown)").fill("A second, conflicting page.");
-  await page.getByRole("button", { name: "Create page" }).click();
-  await expect(page.getByText("already in use")).toBeVisible();
+    await page.goto("/ops/cms/pages/new");
+    await page.getByLabel("Title").fill(title);
+    await page.getByLabel("Content (Markdown)").fill("A second, conflicting page.");
+    await page.getByRole("button", { name: "Create page" }).click();
+    await expect(page.getByText("already in use")).toBeVisible();
+  } finally {
+    await pool.query(`DELETE FROM static_pages WHERE title = $1`, [title]);
+  }
 });
 
 test("a non-VOL_MKT/non-ADMIN volunteer hitting /ops/cms/pages/new is bounced to the dashboard", async ({
