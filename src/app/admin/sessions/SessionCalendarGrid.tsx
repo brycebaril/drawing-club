@@ -77,9 +77,8 @@ export function SessionCalendarGrid({
                   const cell = occupied[`${dayIdx}:${slot}`];
                   const incomplete = cell && (cell.needsHost || cell.needsModel);
                   const isWeekend = d.getDay() === 0 || d.getDay() === 6;
-                  const isToday = toDateOnly(d) === todayStr;
                   return (
-                    <td key={dayIdx} className={`${isWeekend ? "calendar-grid-weekend" : ""}${isToday ? " calendar-grid-today" : ""}`}>
+                    <td key={dayIdx} className={isWeekend ? "calendar-grid-weekend" : ""}>
                       {cell ? (
                         <button
                           type="button"

@@ -40,7 +40,7 @@
      to every other header. This sits one step further from --color-surface
      than --color-bg does, distinct in both contexts (a <th>'s default bg and
      a <td>'s white/transparent default alike). */
-  --color-weekend-bg: #eee7dc;
+  --color-weekend-bg: #e6dac2;
 
   --space-1: 0.25rem;
   --space-2: 0.5rem;
@@ -87,7 +87,7 @@
     --color-role-volunteer-border: #4f7a96;
     --color-role-volunteer-text: #b8d3ea;
 
-    --color-weekend-bg: #2b241f;
+    --color-weekend-bg: #3a2f24;
 
     --background: var(--color-bg);
     --foreground: var(--color-text);
@@ -351,13 +351,13 @@ tbody tr:hover {
 /* Saturday/Sunday columns get --color-weekend-bg (defined above, near the
    other tokens) — not --color-bg, which a plain <th> already defaults to
    (see the Tables section below), so a weekend header styled with that
-   same value would be visually identical to every other header. Today's
-   column gets an inset ring instead of a real border so it sits flush with
-   the cell grid
-   (a real border would add a pixel of layout width, only for that one
-   column) — border-collapse on the base table {} rule means adjacent
-   cells' shared edges are the same pixel, so this reads as one continuous
-   highlighted column stacked down the whole grid, not a ring per cell. */
+   same value would be visually identical to every other header. Applied to
+   every cell in the column, not just the header, so the shade reads clearly
+   scanning down the grid, not just across the header row.
+   Today only gets its own marker on the date header (not every cell in its
+   column, per explicit user feedback that a border repeated down a whole
+   column read as too much) — an inset ring so it sits flush with the cell
+   grid rather than adding a pixel of layout width. */
 .calendar-grid-weekend {
   background: var(--color-weekend-bg);
 }
