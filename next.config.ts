@@ -1,3 +1,4 @@
+import { execSync } from "node:child_process";
 import type { NextConfig } from "next";
 // Relative import, not the "@/" alias — next.config.ts is loaded directly
 // by Next's CLI, outside the normal app module graph, and isn't guaranteed
@@ -7,6 +8,19 @@ import { MAX_UPLOAD_SIZE_BYTES } from "./src/lib/uploads/constants";
 // Headroom above the app-level cap for multipart/form-data's own boundary
 // and field-metadata overhead, per Next's docs on serverActions.bodySizeLimit.
 const REQUEST_BODY_SIZE_LIMIT = MAX_UPLOAD_SIZE_BYTES + 2 * 1024 * 1024;
+
+// src/lib/envStatus.ts's build-info source. A real deploy (Amplify once
+// provisioned, or any CI artifact) may set GIT_SHA directly; local dev
+// derives it from the checked-out commit instead. Wrapped in try/catch since
+// a stripped deploy artifact without .git shouldn't fail the build over a
+// status-banner nicety.
+if (!process.env.GIT_SHA) {
+  try {
+    process.env.GIT_SHA = execSync("git rev-parse --short HEAD").toString().trim();
+  } catch {
+    process.env.GIT_SHA = "unknown";
+  }
+}
 
 const nextConfig: NextConfig = {
   experimental: {

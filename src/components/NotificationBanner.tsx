@@ -15,8 +15,10 @@ export async function NotificationBanner() {
   const notifications = await getPendingNotifications(session.user.id);
   if (notifications.length === 0) return null;
 
+  const hasUrgent = notifications.some((notification) => notification.urgent);
+
   return (
-    <div className="notification-banner">
+    <div className={hasUrgent ? "notification-banner notification-banner--urgent" : "notification-banner"}>
       {notifications.map((notification) => (
         <p key={notification.message}>
           {notification.message} <Link href={notification.ctaHref}>{notification.ctaLabel}</Link>

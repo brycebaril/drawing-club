@@ -7,6 +7,11 @@ on:
     branches: [main]
 
 env:
+  # CI's `pnpm build`/e2e run under NODE_ENV=production like a real deploy
+  # would, but this isn't one — without an explicit APP_ENV,
+  # src/lib/envStatus.ts's fallback would otherwise treat it as production
+  # and its test-mode Stripe key / unconfigured SES as a misconfiguration.
+  APP_ENV: development
   DATABASE_URL: postgres://drawing_club:drawing_club@localhost:5432/drawing_club
   NEXTAUTH_SECRET: ci-placeholder-secret
   NEXTAUTH_URL: http://localhost:3000

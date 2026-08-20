@@ -6,6 +6,8 @@
   --color-border: #ddd6cd;
   --color-accent: #8a4a3d;
   --color-accent-hover: #6f3b30;
+  --color-danger: #b3261e;
+  --color-danger-hover: #8f1e18;
   --color-alert-bg: #fdf6e3;
   --color-alert-border: #e8c766;
   --color-alert-text: #6b5116;
@@ -36,6 +38,8 @@
     --color-border: #423b35;
     --color-accent: #c98776;
     --color-accent-hover: #dba193;
+    --color-danger: #e5534b;
+    --color-danger-hover: #f2776f;
     --color-alert-bg: #3a2f14;
     --color-alert-border: #6b5116;
     --color-alert-text: #f0d38a;
@@ -405,6 +409,11 @@ button:disabled {
   color: #fff;
   font-weight: 700;
   text-decoration: underline;
+}
+
+/* Reused by EnvStatusBanner's production-anomaly alert, not just support-ticket replies needing a reply. */
+.notification-banner--urgent {
+  background: var(--color-danger);
 }
 
 /* ---- Staff menu (admin/ops hamburger) ---- */

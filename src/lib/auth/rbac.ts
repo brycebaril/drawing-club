@@ -36,6 +36,8 @@ const ROUTE_RULES: RouteRule[] = [
   { pattern: "/ops/model-booking/*", allow: ["VOL_MBR"] },
   { pattern: "/ops/financials", allow: ["VOL_CTRL"] },
   { pattern: "/ops/financials/*", allow: ["VOL_CTRL"] },
+  { pattern: "/ops/support", allow: ["VOL_SUPPORT"] },
+  { pattern: "/ops/support/*", allow: ["VOL_SUPPORT"] },
   { pattern: "/admin/*", allow: [] }, // ADMIN-only via the implicit rule below
   { pattern: "/", public: true },
   { pattern: "/about", public: true },

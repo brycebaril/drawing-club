@@ -5,6 +5,7 @@ import { pool } from "@/lib/db/pool";
 import { RESERVED_STATIC_PAGE_SLUGS } from "@/lib/cms/slugify";
 import { LogoutForm } from "./LogoutForm";
 import { NotificationBanner } from "./NotificationBanner";
+import { EnvStatusBanner } from "./EnvStatusBanner";
 
 interface StaffLink {
   href: string;
@@ -23,11 +24,17 @@ const ADMIN_LINKS: StaffLink[] = [
   { href: "/admin/settings", label: "Settings" },
 ];
 
-function opsLinksFor(roles: Role[], isAdmin: boolean): StaffLink[] {
+function opsLinksFor(roles: Role[], isAdmin: boolean, supportNeedsReplyCount: number): StaffLink[] {
   const links: StaffLink[] = [];
   if (isAdmin || roles.includes("VOL_MBR")) links.push({ href: "/ops/model-booking", label: "Model Booking" });
   if (isAdmin || roles.includes("VOL_MKT")) links.push({ href: "/ops/cms", label: "CMS" });
   if (isAdmin || roles.includes("VOL_CTRL")) links.push({ href: "/ops/financials", label: "Financials" });
+  if (isAdmin || roles.includes("VOL_SUPPORT")) {
+    links.push({
+      href: "/ops/support",
+      label: supportNeedsReplyCount > 0 ? `Support (${supportNeedsReplyCount})` : "Support",
+    });
+  }
   return links;
 }
 
@@ -64,7 +71,19 @@ export async function SiteNav() {
   );
 
   const isAdmin = ctx?.roles.includes("ADMIN") ?? false;
-  const opsLinks = ctx ? opsLinksFor(ctx.roles, isAdmin) : [];
+  const canSeeSupportInbox = isAdmin || (ctx?.roles.includes("VOL_SUPPORT") ?? false);
+  // Gated behind the role check above, unlike extraPagesResult's unconditional
+  // query — this is only relevant to admins/support agents, so there's no
+  // reason to pay for it on every ordinary member/guest page view.
+  const supportNeedsReplyCount = canSeeSupportInbox
+    ? (
+        await pool.query<{ count: number }>(
+          `SELECT count(*)::int AS count FROM support_tickets
+           WHERE status = 'Open' AND last_message_by_user_id = requester_user_id`,
+        )
+      ).rows[0].count
+    : 0;
+  const opsLinks = ctx ? opsLinksFor(ctx.roles, isAdmin, supportNeedsReplyCount) : [];
   const showStaffMenu = isAdmin || opsLinks.length > 0;
 
   return (
@@ -101,6 +120,9 @@ export async function SiteNav() {
               </li>
               <li>
                 <Link href="/app/wallet">Wallet</Link>
+              </li>
+              <li>
+                <Link href="/app/support">Support</Link>
               </li>
               <li>
                 <LogoutForm />
@@ -152,6 +174,7 @@ export async function SiteNav() {
         </ul>
       </nav>
       <NotificationBanner />
+      <EnvStatusBanner />
     </>
   );
 }

@@ -10,6 +10,7 @@ export type Role =
   | "VOL_MKT"
   | "VOL_MBR"
   | "VOL_CTRL"
+  | "VOL_SUPPORT"
   | "ADMIN";
 
 const VOLUNTEER_ROLE_MAP: Record<string, Role> = {
@@ -17,6 +18,7 @@ const VOLUNTEER_ROLE_MAP: Record<string, Role> = {
   ContentEditor: "VOL_MKT",
   ModelBooker: "VOL_MBR",
   Controller: "VOL_CTRL",
+  SupportAgent: "VOL_SUPPORT",
 };
 
 export interface UserAuthContext {
