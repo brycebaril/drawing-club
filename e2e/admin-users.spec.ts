@@ -163,3 +163,44 @@ test("the users list CSV export reflects the current filters", async ({ page }) 
   expect(filteredBody).toContain(volunteer.username);
   expect(filteredBody).not.toContain(other.username);
 });
+
+test("the search field narrows the users list by display name or email, not username", async ({ page }) => {
+  const admin = await createTestUser({ username: `e2eadminsearch${Date.now()}`, baseRole: "Admin" });
+  const target = await createTestUser({ username: `e2esearchtarget${Date.now()}` });
+  // Explicitly overridden so it doesn't embed the username the way
+  // createTestUser's default `${username}@example.test` would — otherwise a
+  // search for the username would incidentally match via email too, and the
+  // "username itself isn't matched" assertion below couldn't tell the
+  // difference.
+  await pool.query(`UPDATE users SET display_name = 'Zelda Fitzgerald', email = $1 WHERE id = $2`, [
+    `zelda-search-${Date.now()}@example.test`,
+    target.id,
+  ]);
+  const other = await createTestUser({ username: `e2esearchother${Date.now()}` });
+
+  await loginAsUser(page, admin);
+  await page.goto("/admin/users");
+
+  // Matches by display name.
+  await page.getByLabel("Search (display name or email)").fill("zelda");
+  await page.getByRole("button", { name: "Filter" }).click();
+  await expect(page.locator("tr", { hasText: target.username })).toBeVisible();
+  await expect(page.locator("tr", { hasText: other.username })).toHaveCount(0);
+
+  // Matches by email, case-insensitively.
+  await page.getByLabel("Search (display name or email)").fill(other.username.toUpperCase());
+  await page.getByRole("button", { name: "Filter" }).click();
+  await expect(page.locator("tr", { hasText: other.username })).toBeVisible();
+  await expect(page.locator("tr", { hasText: target.username })).toHaveCount(0);
+
+  // Username itself isn't matched — target's own username no longer appears
+  // in its (overridden) display name or email, so searching it finds nothing.
+  await page.getByLabel("Search (display name or email)").fill(target.username);
+  await page.getByRole("button", { name: "Filter" }).click();
+  await expect(page.locator("tr", { hasText: target.username })).toHaveCount(0);
+
+  const csv = await page.request.get(`/admin/users/csv?q=${encodeURIComponent("zelda")}`);
+  const csvBody = await csv.text();
+  expect(csvBody).toContain(target.username);
+  expect(csvBody).not.toContain(other.username);
+});

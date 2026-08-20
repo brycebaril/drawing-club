@@ -21,9 +21,9 @@ const SORT_COLUMNS = {
 export default async function AdminUsersPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string; tier?: string; role?: string; sort?: string; dir?: string }>;
+  searchParams: Promise<{ status?: string; tier?: string; role?: string; q?: string; sort?: string; dir?: string }>;
 }) {
-  const { status, tier, role, sort, dir } = await searchParams;
+  const { status, tier, role, q, sort, dir } = await searchParams;
   const { state, orderBy } = resolveSort(sort, dir, SORT_COLUMNS, "username");
 
   const result = await pool.query<UserRow>(
@@ -36,18 +36,20 @@ export default async function AdminUsersPage({
   );
 
   const now = new Date();
-  const rows = filterUserRows(result.rows, { status, tier, role }, now);
+  const rows = filterUserRows(result.rows, { status, tier, role, q }, now);
 
   const csvParams = new URLSearchParams();
   if (status) csvParams.set("status", status);
   if (tier) csvParams.set("tier", tier);
   if (role) csvParams.set("role", role);
+  if (q) csvParams.set("q", q);
   const csvHref = `/admin/users/csv${csvParams.size > 0 ? `?${csvParams}` : ""}`;
 
   const currentParams = new URLSearchParams({
     ...(status ? { status } : {}),
     ...(tier ? { tier } : {}),
     ...(role ? { role } : {}),
+    ...(q ? { q } : {}),
     sort: state.key,
     dir: state.dir,
   });
@@ -59,6 +61,10 @@ export default async function AdminUsersPage({
       <h1>Users</h1>
 
       <form>
+        <label>
+          Search (display name or email)
+          <input type="text" name="q" defaultValue={q ?? ""} placeholder="e.g. jane@example.com" />
+        </label>
         <label>
           Status
           <select name="status" defaultValue={status ?? ""}>

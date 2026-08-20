@@ -34,9 +34,11 @@ export function mappedRolesFor(row: UserRow): string[] {
  */
 export function filterUserRows(
   rows: UserRow[],
-  filters: { status?: string; tier?: string; role?: string },
+  filters: { status?: string; tier?: string; role?: string; q?: string },
   now: Date,
 ): UserRow[] {
+  const q = filters.q?.trim().toLowerCase();
+
   return rows.filter((row) => {
     if (filters.status && row.status !== filters.status) return false;
 
@@ -47,6 +49,14 @@ export function filterUserRows(
     if (filters.role) {
       const mappedRoles = mappedRolesFor(row);
       if (!mappedRoles.includes(filters.role)) return false;
+    }
+
+    // Display name or email only, per the search field's own label — not
+    // username, which already has its own visible column and sort.
+    if (q) {
+      const matchesDisplayName = row.display_name?.toLowerCase().includes(q) ?? false;
+      const matchesEmail = row.email.toLowerCase().includes(q);
+      if (!matchesDisplayName && !matchesEmail) return false;
     }
 
     return true;

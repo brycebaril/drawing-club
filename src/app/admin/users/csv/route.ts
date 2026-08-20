@@ -27,6 +27,7 @@ export async function GET(request: Request): Promise<NextResponse> {
   const status = params.get("status") ?? undefined;
   const tier = params.get("tier") ?? undefined;
   const role = params.get("role") ?? undefined;
+  const q = params.get("q") ?? undefined;
 
   const result = await pool.query<UserRow>(
     `SELECT u.id, u.username, u.display_name, u.email, u.status, u.base_role, u.membership_expires_at,
@@ -38,7 +39,7 @@ export async function GET(request: Request): Promise<NextResponse> {
   );
 
   const now = new Date();
-  const rows = filterUserRows(result.rows, { status, tier, role }, now);
+  const rows = filterUserRows(result.rows, { status, tier, role, q }, now);
 
   const lines = ["Username,Display Name,Email,Status,Tier,Roles"];
   for (const row of rows) {
