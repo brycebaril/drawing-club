@@ -88,6 +88,7 @@ export async function SiteNav() {
 
   return (
     <>
+      <EnvStatusBanner />
       <nav>
         <ul>
           <li>
@@ -174,7 +175,6 @@ export async function SiteNav() {
         </ul>
       </nav>
       <NotificationBanner />
-      <EnvStatusBanner />
     </>
   );
 }
