@@ -322,6 +322,60 @@ tbody tr:hover {
   background: var(--color-bg);
 }
 
+/* The /admin/sessions calendar grid (src/app/admin/sessions/SessionCalendarGrid.tsx)
+   reuses the plain <table> + .table-scroll wrapper, but its cells are small
+   fixed-size squares rather than ordinary data rows. */
+.calendar-grid th,
+.calendar-grid td {
+  padding: var(--space-1);
+  text-align: center;
+}
+
+.calendar-grid-weekday {
+  color: var(--color-text-muted);
+  font-size: 0.6875rem;
+  text-transform: uppercase;
+}
+
+.grid-cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: var(--radius);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.grid-cell--filled {
+  background: var(--color-accent-bg);
+  border: 1px solid var(--color-accent-border);
+  color: var(--color-accent-text);
+}
+
+.grid-cell--filled:hover {
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+  color: #fff;
+}
+
+.grid-cell--empty {
+  background: none;
+  border: 1px dashed var(--color-border);
+  color: var(--color-text-muted);
+  cursor: pointer;
+  font-size: 1.125rem;
+  line-height: 1;
+}
+
+.grid-cell--empty:hover {
+  border-color: var(--color-accent);
+  border-style: solid;
+  color: var(--color-accent);
+}
+
 /* ---- Forms ---- */
 
 form {
@@ -610,6 +664,127 @@ button:disabled {
   margin-top: 0;
 }
 
+/* ---- Modal & quick-add (src/app/admin/sessions/AddSessionModal.tsx) ----
+   Plain-CSS equivalent of /app/schedule's Tailwind Modal — that one is a
+   query-param deep link with no client JS; this one is a genuine client
+   component (see SessionCalendarGrid.tsx for why), so open/close is real
+   React state, but the visual language (backdrop + centered panel) matches. */
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-4);
+  background: rgba(0, 0, 0, 0.5);
+}
+
+.modal-panel {
+  position: relative;
+  width: 100%;
+  max-width: 32rem;
+  max-height: 90vh;
+  overflow-y: auto;
+  padding: var(--space-5);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.16);
+}
+
+.modal-close {
+  position: absolute;
+  top: var(--space-3);
+  right: var(--space-3);
+  width: 2rem;
+  height: 2rem;
+  border: none;
+  background: none;
+  border-radius: var(--radius);
+  color: var(--color-text-muted);
+  font-size: 1.25rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.modal-close:hover {
+  background: var(--color-bg);
+  color: var(--color-text);
+}
+
+.segmented {
+  display: flex;
+  gap: var(--space-1);
+  margin-bottom: var(--space-4);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.segmented-btn {
+  padding: var(--space-2) var(--space-3);
+  border: none;
+  background: none;
+  border-bottom: 2px solid transparent;
+  color: var(--color-text-muted);
+  font-weight: 600;
+  font-size: 0.875rem;
+  cursor: pointer;
+}
+
+.segmented-btn:hover {
+  color: var(--color-text);
+}
+
+.segmented-btn--active {
+  color: var(--color-accent);
+  border-bottom-color: var(--color-accent);
+}
+
+.chip-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  list-style: none;
+  max-width: none;
+  margin: var(--space-2) 0;
+}
+
+.chip {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 2px 4px 2px 10px;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  font-size: 0.8125rem;
+}
+
+.chip-remove {
+  width: 1.25rem;
+  height: 1.25rem;
+  border: none;
+  border-radius: 999px;
+  background: none;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  line-height: 1;
+}
+
+.chip-remove:hover {
+  background: var(--color-danger-bg);
+  color: var(--color-danger-text);
+}
+
+.chip-add {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
+}
+
 /* ---- Mobile (first screen-width breakpoint in this codebase — everything
    else here is prefers-color-scheme only) ---- */
 
@@ -626,33 +801,38 @@ button:disabled {
      ::before rule below to have something to show; a table without those
      attributes just loses its visible column headers on narrow screens
      rather than breaking, so this is safe to apply broadly even though only
-     one page's cells carry the attribute today. */
-  .table-scroll table,
-  .table-scroll thead,
-  .table-scroll tbody,
-  .table-scroll tr,
-  .table-scroll th,
-  .table-scroll td {
+     one page's cells carry the attribute today.
+     :not(.calendar-grid) excludes the admin/sessions day x slot grid — it's
+     a genuine 2D grid (day columns × slot rows), not a list of records, so
+     "stack each row into a labeled card" doesn't make sense for it the way
+     it does for an ordinary data table; it keeps its normal table layout
+     and scrolls horizontally via .table-scroll's own overflow instead. */
+  .table-scroll table:not(.calendar-grid),
+  .table-scroll table:not(.calendar-grid) thead,
+  .table-scroll table:not(.calendar-grid) tbody,
+  .table-scroll table:not(.calendar-grid) tr,
+  .table-scroll table:not(.calendar-grid) th,
+  .table-scroll table:not(.calendar-grid) td {
     display: block;
   }
 
-  .table-scroll thead {
+  .table-scroll table:not(.calendar-grid) thead {
     display: none;
   }
 
-  .table-scroll tr {
+  .table-scroll table:not(.calendar-grid) tr {
     margin-bottom: var(--space-3);
     border: 1px solid var(--color-border);
     border-radius: var(--radius);
     padding: var(--space-3);
   }
 
-  .table-scroll td {
+  .table-scroll table:not(.calendar-grid) td {
     border-bottom: none;
     padding: var(--space-1) 0;
   }
 
-  .table-scroll td::before {
+  .table-scroll table:not(.calendar-grid) td::before {
     content: attr(data-label);
     display: block;
     font-size: 0.75rem;

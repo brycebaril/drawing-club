@@ -3,6 +3,10 @@ import { pool } from "@/lib/db/pool";
 import { SiteNav } from "@/components/SiteNav";
 import { SortableTh } from "@/components/SortableTh";
 import { resolveSort } from "@/lib/sort";
+import { getSettingNumber } from "@/lib/settings";
+import { getSessionManagerCandidates } from "@/lib/sessions/host";
+import { slotFor, startOfDay, dayIndex, toDateOnly, parseDateOnly } from "@/lib/sessions/shared";
+import { SessionCalendarGrid, type OccupiedCell } from "./SessionCalendarGrid";
 
 interface SessionRow {
   id: string;
@@ -25,24 +29,66 @@ const SORT_COLUMNS = {
   host: "u.username",
 } as const;
 
+// The near-term management grid's window — deliberately shorter than
+// new-series's 56-day/8-week window (that page is for picking many dates
+// across a series' whole run; this one is for at-a-glance near-term
+// scheduling), paginated forward/back the same way.
+const GRID_WINDOW_DAYS = 28;
+const ONE_DAY_MS = 24 * 60 * 60 * 1000;
+
 export default async function AdminSessionsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ sort?: string; dir?: string }>;
+  searchParams: Promise<{ sort?: string; dir?: string; start?: string }>;
 }) {
-  const { sort, dir } = await searchParams;
+  const { sort, dir, start } = await searchParams;
   const { state, orderBy } = resolveSort(sort, dir, SORT_COLUMNS, "start");
   const currentParams = new URLSearchParams({ sort: state.key, dir: state.dir });
 
-  const result = await pool.query<SessionRow>(
-    `SELECT s.id, s.session_type, s.description, s.start_time, s.end_time, s.max_capacity,
-            u.username AS host_username, s.recurrence_rule_id, s.series_id,
-            (SELECT count(*) FROM passes p WHERE p.session_id = s.id AND p.status = 'Used') AS booked_count
-     FROM sessions s
-     LEFT JOIN users u ON u.id = s.host_user_id
-     WHERE s.status = 'Scheduled'
-     ORDER BY ${orderBy}, s.id ASC`,
-  );
+  const parsedStart = start ? parseDateOnly(start) : new Date();
+  const gridStart = startOfDay(Number.isNaN(parsedStart.getTime()) ? new Date() : parsedStart);
+  const gridEnd = new Date(gridStart.getTime() + GRID_WINDOW_DAYS * ONE_DAY_MS);
+  const gridDays = Array.from({ length: GRID_WINDOW_DAYS }, (_, i) => new Date(gridStart.getTime() + i * ONE_DAY_MS));
+
+  const [result, gridResult, defaultCapacity, hostCandidates] = await Promise.all([
+    pool.query<SessionRow>(
+      `SELECT s.id, s.session_type, s.description, s.start_time, s.end_time, s.max_capacity,
+              u.username AS host_username, s.recurrence_rule_id, s.series_id,
+              (SELECT count(*) FROM passes p WHERE p.session_id = s.id AND p.status = 'Used') AS booked_count
+       FROM sessions s
+       LEFT JOIN users u ON u.id = s.host_user_id
+       WHERE s.status = 'Scheduled'
+       ORDER BY ${orderBy}, s.id ASC`,
+    ),
+    pool.query<{ id: string; start_time: Date; session_type: string }>(
+      `SELECT id, start_time, session_type FROM sessions
+       WHERE status = 'Scheduled' AND start_time >= $1 AND start_time < $2`,
+      [gridStart, gridEnd],
+    ),
+    getSettingNumber("SESSION_DEFAULT_CAPACITY"),
+    getSessionManagerCandidates(),
+  ]);
+  // Series' seat count defaults to the same setting one-off/recurring capacity
+  // does — there's only one SESSION_DEFAULT_CAPACITY setting today (matches
+  // /admin/sessions/new-series's own precedent).
+  const defaultSeatCount = defaultCapacity;
+
+  const gridOccupied: Record<string, OccupiedCell> = {};
+  for (const row of gridResult.rows) {
+    const date = new Date(row.start_time);
+    gridOccupied[`${dayIndex(gridStart, date)}:${slotFor(date)}`] = {
+      sessionId: row.id,
+      sessionType: row.session_type,
+    };
+  }
+
+  const gridNavParams = new URLSearchParams({ sort: state.key, dir: state.dir });
+  const prevStart = toDateOnly(new Date(gridStart.getTime() - GRID_WINDOW_DAYS * ONE_DAY_MS));
+  const nextStart = toDateOnly(new Date(gridStart.getTime() + GRID_WINDOW_DAYS * ONE_DAY_MS));
+  gridNavParams.set("start", prevStart);
+  const prevHref = `/admin/sessions?${gridNavParams}`;
+  gridNavParams.set("start", nextStart);
+  const nextHref = `/admin/sessions?${gridNavParams}`;
 
   return (
     <>
@@ -56,6 +102,26 @@ export default async function AdminSessionsPage({
         <Link href="/admin/sessions/new-series">+ Create multi-week series</Link> ·{" "}
         <Link href="/admin/sessions/series">Multi-week series</Link>
       </p>
+
+      <h2>Upcoming schedule</h2>
+      <p className="section-note">
+        Click an open slot to add a one-off session, recurring session, or multi-week series starting there.
+      </p>
+      <p>
+        <Link href={prevHref}>&larr; Previous {GRID_WINDOW_DAYS / 7} weeks</Link>
+        {" · "}
+        <Link href={nextHref}>Next {GRID_WINDOW_DAYS / 7} weeks &rarr;</Link>
+      </p>
+      <SessionCalendarGrid
+        days={gridDays}
+        occupied={gridOccupied}
+        hostCandidates={hostCandidates}
+        defaultCapacity={defaultCapacity}
+        defaultSeatCount={defaultSeatCount}
+      />
+
+      <h2>All sessions</h2>
+      <p className="section-note">Every scheduled session, past and future — for reporting/lookup, not day-to-day scheduling.</p>
       <div className="table-scroll">
         <table>
         <thead>
