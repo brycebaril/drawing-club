@@ -797,6 +797,20 @@ button:disabled {
   color: var(--color-text);
 }
 
+.link-button {
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--color-accent);
+  font-size: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.link-button:hover {
+  color: var(--color-accent-hover);
+}
+
 .segmented {
   display: flex;
   gap: var(--space-1);

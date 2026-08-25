@@ -28,8 +28,8 @@ export async function EnvStatusBanner() {
   return (
     <div className={status.isAnomalous ? "notification-banner notification-banner--urgent" : "notification-banner"}>
       <p>
-        {ENV_LABELS[status.appEnv]} · build {status.gitSha} · Stripe: {status.stripeMode} · SES: {status.sesMode} ·
-        DB: {status.dbTarget}
+        {ctx.username} · {ENV_LABELS[status.appEnv]} · build {status.gitSha} · Stripe: {status.stripeMode} · SES:{" "}
+        {status.sesMode} · DB: {status.dbTarget}
         {status.isAnomalous && " — misconfigured for production!"}
       </p>
     </div>

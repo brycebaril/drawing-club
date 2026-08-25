@@ -4,6 +4,8 @@ import { useActionState, useState, useTransition } from "react";
 import { createNewsPostAction, updateNewsPostAction, type NewsPostFormState } from "./actions";
 import { uploadFileAction, type UploadFileState } from "../uploads/actions";
 import { Markdown } from "@/components/Markdown";
+import { MarkdownHelpModal } from "@/components/cms/MarkdownHelpModal";
+import { useMarkdownFileUpload } from "@/components/cms/useMarkdownFileUpload";
 import { slugify } from "@/lib/cms/slugify";
 
 interface NewsPostFormProps {
@@ -40,6 +42,12 @@ export function NewsPostForm({ mode, postId, initial = EMPTY }: NewsPostFormProp
   const [imageUrl, setImageUrl] = useState(initial.imageUrl);
   const [uploadState, setUploadState] = useState<UploadFileState>({});
   const [uploading, startUpload] = useTransition();
+  const {
+    textareaRef: contentTextareaRef,
+    uploadState: contentUploadState,
+    uploading: contentUploading,
+    handleFileChange: handleContentFileChange,
+  } = useMarkdownFileUpload(content, setContent);
 
   function handleImageFileChange(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
@@ -119,10 +127,25 @@ export function NewsPostForm({ mode, postId, initial = EMPTY }: NewsPostFormProp
         </label>
       </fieldset>
 
+      <p>
+        <MarkdownHelpModal />
+      </p>
+
       <label htmlFor="content">Content (Markdown)</label>
+      <label htmlFor="contentFile">Upload an image or document to insert it here</label>
+      <input
+        id="contentFile"
+        type="file"
+        accept="image/jpeg,image/png,image/webp,image/gif,application/pdf"
+        onChange={handleContentFileChange}
+        disabled={contentUploading}
+      />
+      {contentUploading && <p role="status">Uploading…</p>}
+      {contentUploadState.error && <p role="alert">{contentUploadState.error}</p>}
       <textarea
         id="content"
         name="content"
+        ref={contentTextareaRef}
         rows={16}
         value={content}
         onChange={(e) => setContent(e.target.value)}
