@@ -26,6 +26,9 @@ const ADMIN_LINKS: StaffLink[] = [
 
 function opsLinksFor(roles: Role[], isAdmin: boolean, supportNeedsReplyCount: number): StaffLink[] {
   const links: StaffLink[] = [];
+  if (isAdmin || roles.includes("VOL_HOST") || roles.includes("VOL_MBR")) {
+    links.push({ href: "/ops/check-in", label: "Check-in" });
+  }
   if (isAdmin || roles.includes("VOL_MBR")) links.push({ href: "/ops/model-booking", label: "Model Booking" });
   if (isAdmin || roles.includes("VOL_MKT")) links.push({ href: "/ops/cms", label: "CMS" });
   if (isAdmin || roles.includes("VOL_CTRL")) links.push({ href: "/ops/financials", label: "Financials" });

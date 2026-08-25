@@ -21,12 +21,12 @@ test("an assigned VOL_HOST can check in an attendee and post a note", async ({ p
 
   await loginAsUser(page, host);
   await page.goto(`/ops/check-in/${sessionId}`);
-  await expect(page.getByText(member.username)).toBeVisible();
-  await expect(page.getByText("Not yet")).toBeVisible();
+  const checkbox = page.getByRole("checkbox", { name: new RegExp(member.username) });
+  await expect(checkbox).toBeVisible();
+  await expect(checkbox).not.toBeChecked();
 
-  await page.getByRole("button", { name: "Check in" }).click();
-  await page.waitForURL(`**/ops/check-in/${sessionId}`);
-  await expect(page.getByText("Checked in")).toBeVisible();
+  await checkbox.check();
+  await expect(checkbox).toBeChecked();
 
   await expect(async () => {
     const row = await pool.query<{ checked_in: boolean }>(
@@ -38,7 +38,6 @@ test("an assigned VOL_HOST can check in an attendee and post a note", async ({ p
 
   await page.getByLabel("Add a note").fill("Great turnout tonight.");
   await page.getByRole("button", { name: "Post note" }).click();
-  await page.waitForURL(`**/ops/check-in/${sessionId}`);
   await expect(page.getByText("Great turnout tonight.")).toBeVisible();
   await expect(page.getByText(new RegExp(`${host.username} \\(Host\\)`))).toBeVisible();
 });
@@ -78,4 +77,44 @@ test("a VOL_MBR can check in on any session, unscoped", async ({ page }) => {
   const response = await page.goto(`/ops/check-in/${sessionId}`);
   expect(response?.status()).not.toBe(404);
   await expect(page.getByText("Studio guidelines")).toBeVisible();
+});
+
+test("a first-time attendee is badged, a member is badged, and the overview page lists a host's session", async ({
+  page,
+}) => {
+  const startTime = new Date(Date.now() + 54 * 60 * 60 * 1000);
+  const sessionId = await createOneOffSessionAsAdmin(page, {
+    description: `checkin-badges-test-${Date.now()}`,
+    startTime,
+    capacity: 5,
+  });
+
+  const host = await createTestUser({ username: `e2ebadgehost${Date.now()}` });
+  await pool.query(`INSERT INTO volunteer_roles (user_id, role) VALUES ($1, 'SessionManager')`, [host.id]);
+  await pool.query(`UPDATE sessions SET host_user_id = $1 WHERE id = $2`, [host.id, sessionId]);
+
+  const member = await createTestUser({ username: `e2ebadgemember${Date.now()}` });
+  await pool.query(`UPDATE users SET membership_expires_at = now() + interval '30 days' WHERE id = $1`, [
+    member.id,
+  ]);
+  await pool.query(
+    `INSERT INTO passes (owner_id, session_id, status, effective_price) VALUES ($1, $2, 'Used', 0)`,
+    [member.id, sessionId],
+  );
+
+  await loginAsUser(page, host);
+  await page.goto(`/ops/check-in/${sessionId}`);
+
+  const memberRow = page.getByRole("checkbox", { name: new RegExp(member.username) }).locator("..");
+  await expect(memberRow.getByTitle("Member")).toBeVisible();
+  await expect(memberRow.getByTitle("First-time attendee")).toBeVisible();
+
+  await expect(page.getByText(/0 attending \+ 4 unregistered seats \(5 max\)/)).toBeVisible();
+
+  await page.goto("/ops/check-in");
+  // This session is ~54h out, not "today", so its card starts collapsed —
+  // the roster is still correctly rendered inside the closed <details>
+  // (just not visible), so toBeAttached is the right check here, not
+  // toBeVisible.
+  await expect(page.getByText(new RegExp(member.username))).toBeAttached();
 });

@@ -868,6 +868,107 @@ button:disabled {
   margin-bottom: var(--space-3);
 }
 
+/* ---- Check-in roster (src/app/ops/check-in) ---- */
+/* A <details> per session rather than a table — a numbered stack of
+   full-width rows, each one a single large tappable <label> wrapping its
+   checkbox (mobile-first: a host uses this on a phone, so the target is the
+   whole row, not a small checkbox square). */
+
+.roster-card {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  margin-bottom: var(--space-5);
+  overflow: hidden;
+}
+
+.roster-card > summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: var(--space-4);
+  cursor: pointer;
+  background: var(--color-bg);
+  list-style: none;
+}
+
+.roster-card > summary::-webkit-details-marker {
+  display: none;
+}
+
+.roster-card > summary::after {
+  content: "▸";
+  color: var(--color-text-muted);
+  transition: transform 0.15s ease;
+}
+
+.roster-card[open] > summary::after {
+  transform: rotate(90deg);
+}
+
+.roster-card-title {
+  font-weight: 700;
+  font-size: 1.0625rem;
+}
+
+.roster-card-meta {
+  color: var(--color-text-muted);
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.roster-card-body {
+  padding: var(--space-4);
+  border-top: 1px solid var(--color-border);
+}
+
+.roster-list {
+  list-style: none;
+  max-width: none;
+  margin: var(--space-3) 0;
+}
+
+.roster-row {
+  border-bottom: 1px solid var(--color-border);
+}
+
+.roster-row:last-child {
+  border-bottom: none;
+}
+
+.roster-row label {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-2);
+  margin: 0;
+  cursor: pointer;
+  font-weight: 500;
+}
+
+.roster-row input[type="checkbox"] {
+  width: 1.5rem;
+  height: 1.5rem;
+  flex-shrink: 0;
+}
+
+.roster-row-name {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.roster-row-seat {
+  color: var(--color-text-muted);
+  font-weight: 600;
+  margin-right: var(--space-2);
+}
+
+.roster-row--checked {
+  background: var(--color-status-bg);
+}
+
 /* ---- Mobile (first screen-width breakpoint in this codebase — everything
    else here is prefers-color-scheme only) ---- */
 
