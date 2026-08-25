@@ -52,7 +52,7 @@ export function ScheduleGrid({ days, grid }: { days: Date[]; grid: Map<string, G
                   const cell = grid.get(`${dayIdx}:${slot}`);
                   const isWeekend = d.getDay() === 0 || d.getDay() === 6;
                   return (
-                    <div key={dayIdx} className={`shrink-0 rounded-lg p-0.5 ${isWeekend ? "bg-ink/10" : ""}`}>
+                    <div key={dayIdx} className={`w-11 shrink-0 rounded-lg p-0.5 ${isWeekend ? "bg-ink/10" : ""}`}>
                       {cell ? <SessionCell cell={cell} href={`?session_id=${cell.id}`} /> : <EmptyCell />}
                     </div>
                   );
