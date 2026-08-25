@@ -2,6 +2,7 @@ import { pool } from "@/lib/db/pool";
 import { isCancellable } from "@/lib/cancellation";
 import { computeSeatGrid } from "@/lib/series/seatStatus";
 import { bookSeriesSeatAction, cancelSeriesSeatDateAction } from "./actions";
+import { describeBookingErrorReason } from "./scheduleTypes";
 
 interface SeriesInfo {
   id: string;
@@ -85,7 +86,7 @@ export async function SeriesPanel({
       <h2 className="text-xl font-bold text-ink">{series.name} — numbered seats</h2>
       {bookingError && (
         <p role="alert" className="mt-4 rounded-lg border border-warn-line bg-warn-bg p-3 text-sm font-medium text-warn">
-          Couldn&apos;t complete that: {bookingError}
+          {describeBookingErrorReason(bookingError)}
         </p>
       )}
 
@@ -141,7 +142,7 @@ export async function SeriesPanel({
               type="submit"
               className="mt-3 w-full rounded-lg bg-brand py-3.5 font-bold text-white shadow-sm transition-all hover:bg-brand-strong hover:shadow-md"
             >
-              Reserve checked dates (1 pass each)
+              Reserve checked dates (1 ticket each)
             </button>
           </form>
 
@@ -161,7 +162,7 @@ export async function SeriesPanel({
                           <label className="flex items-start gap-2 text-sm text-ink-soft">
                             <input type="checkbox" required className="mt-1" />
                             <span>
-                              I understand I won&rsquo;t get my pass back for{" "}
+                              I understand I won&rsquo;t get my ticket back for{" "}
                               {new Date(cell.startTime).toLocaleDateString()} if I cancel now.
                             </span>
                           </label>

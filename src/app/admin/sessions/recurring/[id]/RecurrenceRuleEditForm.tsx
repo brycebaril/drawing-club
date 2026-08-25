@@ -90,7 +90,7 @@ export function RecurrenceRuleEditForm({ ruleId, defaultCapacity, hostCandidates
       <fieldset>
         <legend>Apply changes to</legend>
         <p role="alert">
-          Occurrences with existing bookings in the affected range will be canceled, passes released, and
+          Occurrences with existing bookings in the affected range will be canceled, tickets released, and
           booked members emailed.
         </p>
         <label htmlFor="rre-scopeEntire">

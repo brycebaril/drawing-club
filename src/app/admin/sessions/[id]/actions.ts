@@ -255,7 +255,7 @@ export async function updateSessionDetailsAction(
     const bookedCount = Number(bookedCountResult.rows[0].count);
     if (maxCapacity < bookedCount) {
       await client.query("ROLLBACK");
-      return { error: `Capacity can't be less than the ${bookedCount} pass(es) already booked.` };
+      return { error: `Capacity can't be less than the ${bookedCount} ticket(s) already booked.` };
     }
 
     await client.query(

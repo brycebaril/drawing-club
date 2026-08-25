@@ -87,7 +87,7 @@ test("multi-week series lifecycle: create, partial-date seat booking, seat conte
   await page.goto(`/app/schedule?session_id=${session1.id}&seat=1`);
   await page.locator(`input[name="sessionIds"][value="${session1.id}"]`).check();
   await page.locator(`input[name="sessionIds"][value="${session2.id}"]`).check();
-  await page.getByRole("button", { name: "Reserve checked dates (1 pass each)" }).click();
+  await page.getByRole("button", { name: "Reserve checked dates (1 ticket each)" }).click();
   await page.waitForURL(`**/app/schedule?session_id=${session1.id}&seat=1`);
 
   // The redirect confirms the server action has run, but this test's own
@@ -123,7 +123,7 @@ test("multi-week series lifecycle: create, partial-date seat booking, seat conte
   await loginAsUser(page, member2);
   await page.goto(`/app/schedule?session_id=${session1.id}&seat=2`);
   await page.locator(`input[name="sessionIds"][value="${session1.id}"]`).check();
-  await page.getByRole("button", { name: "Reserve checked dates (1 pass each)" }).click();
+  await page.getByRole("button", { name: "Reserve checked dates (1 ticket each)" }).click();
   await page.waitForURL(`**/app/schedule?session_id=${session1.id}&seat=2`);
 
   await expect(async () => {

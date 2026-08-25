@@ -35,3 +35,28 @@ export interface GridCellData {
 export function isCellInteractive(status: SessionStatus): boolean {
   return status !== "TooFarFuture";
 }
+
+/**
+ * bookSession/bookSeriesSeat (src/lib/booking/actions.ts, src/lib/series/actions.ts)
+ * return a `reason` discriminant on failure. It used to be shown to members
+ * completely raw (e.g. "Couldn't complete that: no-pass") via the
+ * bookingError query param — this is the one place that translates it into
+ * an actual sentence, reused by SessionDetailsPanel and SeriesPanel so
+ * neither renders an internal code again. Reason codes themselves are
+ * untouched by the pass -> ticket copy rename; only their English changed.
+ */
+const BOOKING_ERROR_REASONS: Record<string, string> = {
+  "not-verified": "Verify your email before booking.",
+  "no-pass": "You don't have a ticket available for this session.",
+  full: "This session is full.",
+  "already-booked": "You're already booked into this session.",
+  "not-found": "That session couldn't be found.",
+  "too-far": "This session isn't open for your booking window yet.",
+  "seat-taken": "That seat was just taken — pick another.",
+  "different-seat-already-held": "You already hold a different seat in this series.",
+  "no-dates": "Pick at least one date.",
+};
+
+export function describeBookingErrorReason(reason: string): string {
+  return BOOKING_ERROR_REASONS[reason] ?? "Couldn't complete that. Please try again.";
+}

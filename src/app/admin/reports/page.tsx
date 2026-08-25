@@ -16,7 +16,7 @@ export default function AdminReportsIndexPage() {
         <p>Flexible, filterable lookups — a work in progress alongside the existing dashboard.</p>
         <ul>
           <li>
-            <Link href="/admin/reports/passes">Passes</Link> — wallet contents by status, cost basis, owner role,
+            <Link href="/admin/reports/passes">Tickets</Link> — wallet contents by status, cost basis, owner role,
             origin
           </li>
           <li>

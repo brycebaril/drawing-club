@@ -65,13 +65,13 @@ test("recurring rule edit: this-date-forward cancels+regenerates, earlier bookin
 
   await loginAsUser(page, member1);
   await page.goto(`/app/schedule?session_id=${earlyOccurrence.id}`);
-  await page.getByRole("button", { name: "Book (uses 1 pass)" }).click();
+  await page.getByRole("button", { name: "Book (uses 1 ticket)" }).click();
   await page.waitForURL(`**/app/schedule?session_id=${earlyOccurrence.id}`);
   await expect(page.getByRole("button", { name: "Cancel registration" })).toBeVisible();
 
   await loginAsUser(page, member2);
   await page.goto(`/app/schedule?session_id=${laterOccurrence.id}`);
-  await page.getByRole("button", { name: "Book (uses 1 pass)" }).click();
+  await page.getByRole("button", { name: "Book (uses 1 ticket)" }).click();
   await page.waitForURL(`**/app/schedule?session_id=${laterOccurrence.id}`);
   await expect(page.getByRole("button", { name: "Cancel registration" })).toBeVisible();
 

@@ -18,7 +18,7 @@ test("banning a user releases their upcoming bookings, notifies the waitlist, an
     [target.id],
   );
   await page.goto(`/app/schedule?session_id=${sessionId}`);
-  await page.getByRole("button", { name: "Book (uses 1 pass)" }).click();
+  await page.getByRole("button", { name: "Book (uses 1 ticket)" }).click();
   await page.waitForURL(`**/app/schedule?session_id=${sessionId}`);
 
   const waiter = await createTestUser({ username: `e2ewaiter${Date.now()}` });
@@ -83,10 +83,10 @@ test("granting passes increases the target user's balance and is audit-logged", 
   await page.goto(`/admin/users/${target.id}`);
   await page.getByLabel("Quantity").fill("2");
   await page.locator("#grant-reason").fill("Volunteer reward");
-  await page.getByRole("button", { name: "Grant passes" }).click();
+  await page.getByRole("button", { name: "Grant tickets" }).click();
   await page.waitForURL(`**/admin/users/${target.id}`);
 
-  await expect(page.getByText("Available passes: 2")).toBeVisible();
+  await expect(page.getByText("Available tickets: 2")).toBeVisible();
 
   await page.goto("/admin/audit-logs");
   await expect(

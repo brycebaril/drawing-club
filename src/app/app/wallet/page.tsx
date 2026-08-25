@@ -79,12 +79,12 @@ export default async function WalletPage({
           </p>
         )}
         {checkout === "cancelled" && <p role="status">Checkout cancelled — nothing was charged.</p>}
-        {!ctx.emailVerified && <p role="alert">Verify your email before you can get or use passes.</p>}
+        {!ctx.emailVerified && <p role="alert">Verify your email before you can get or use tickets.</p>}
 
         {incomingResult.rowCount! > 0 && (
           <>
             <h2>Shared with you</h2>
-            <p>Passes other members want to share with you — accept to add to your wallet, or decline.</p>
+            <p>Tickets other members want to share with you — accept to add to your wallet, or decline.</p>
             <div className="table-scroll">
               <table>
               <thead>
@@ -110,8 +110,8 @@ export default async function WalletPage({
           </>
         )}
 
-        <h2>Standard passes</h2>
-        <p>Available passes: {standardPasses.length}</p>
+        <h2>Standard tickets</h2>
+        <p>Available tickets: {standardPasses.length}</p>
         {standardPasses.length > 0 && (
           <div className="table-scroll">
             <table>
@@ -133,7 +133,7 @@ export default async function WalletPage({
           </div>
         )}
 
-        <h2>Transferable passes</h2>
+        <h2>Transferable tickets</h2>
         <p>Available: {transferablePasses.length}</p>
         {transferablePasses.length > 0 && (
           <div className="table-scroll">
@@ -161,7 +161,7 @@ export default async function WalletPage({
         {outgoingResult.rowCount! > 0 && (
           <>
             <h2>Pending — you&apos;re sharing</h2>
-            <p>Passes you&apos;ve offered to someone who hasn&apos;t responded yet.</p>
+            <p>Tickets you&apos;ve offered to someone who hasn&apos;t responded yet.</p>
             <div className="table-scroll">
               <table>
               <thead>
@@ -187,7 +187,7 @@ export default async function WalletPage({
           </>
         )}
 
-        <h2>Buy passes</h2>
+        <h2>Buy tickets</h2>
         <PurchaseButtons isMember={isMember} disabled={!ctx.emailVerified} />
       </main>
     </>

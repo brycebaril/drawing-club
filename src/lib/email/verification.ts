@@ -43,7 +43,7 @@ export async function sendVerificationEmail(user: {
   await sendEmail({
     to: user.email,
     subject: `Verify your ${ORG_DBA_NAME} account`,
-    body: `Hi ${user.username},\n\nVerify your email to book sessions and buy passes:\n${verifyUrl}\n\nThis link expires in ${TOKEN_TTL_HOURS} hours.`,
+    body: `Hi ${user.username},\n\nVerify your email to book sessions and buy tickets:\n${verifyUrl}\n\nThis link expires in ${TOKEN_TTL_HOURS} hours.`,
   });
 }
 

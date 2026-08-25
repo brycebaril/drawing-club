@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { pool } from "@/lib/db/pool";
 import { requireOpsRole } from "@/lib/auth/requireOpsRole";
 import { SiteNav } from "@/components/SiteNav";
+import { describeTransactionItemType } from "@/lib/payments/pricing";
 
 interface BatchTransactionRow {
   id: string;
@@ -68,7 +69,7 @@ export default async function PayoutBatchDetailPage({
           {result.rows.map((row) => (
             <tr key={row.id}>
               <td>{row.username ?? "—"}</td>
-              <td>{row.item_type}</td>
+              <td>{describeTransactionItemType(row.item_type)}</td>
               <td>${row.amount_paid}</td>
               <td>{row.processing_fee ? `$${row.processing_fee}` : "—"}</td>
               <td>{row.net_amount ? `$${row.net_amount}` : "—"}</td>

@@ -1,6 +1,6 @@
 import { Info, Lock, UserX } from "lucide-react";
 import { bookSessionAction, cancelBookingAction, joinWaitlistAction } from "./actions";
-import { sessionTypeInfo } from "./scheduleTypes";
+import { describeBookingErrorReason, sessionTypeInfo } from "./scheduleTypes";
 import type { SessionStatus } from "@/lib/booking/sessionStatus";
 
 interface SessionInfo {
@@ -70,7 +70,7 @@ export function SessionDetailsPanel({
         )}
         {bookingError && (
           <p role="alert" className="rounded-lg border border-warn-line bg-warn-bg p-3 text-sm font-medium text-warn">
-            Couldn&rsquo;t complete that: {bookingError}
+            {describeBookingErrorReason(bookingError)}
           </p>
         )}
 
@@ -88,7 +88,7 @@ export function SessionDetailsPanel({
               type="submit"
               className="w-full rounded-lg bg-brand py-3.5 font-bold text-white shadow-sm transition-all hover:bg-brand-strong hover:shadow-md"
             >
-              Book (uses 1 pass)
+              Book (uses 1 ticket)
             </button>
           </form>
         )}
@@ -108,7 +108,7 @@ export function SessionDetailsPanel({
             <input type="hidden" name="sessionId" value={session.id} />
             <label className="flex items-start gap-2 text-sm text-ink-soft">
               <input type="checkbox" required className="mt-1" />
-              <span>I understand I won&rsquo;t get my pass back if I cancel now.</span>
+              <span>I understand I won&rsquo;t get my ticket back if I cancel now.</span>
             </label>
             <button
               type="submit"

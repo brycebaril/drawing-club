@@ -4,6 +4,7 @@ import { pool } from "@/lib/db/pool";
 import { requireOpsRole } from "@/lib/auth/requireOpsRole";
 import { SiteNav } from "@/components/SiteNav";
 import { toDateOnly } from "@/lib/sessions/shared";
+import { describeTransactionItemType } from "@/lib/payments/pricing";
 import { GenerateReportForm } from "./GenerateReportForm";
 
 interface WeekSummaryRow {
@@ -205,7 +206,7 @@ export default async function FinancialsPage({
           <tbody>
             {transactionTotalsResult.rows.map((row) => (
               <tr key={row.item_type}>
-                <td>{row.item_type}</td>
+                <td>{describeTransactionItemType(row.item_type)}</td>
                 <td>{row.count}</td>
                 <td>${row.total}</td>
                 <td>{row.fees ? `$${row.fees}` : "—"}</td>

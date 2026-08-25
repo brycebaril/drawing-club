@@ -96,7 +96,7 @@ test("a recipient can decline a pending transfer, returning the pass to the send
   // Spendable again — visible back in the sender's own transferable list.
   await loginAsUser(page, sender);
   await page.goto("/app/wallet");
-  await expect(page.getByText("Transferable passes")).toBeVisible();
+  await expect(page.getByText("Transferable tickets")).toBeVisible();
   await expect(page.getByPlaceholder("Recipient username")).toBeVisible();
 });
 
@@ -153,7 +153,7 @@ test("the recipient sees the notification banner on an unrelated page before vis
 
   await loginAsUser(page, recipient);
   await page.goto("/dashboard");
-  await expect(page.getByText("You have a pass waiting for you to accept.")).toBeVisible();
+  await expect(page.getByText("You have a session ticket waiting for you to accept.")).toBeVisible();
   await page.getByRole("link", { name: "Review in your wallet" }).click();
   await page.waitForURL("**/app/wallet");
   await page.getByRole("button", { name: "Accept" }).click();
@@ -161,5 +161,5 @@ test("the recipient sees the notification banner on an unrelated page before vis
   await expectPassRow(passId, { owner_id: recipient.id, pending_recipient_id: null, status: "Available" });
 
   await page.goto("/dashboard");
-  await expect(page.getByText("You have a pass waiting for you to accept.")).not.toBeVisible();
+  await expect(page.getByText("You have a session ticket waiting for you to accept.")).not.toBeVisible();
 });

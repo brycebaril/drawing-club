@@ -83,7 +83,7 @@ export async function GET(request: Request): Promise<NextResponse> {
   return new NextResponse(lines.join("\n"), {
     headers: {
       "Content-Type": "text/csv",
-      "Content-Disposition": `attachment; filename="passes-report.csv"`,
+      "Content-Disposition": `attachment; filename="tickets-report.csv"`,
     },
   });
 }

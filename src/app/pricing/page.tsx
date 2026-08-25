@@ -33,8 +33,8 @@ export default async function PricingPage() {
       <main>
         <h1>Pricing</h1>
         <p>
-          All studio sessions require a session ticket (or valid pass), pre-purchased and pre-registered
-          online — there are no studio drop-in sales.
+          All studio sessions require a session ticket, pre-purchased and pre-registered online — there are no
+          studio drop-in sales.
         </p>
 
         <div className="table-scroll">

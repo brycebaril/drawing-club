@@ -16,7 +16,7 @@ test("a member books a session, cancels it, and the pass returns to their balanc
   await loginAsUser(page, member);
 
   await page.goto("/app/wallet");
-  await expect(page.getByText("Available passes: 0")).toBeVisible();
+  await expect(page.getByText("Available tickets: 0")).toBeVisible();
   // Passes are now purchased through real Stripe Checkout (Phase 8) rather
   // than a dev-only grant button — set the fixture up directly, same as
   // every other spec file's pass provisioning.
@@ -25,23 +25,23 @@ test("a member books a session, cancels it, and the pass returns to their balanc
     [member.id],
   );
   await page.reload();
-  await expect(page.getByText("Available passes: 1")).toBeVisible();
+  await expect(page.getByText("Available tickets: 1")).toBeVisible();
 
   await page.goto(`/app/schedule?session_id=${sessionId}`);
-  await page.getByRole("button", { name: "Book (uses 1 pass)" }).click();
+  await page.getByRole("button", { name: "Book (uses 1 ticket)" }).click();
   await page.waitForURL(`**/app/schedule?session_id=${sessionId}`);
   await expect(page.getByRole("button", { name: "Cancel registration" })).toBeVisible();
 
   await page.goto("/app/wallet");
-  await expect(page.getByText("Available passes: 0")).toBeVisible();
+  await expect(page.getByText("Available tickets: 0")).toBeVisible();
 
   await page.goto(`/app/schedule?session_id=${sessionId}`);
   await page.getByRole("button", { name: "Cancel registration" }).click();
   await page.waitForURL(`**/app/schedule?session_id=${sessionId}`);
-  await expect(page.getByRole("button", { name: "Book (uses 1 pass)" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Book (uses 1 ticket)" })).toBeVisible();
 
   await page.goto("/app/wallet");
-  await expect(page.getByText("Available passes: 1")).toBeVisible();
+  await expect(page.getByText("Available tickets: 1")).toBeVisible();
 });
 
 test("waitlisting: a second user is notified after the booked user cancels a full session", async ({
@@ -61,7 +61,7 @@ test("waitlisting: a second user is notified after the booked user cancels a ful
     [first.id],
   );
   await page.goto(`/app/schedule?session_id=${sessionId}`);
-  await page.getByRole("button", { name: "Book (uses 1 pass)" }).click();
+  await page.getByRole("button", { name: "Book (uses 1 ticket)" }).click();
   await page.waitForURL(`**/app/schedule?session_id=${sessionId}`);
 
   const second = await createTestUser({ username: `e2esecond${Date.now()}` });
@@ -113,7 +113,7 @@ test("canceling within the cutoff forfeits the pass but still frees the seat and
     [first.id],
   );
   await page.goto(`/app/schedule?session_id=${sessionId}`);
-  await page.getByRole("button", { name: "Book (uses 1 pass)" }).click();
+  await page.getByRole("button", { name: "Book (uses 1 ticket)" }).click();
   await page.waitForURL(`**/app/schedule?session_id=${sessionId}`);
 
   const second = await createTestUser({ username: `e2elatesecond${Date.now()}` });
@@ -125,7 +125,7 @@ test("canceling within the cutoff forfeits the pass but still frees the seat and
   await loginAsUser(page, first);
   await page.goto(`/app/schedule?session_id=${sessionId}`);
   await expect(page.getByText(/too close to start for a refund/)).toBeVisible();
-  await page.getByLabel(/won.t get my pass back if I cancel now/).check();
+  await page.getByLabel(/won.t get my ticket back if I cancel now/).check();
   await page.getByRole("button", { name: "Cancel without refund" }).click();
   await page.waitForURL(`**/app/schedule?session_id=${sessionId}`);
 
@@ -155,5 +155,5 @@ test("canceling within the cutoff forfeits the pass but still frees the seat and
     [third.id],
   );
   await page.goto(`/app/schedule?session_id=${sessionId}`);
-  await expect(page.getByRole("button", { name: "Book (uses 1 pass)" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Book (uses 1 ticket)" })).toBeVisible();
 });

@@ -361,7 +361,7 @@ export async function releaseAllBookingsForSession(sessionId: string): Promise<v
       await sendEmail({
         to: booker.email,
         subject: "Your booking was canceled",
-        body: `Hi ${booker.username},\n\nAn admin canceled ${sessionType} — ${sessionStartTime?.toLocaleString() ?? "a session"} you were booked into. Your pass has been returned to your balance.`,
+        body: `Hi ${booker.username},\n\nAn admin canceled ${sessionType} — ${sessionStartTime?.toLocaleString() ?? "a session"} you were booked into. Your ticket has been returned to your balance.`,
       });
     } catch (error) {
       console.error(`Failed to email canceled-booking notice to ${booker.email}:`, error);

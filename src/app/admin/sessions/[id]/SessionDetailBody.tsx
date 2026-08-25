@@ -99,7 +99,7 @@ export function SessionDetailBody({
         <>
           <h2>Cancel</h2>
           <p role="alert">
-            Canceling releases any booked passes back to their owners&apos; balances and emails the affected
+            Canceling releases any booked tickets back to their owners&apos; balances and emails the affected
             members.
           </p>
           {isRecurring ? (

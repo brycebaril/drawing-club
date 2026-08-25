@@ -50,7 +50,7 @@ export function SessionCell({ cell, href }: { cell: GridCellData; href: string }
       {cell.status === "CancelableNoRefund" && (
         <span
           className="absolute bottom-1 right-1 rounded-full bg-panel p-px"
-          title="Canceling now won't refund your pass"
+          title="Canceling now won't refund your ticket"
         >
           <Lock className="h-2.5 w-2.5 text-warn" strokeWidth={3} />
         </span>

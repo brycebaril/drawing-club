@@ -159,7 +159,7 @@ test("series editing: seat-count guard, add more dates, instance editor", async 
   await page.goto(`/admin/sessions/${session1.id}`);
   await page.getByLabel(/^Capacity/).fill("1");
   await page.getByRole("button", { name: "Save changes" }).click();
-  await expect(page.getByText(/Capacity can't be less than the 2 pass\(es\) already booked/)).toBeVisible();
+  await expect(page.getByText(/Capacity can't be less than the 2 ticket\(s\) already booked/)).toBeVisible();
 
   // Instance editor: a Canceled session can't be edited — the edit form
   // disappears from the page entirely once canceled (the UI-reachable half

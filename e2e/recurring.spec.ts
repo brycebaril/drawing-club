@@ -80,7 +80,7 @@ test("recurring session lifecycle: create, book, cancel this-and-future, idempot
   await expect(page.locator(`a[href*="session_id=${clickedOccurrence.id}"]`)).toBeVisible();
 
   await page.goto(`/app/schedule?session_id=${clickedOccurrence.id}`);
-  await page.getByRole("button", { name: "Book (uses 1 pass)" }).click();
+  await page.getByRole("button", { name: "Book (uses 1 ticket)" }).click();
   await page.waitForURL(`**/app/schedule?session_id=${clickedOccurrence.id}`);
   await expect(page.getByRole("button", { name: "Cancel registration" })).toBeVisible();
 
@@ -103,7 +103,7 @@ test("recurring session lifecycle: create, book, cancel this-and-future, idempot
   // The member's booked pass was released back to their wallet.
   await loginAsUser(page, member);
   await page.goto("/app/wallet");
-  await expect(page.getByText("Available passes: 1")).toBeVisible();
+  await expect(page.getByText("Available tickets: 1")).toBeVisible();
 
   // A second rollforward is a no-op — the rule's end_date now sits before
   // the canceled occurrences, so nothing new gets generated past the cutoff.

@@ -22,7 +22,7 @@ export function GrantPassForm({ userId }: { userId: string }) {
         required
       />
       <fieldset>
-        <legend>Pass type</legend>
+        <legend>Ticket type</legend>
         <label>
           <input type="radio" name="passType" value="Standard" defaultChecked /> Standard
         </label>
@@ -39,7 +39,7 @@ export function GrantPassForm({ userId }: { userId: string }) {
       />
       {state.error && <p role="alert">{state.error}</p>}
       <button type="submit" disabled={pending}>
-        {pending ? "Granting…" : "Grant passes"}
+        {pending ? "Granting…" : "Grant tickets"}
       </button>
     </form>
   );

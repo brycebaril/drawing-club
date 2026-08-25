@@ -12,7 +12,7 @@ export function PurchaseButtons({ isMember, disabled }: { isMember: boolean; dis
     <form action={formAction}>
       {state.error && <p role="alert">{state.error}</p>}
       <button type="submit" name="item" value="SinglePass" disabled={pending || disabled}>
-        Buy a single pass
+        Buy a single ticket
       </button>
       <button type="submit" name="item" value="Pack5" disabled={pending || disabled}>
         Buy a 5-pack

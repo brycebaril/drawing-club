@@ -25,8 +25,8 @@ export async function getPendingNotifications(userId: string): Promise<PendingNo
     notifications.push({
       message:
         pendingCount === 1
-          ? "You have a pass waiting for you to accept."
-          : `You have ${pendingCount} passes waiting for you to accept.`,
+          ? "You have a session ticket waiting for you to accept."
+          : `You have ${pendingCount} session tickets waiting for you to accept.`,
       ctaLabel: "Review in your wallet",
       ctaHref: "/app/wallet",
     });

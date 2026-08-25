@@ -64,3 +64,27 @@ function settingKeyFor(item: "SinglePass" | "Pack5" | "Pack10", isMember: boolea
 function roundToCents(value: number): number {
   return Math.round(value * 100) / 100;
 }
+
+/**
+ * Display label for a stored transactions.item_type value (the
+ * transaction_item_type enum: SinglePass/PassPack/MembershipRenewal) —
+ * shared by /admin/transactions, /ops/financials, its payout drill-down, and
+ * both CSV exports, so the raw enum value is never shown on screen again.
+ * Deliberately a separate function from describeItem() (wallet/actions.ts,
+ * Stripe checkout naming): that one distinguishes Pack5 vs Pack10 because
+ * Stripe needs the real price at that point, but item_type itself only ever
+ * stores "PassPack" for both — this can't invent a distinction the data
+ * doesn't have.
+ */
+export function describeTransactionItemType(itemType: string): string {
+  switch (itemType) {
+    case "SinglePass":
+      return "Single Session Ticket";
+    case "PassPack":
+      return "Ticket Pack";
+    case "MembershipRenewal":
+      return "Membership Renewal";
+    default:
+      return itemType;
+  }
+}

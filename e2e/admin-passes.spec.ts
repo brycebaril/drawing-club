@@ -13,11 +13,11 @@ test("admin generates a batch with an owner, passes land directly in that owner'
   await page.getByLabel("Organization name").fill(orgName);
   await page.getByLabel("Owner username").fill(owner.username);
   await page.getByLabel("Quantity (1–100)").fill("2");
-  await page.getByLabel("Effective price per pass").fill("15.00");
+  await page.getByLabel("Effective price per ticket").fill("15.00");
   await page.getByRole("button", { name: "Generate batch" }).click();
 
   await expect(
-    page.getByText(`Batch created for ${orgName} — all passes are already in ${owner.username}'s wallet`),
+    page.getByText(`Batch created for ${orgName} — all tickets are already in ${owner.username}'s wallet`),
   ).toBeVisible();
 
   const batchRows = await pool.query<{ id: string; status: string; owner_id: string }>(
@@ -57,7 +57,7 @@ test("batch creation requires an existing owner username", async ({ page }) => {
   await page.getByLabel("Organization name").fill(`No Owner Org ${Date.now()}`);
   await page.getByLabel("Owner username").fill("no-such-member-anywhere");
   await page.getByLabel("Quantity (1–100)").fill("1");
-  await page.getByLabel("Effective price per pass").fill("10.00");
+  await page.getByLabel("Effective price per ticket").fill("10.00");
   await page.getByRole("button", { name: "Generate batch" }).click();
 
   await expect(page.getByText("No member found with that username.")).toBeVisible();
@@ -75,7 +75,7 @@ test("revoking an available transferable pass blocks it from being shared or use
   await page.getByLabel("Organization name").fill(orgName);
   await page.getByLabel("Owner username").fill(owner.username);
   await page.getByLabel("Quantity (1–100)").fill("1");
-  await page.getByLabel("Effective price per pass").fill("10.00");
+  await page.getByLabel("Effective price per ticket").fill("10.00");
   await page.getByRole("button", { name: "Generate batch" }).click();
   await expect(page.getByText(`Batch created for ${orgName}`)).toBeVisible();
 
@@ -116,7 +116,7 @@ test("the status and batch filters on /admin/passes narrow the list", async ({ p
   await page.getByLabel("Organization name").fill(orgName);
   await page.getByLabel("Owner username").fill(owner.username);
   await page.getByLabel("Quantity (1–100)").fill("1");
-  await page.getByLabel("Effective price per pass").fill("10.00");
+  await page.getByLabel("Effective price per ticket").fill("10.00");
   await page.getByRole("button", { name: "Generate batch" }).click();
   await expect(page.getByText(`Batch created for ${orgName}`)).toBeVisible();
 

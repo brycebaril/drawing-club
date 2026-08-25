@@ -3,6 +3,7 @@ import Link from "next/link";
 import { pool } from "@/lib/db/pool";
 import { SiteNav } from "@/components/SiteNav";
 import { RefundForm } from "./RefundForm";
+import { describeTransactionItemType } from "@/lib/payments/pricing";
 
 interface TransactionDetail {
   id: string;
@@ -66,7 +67,7 @@ export default async function AdminTransactionDetailPage({
           "—"
         )}
       </p>
-      <p>Item: {transaction.item_type}</p>
+      <p>Item: {describeTransactionItemType(transaction.item_type)}</p>
       <p>Amount paid: ${transaction.amount_paid}</p>
       <p>Processing fee: {transaction.processing_fee ? `$${transaction.processing_fee}` : "—"}</p>
       <p>Net amount: {transaction.net_amount ? `$${transaction.net_amount}` : "—"}</p>
@@ -79,9 +80,9 @@ export default async function AdminTransactionDetailPage({
 
       {passResult.rowCount! > 0 && (
         <>
-          <h2>Passes from this purchase</h2>
+          <h2>Tickets from this purchase</h2>
           <p>
-            Revoking an unspent pass is a separate action, taken from the buyer&apos;s own{" "}
+            Revoking an unspent ticket is a separate action, taken from the buyer&apos;s own{" "}
             <Link href={`/admin/users/${transaction.user_id}`}>user page</Link> — refunding here
             does not automatically revoke anything (Design Doc §7.1).
           </p>

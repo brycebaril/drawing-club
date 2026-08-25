@@ -137,7 +137,7 @@ test("the sales date-range filter narrows the summary and its CSV matches the sa
   expect(inRangeBody).not.toContain(outOfRangeRef);
 
   await page.goto(`/ops/financials?start=${tenDaysAgo}&end=${today}`);
-  await expect(page.getByRole("cell", { name: "SinglePass" })).toBeVisible();
+  await expect(page.getByRole("cell", { name: "Single Session Ticket" })).toBeVisible();
 });
 
 test("a non-Controller hitting the payout drill-down page is bounced to the dashboard", async ({

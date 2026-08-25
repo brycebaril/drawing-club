@@ -17,11 +17,11 @@ export interface CreateCheckoutSessionState {
 function describeItem(item: PurchasableItem): string {
   switch (item) {
     case "SinglePass":
-      return "Single Session Pass";
+      return "Single Session Ticket";
     case "Pack5":
-      return "5-Pass Pack";
+      return "5-Ticket Pack";
     case "Pack10":
-      return "10-Pass Pack";
+      return "10-Ticket Pack";
     case "MembershipRenewal":
       return "Annual Membership Renewal";
   }
@@ -47,7 +47,7 @@ export async function createCheckoutSessionAction(
   const ctx = await getUserAuthContext(session.user.id);
   if (!ctx || ctx.status !== "Active") redirect("/auth/login");
   if (!ctx.emailVerified) {
-    return { error: "Verify your email before buying a pass." };
+    return { error: "Verify your email before buying a ticket." };
   }
 
   const item = String(formData.get("item") ?? "");
@@ -116,7 +116,7 @@ export async function sharePassAction(
   const ctx = await getUserAuthContext(session.user.id);
   if (!ctx || ctx.status !== "Active") redirect("/auth/login");
   if (!ctx.emailVerified) {
-    return { error: "Verify your email before sharing a pass." };
+    return { error: "Verify your email before sharing a ticket." };
   }
 
   const passId = String(formData.get("passId") ?? "");
@@ -124,7 +124,7 @@ export async function sharePassAction(
   const note = String(formData.get("note") ?? "").trim();
 
   if (!recipientUsername) {
-    return { error: "Enter the username of who you want to share this pass with." };
+    return { error: "Enter the username of who you want to share this ticket with." };
   }
 
   const recipientRow = await pool.query<{ id: string; email: string }>(
@@ -136,7 +136,7 @@ export async function sharePassAction(
   }
   const recipient = recipientRow.rows[0];
   if (recipient.id === ctx.id) {
-    return { error: "You can't share a pass with yourself." };
+    return { error: "You can't share a ticket with yourself." };
   }
 
   const client = await pool.connect();
@@ -151,15 +151,15 @@ export async function sharePassAction(
 
     if (passRow.rowCount === 0 || passRow.rows[0].owner_id !== ctx.id) {
       await client.query("ROLLBACK");
-      return { error: "Pass not found." };
+      return { error: "Ticket not found." };
     }
     if (!passRow.rows[0].is_transferable) {
       await client.query("ROLLBACK");
-      return { error: "This pass isn't transferable." };
+      return { error: "This ticket isn't transferable." };
     }
     if (passRow.rows[0].status !== "Available") {
       await client.query("ROLLBACK");
-      return { error: "This pass can't be shared right now." };
+      return { error: "This ticket can't be shared right now." };
     }
 
     await client.query(
@@ -187,8 +187,8 @@ export async function sharePassAction(
   const baseUrl = process.env.NEXTAUTH_URL ?? "http://localhost:3000";
   await sendEmail({
     to: recipient.email,
-    subject: `${ctx.username} wants to share a session pass with you`,
-    body: `Hi,\n\n${ctx.username} wants to share a session pass with you${note ? ` with this note: "${note}"` : ""}.\n\nLog in to accept or decline:\n${baseUrl}/app/wallet`,
+    subject: `${ctx.username} wants to share a session ticket with you`,
+    body: `Hi,\n\n${ctx.username} wants to share a session ticket with you${note ? ` with this note: "${note}"` : ""}.\n\nLog in to accept or decline:\n${baseUrl}/app/wallet`,
   });
 
   revalidatePath("/app/wallet");

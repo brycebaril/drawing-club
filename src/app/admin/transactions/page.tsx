@@ -3,6 +3,7 @@ import { pool } from "@/lib/db/pool";
 import { SiteNav } from "@/components/SiteNav";
 import { SortableTh } from "@/components/SortableTh";
 import { resolveSort } from "@/lib/sort";
+import { describeTransactionItemType } from "@/lib/payments/pricing";
 
 const SORT_COLUMNS = {
   when: "t.created_at",
@@ -108,7 +109,7 @@ export default async function AdminTransactionsPage({
             <tr key={row.id}>
               <td>{new Date(row.created_at).toLocaleString()}</td>
               <td>{row.username ?? "—"}</td>
-              <td>{row.item_type}</td>
+              <td>{describeTransactionItemType(row.item_type)}</td>
               <td>${row.amount_paid}</td>
               <td>{row.charge_status}</td>
               <td>{row.refunded_amount ? `$${row.refunded_amount}` : "—"}</td>

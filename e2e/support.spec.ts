@@ -13,7 +13,7 @@ test("a member creates a support ticket, a support agent sees and replies to it,
   await loginAsUser(page, member);
   await page.goto("/app/support");
   await page.getByLabel("Subject").fill(subject);
-  await page.getByLabel("Message").fill("My pass balance looks wrong.");
+  await page.getByLabel("Message").fill("My ticket balance looks wrong.");
   await page.getByRole("button", { name: "Submit ticket" }).click();
   await page.waitForURL(/\/app\/support\/[0-9a-f-]+$/);
   const ticketId = page.url().split("/").pop()!;
@@ -44,7 +44,7 @@ test("a member creates a support ticket, a support agent sees and replies to it,
   await expect(inboxRow.getByRole("link", { name: "Needs reply" })).toBeVisible();
 
   await page.goto(`/ops/support/${ticketId}`);
-  await expect(page.getByText("My pass balance looks wrong.")).toBeVisible();
+  await expect(page.getByText("My ticket balance looks wrong.")).toBeVisible();
 
   await page.getByLabel("Reply").fill("Looking into it now.");
   await page.getByRole("button", { name: "Send reply" }).click();

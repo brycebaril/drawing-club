@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { getUserAuthContext } from "@/lib/auth/roles";
 import { pool } from "@/lib/db/pool";
+import { describeTransactionItemType } from "@/lib/payments/pricing";
 
 interface BatchTransactionRow {
   username: string | null;
@@ -53,7 +54,7 @@ export async function GET(request: Request): Promise<NextResponse> {
     lines.push(
       [
         csvEscape(row.username ?? ""),
-        csvEscape(row.item_type),
+        csvEscape(describeTransactionItemType(row.item_type)),
         row.amount_paid,
         row.processing_fee ?? "",
         row.net_amount ?? "",

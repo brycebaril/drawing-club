@@ -52,7 +52,7 @@ export default async function AdminSettingsPage() {
       <SiteNav />
       <main className="main--wide">
       <h1>Settings</h1>
-      <p>Changes apply immediately to future activity — historical transactions and already-spent pass values are never retroactively altered.</p>
+      <p>Changes apply immediately to future activity — historical transactions and already-spent ticket values are never retroactively altered.</p>
 
       {orderedCategories.map((category) => (
         <section key={category}>

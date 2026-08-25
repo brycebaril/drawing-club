@@ -9,7 +9,7 @@ export function BatchForm() {
   if (state.success) {
     return (
       <p role="status">
-        Batch created for {state.organizationName} — all passes are already in {state.ownerUsername}
+        Batch created for {state.organizationName} — all tickets are already in {state.ownerUsername}
         &apos;s wallet, ready to share.
       </p>
     );
@@ -28,7 +28,7 @@ export function BatchForm() {
       <label htmlFor="quantity">Quantity (1–100)</label>
       <input id="quantity" name="quantity" type="text" required />
 
-      <label htmlFor="effectivePrice">Effective price per pass</label>
+      <label htmlFor="effectivePrice">Effective price per ticket</label>
       <input id="effectivePrice" name="effectivePrice" type="text" required />
 
       <button type="submit" disabled={pending}>

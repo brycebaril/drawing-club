@@ -82,7 +82,7 @@ export default async function AdminPassesPage({
     <>
       <SiteNav />
       <main className="main--wide">
-      <h1>Passes</h1>
+      <h1>Tickets</h1>
       <p>
         <Link href="/admin/passes/new-batch">New batch</Link>
       </p>
@@ -122,7 +122,7 @@ export default async function AdminPassesPage({
       </form>
 
       {passesResult.rowCount === 0 ? (
-        <p>No passes match this filter.</p>
+        <p>No tickets match this filter.</p>
       ) : (
         <div className="table-scroll">
           <table>

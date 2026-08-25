@@ -1,5 +1,5 @@
 const MESSAGES: Record<string, string> = {
-  verified: "Your email is verified. You can now book sessions and buy passes.",
+  verified: "Your email is verified. You can now book sessions and buy tickets.",
   "already-used": "This verification link has already been used.",
   expired: "This verification link has expired. Request a new one from your account settings.",
   invalid: "This verification link is invalid.",

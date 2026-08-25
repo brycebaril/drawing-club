@@ -16,7 +16,7 @@ const ADMIN_LINKS: StaffLink[] = [
   { href: "/admin/sessions", label: "Sessions" },
   { href: "/admin/users", label: "Users" },
   { href: "/admin/transactions", label: "Transactions" },
-  { href: "/admin/passes", label: "Passes" },
+  { href: "/admin/passes", label: "Tickets" },
   { href: "/admin/audit-logs", label: "Audit Logs" },
   { href: "/admin/dashboard", label: "Reporting" },
   { href: "/admin/reports", label: "Reports" },

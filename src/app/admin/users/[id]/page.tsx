@@ -135,7 +135,7 @@ export default async function AdminUserDetailPage({
         {user.username} · {user.email}{" "}
         {user.base_role === "Admin" && <Badge tone="admin">ADMIN</Badge>}{" "}
         <Badge tone={statusTone(user.status)}>{user.status}</Badge>{" "}
-        <Badge tone={tierTone(isMember)}>{isMember ? "MBR" : "ACCT"}</Badge> · Available passes:{" "}
+        <Badge tone={tierTone(isMember)}>{isMember ? "MBR" : "ACCT"}</Badge> · Available tickets:{" "}
         {passCountResult.rows[0].count}
       </p>
 
@@ -145,7 +145,7 @@ export default async function AdminUserDetailPage({
       </section>
 
       <section>
-        <h2>Grant passes</h2>
+        <h2>Grant tickets</h2>
         <GrantPassForm userId={user.id} />
       </section>
 
