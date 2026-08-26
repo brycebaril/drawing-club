@@ -23,12 +23,13 @@ live page, so what you see in Preview is what visitors get.
 
 Use the **upload** control above the content box: pick a file (JPEG, PNG, WebP, GIF, or a PDF), and once it
 finishes, an image link is inserted into the content for you (a PDF or other document gets inserted as a plain
-link instead of an image, since it can't be shown inline).
+link instead of an image, since it can't be shown inline). Images over 6000px on a side are rejected — anything
+smaller renders at whatever size fits the page, scaling down automatically, so there's no need to resize before
+uploading.
 
-You can also upload from [the standalone uploads page](/ops/cms/uploads) and paste the resulting URL in
-yourself — useful if you want to reuse one file across several pages, or link to a document without embedding
-it right where you uploaded it. Either way the file lands in the same place (S3 in a deployed environment, a
-local folder in dev) — there's no difference between the two once it's uploaded.
+Already uploaded it somewhere else? Click **Browse existing** instead of uploading again — it opens the same
+[media library](/ops/cms/media) shown there, and picking a file inserts it exactly like a fresh upload would,
+with no duplicate file created. The library page is also where you can delete an old upload you no longer need.
 `.trim();
 
 export function MarkdownHelpModal() {

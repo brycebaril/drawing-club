@@ -4,6 +4,7 @@ import { useActionState, useState } from "react";
 import { updateStaticPageAction, type UpdateStaticPageState } from "../actions";
 import { Markdown } from "@/components/Markdown";
 import { MarkdownHelpModal } from "@/components/cms/MarkdownHelpModal";
+import { MediaPickerModal } from "@/components/cms/MediaPickerModal";
 import { useMarkdownFileUpload } from "@/components/cms/useMarkdownFileUpload";
 
 export function StaticPageForm({
@@ -20,7 +21,10 @@ export function StaticPageForm({
     {},
   );
   const [content, setContent] = useState(initialContent);
-  const { textareaRef, uploadState, uploading, handleFileChange } = useMarkdownFileUpload(content, setContent);
+  const { textareaRef, uploadState, uploading, handleFileChange, insertSnippet } = useMarkdownFileUpload(
+    content,
+    setContent,
+  );
 
   return (
     <form action={formAction}>
@@ -42,6 +46,11 @@ export function StaticPageForm({
         accept="image/jpeg,image/png,image/webp,image/gif,application/pdf"
         onChange={handleFileChange}
         disabled={uploading}
+      />
+      <MediaPickerModal
+        onSelect={(file) =>
+          insertSnippet({ name: file.originalFilename ?? file.key, type: file.contentType }, file.url)
+        }
       />
       {uploading && <p role="status">Uploading…</p>}
       {uploadState.error && <p role="alert">{uploadState.error}</p>}

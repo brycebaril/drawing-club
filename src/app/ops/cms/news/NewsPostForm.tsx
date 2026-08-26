@@ -5,6 +5,7 @@ import { createNewsPostAction, updateNewsPostAction, type NewsPostFormState } fr
 import { uploadFileAction, type UploadFileState } from "../uploads/actions";
 import { Markdown } from "@/components/Markdown";
 import { MarkdownHelpModal } from "@/components/cms/MarkdownHelpModal";
+import { MediaPickerModal } from "@/components/cms/MediaPickerModal";
 import { useMarkdownFileUpload } from "@/components/cms/useMarkdownFileUpload";
 import { slugify } from "@/lib/cms/slugify";
 
@@ -47,6 +48,7 @@ export function NewsPostForm({ mode, postId, initial = EMPTY }: NewsPostFormProp
     uploadState: contentUploadState,
     uploading: contentUploading,
     handleFileChange: handleContentFileChange,
+    insertSnippet,
   } = useMarkdownFileUpload(content, setContent);
 
   function handleImageFileChange(event: React.ChangeEvent<HTMLInputElement>) {
@@ -109,6 +111,7 @@ export function NewsPostForm({ mode, postId, initial = EMPTY }: NewsPostFormProp
         onChange={handleImageFileChange}
         disabled={uploading}
       />
+      <MediaPickerModal onSelect={(file) => setImageUrl(file.url)} />
       {uploading && <p role="status">Uploading…</p>}
       {uploadState.error && <p role="alert">{uploadState.error}</p>}
 
@@ -139,6 +142,11 @@ export function NewsPostForm({ mode, postId, initial = EMPTY }: NewsPostFormProp
         accept="image/jpeg,image/png,image/webp,image/gif,application/pdf"
         onChange={handleContentFileChange}
         disabled={contentUploading}
+      />
+      <MediaPickerModal
+        onSelect={(file) =>
+          insertSnippet({ name: file.originalFilename ?? file.key, type: file.contentType }, file.url)
+        }
       />
       {contentUploading && <p role="status">Uploading…</p>}
       {contentUploadState.error && <p role="alert">{contentUploadState.error}</p>}

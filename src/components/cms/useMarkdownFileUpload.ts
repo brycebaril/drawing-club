@@ -18,6 +18,29 @@ export function useMarkdownFileUpload(content: string, setContent: (value: strin
   const [uploadState, setUploadState] = useState<UploadFileState>({});
   const [uploading, startUpload] = useTransition();
 
+  /**
+   * Inserts a Markdown snippet for an already-known file (fresh upload or a
+   * reused pick from MediaPickerModal.tsx) at the textarea's cursor —
+   * factored out so both paths share one cursor-insertion implementation.
+   */
+  function insertSnippet(file: { name: string; type: string }, url: string) {
+    const snippet = markdownSnippetForUpload(file, url);
+    const textarea = textareaRef.current;
+    const start = textarea?.selectionStart ?? content.length;
+    const end = textarea?.selectionEnd ?? content.length;
+    const next = `${content.slice(0, start)}${snippet}${content.slice(end)}`;
+    setContent(next);
+
+    // Textarea value updates on the next render; wait a tick before
+    // restoring focus/cursor, or setSelectionRange lands on stale text.
+    requestAnimationFrame(() => {
+      if (!textarea) return;
+      textarea.focus();
+      const cursor = start + snippet.length;
+      textarea.setSelectionRange(cursor, cursor);
+    });
+  }
+
   function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
     event.target.value = "";
@@ -28,25 +51,9 @@ export function useMarkdownFileUpload(content: string, setContent: (value: strin
     startUpload(async () => {
       const result = await uploadFileAction({}, formData);
       setUploadState(result);
-      if (!result.url) return;
-
-      const snippet = markdownSnippetForUpload(file, result.url);
-      const textarea = textareaRef.current;
-      const start = textarea?.selectionStart ?? content.length;
-      const end = textarea?.selectionEnd ?? content.length;
-      const next = `${content.slice(0, start)}${snippet}${content.slice(end)}`;
-      setContent(next);
-
-      // Textarea value updates on the next render; wait a tick before
-      // restoring focus/cursor, or setSelectionRange lands on stale text.
-      requestAnimationFrame(() => {
-        if (!textarea) return;
-        textarea.focus();
-        const cursor = start + snippet.length;
-        textarea.setSelectionRange(cursor, cursor);
-      });
+      if (result.url) insertSnippet(file, result.url);
     });
   }
 
-  return { textareaRef, uploadState, uploading, handleFileChange };
+  return { textareaRef, uploadState, uploading, handleFileChange, insertSnippet };
 }

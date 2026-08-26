@@ -5,3 +5,11 @@
  * odd and heavy dependency for it to carry.
  */
 export const MAX_UPLOAD_SIZE_BYTES = 10 * 1024 * 1024;
+
+/**
+ * A technical/security limit (guards against a pathologically large image
+ * slowing down every page it's embedded on), not a business value — same
+ * "own hardcoded constant" reasoning as MAX_UPLOAD_SIZE_BYTES, not a
+ * system_settings row.
+ */
+export const MAX_IMAGE_DIMENSION_PX = 6000;

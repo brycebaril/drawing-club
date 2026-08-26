@@ -36,7 +36,7 @@ export default async function CmsDashboardPage() {
       <main className="main--wide">
       <h1>CMS</h1>
       <p>
-        <Link href="/ops/cms/uploads">Upload a file</Link>
+        <Link href="/ops/cms/uploads">Upload a file</Link> · <Link href="/ops/cms/media">Media library</Link>
       </p>
 
       <h2>Static pages</h2>

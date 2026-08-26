@@ -1,9 +1,12 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
 import { requireOpsRole } from "@/lib/auth/requireOpsRole";
 import { writeAuditLog } from "@/lib/audit/log";
+import { pool } from "@/lib/db/pool";
 import { uploadFile } from "@/lib/uploads/storage";
-import { MAX_UPLOAD_SIZE_BYTES } from "@/lib/uploads/constants";
+import { exceedsMaxDimension, readImageDimensions } from "@/lib/uploads/dimensions";
+import { MAX_IMAGE_DIMENSION_PX, MAX_UPLOAD_SIZE_BYTES } from "@/lib/uploads/constants";
 
 export interface UploadFileState {
   error?: string;
@@ -39,13 +42,40 @@ export async function uploadFileAction(
   }
 
   const buffer = Buffer.from(await file.arrayBuffer());
+
+  // Read dimensions (image content types only) and reject before ever
+  // storing the file, not after — no point keeping a rejected upload around.
+  const dimensions = readImageDimensions(buffer, file.type);
+  if (exceedsMaxDimension(dimensions, MAX_IMAGE_DIMENSION_PX)) {
+    return { error: `That image is too large — nothing over ${MAX_IMAGE_DIMENSION_PX}px on a side.` };
+  }
+
   const { url, key } = await uploadFile(buffer, { contentType: file.type });
+
+  const uploadedFileResult = await pool.query<{ id: string }>(
+    `INSERT INTO uploaded_files (key, url, content_type, size_bytes, original_filename, width, height, uploaded_by)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id`,
+    [key, url, file.type, file.size, file.name, dimensions?.width ?? null, dimensions?.height ?? null, ctx.id],
+  );
 
   await writeAuditLog({
     actorId: ctx.id,
     actionType: "CMS_FILE_UPLOADED",
-    metadata: { key, url, contentType: file.type, sizeBytes: file.size, originalFilename: file.name },
+    metadata: {
+      key,
+      url,
+      contentType: file.type,
+      sizeBytes: file.size,
+      originalFilename: file.name,
+      uploadedFileId: uploadedFileResult.rows[0].id,
+    },
   });
+
+  // Harmless for the other two callers (NewsPostForm's imperative upload,
+  // the picker's own listUploadedFiles fetch) — this only marks the media
+  // library page's cached data stale so it picks up the new file next time
+  // it's rendered, whether or not that caller ever navigates there.
+  revalidatePath("/ops/cms/media");
 
   return { url };
 }
