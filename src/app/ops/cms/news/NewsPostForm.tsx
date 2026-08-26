@@ -127,9 +127,9 @@ export function NewsPostForm({ mode, postId, initial = EMPTY }: NewsPostFormProp
         </label>
       </fieldset>
 
-      <p>
+      <div>
         <MarkdownHelpModal />
-      </p>
+      </div>
 
       <label htmlFor="content">Content (Markdown)</label>
       <label htmlFor="contentFile">Upload an image or document to insert it here</label>

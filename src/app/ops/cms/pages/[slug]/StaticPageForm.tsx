@@ -30,9 +30,9 @@ export function StaticPageForm({
       <label htmlFor="title">Title</label>
       <input id="title" name="title" defaultValue={initialTitle} required />
 
-      <p>
+      <div>
         <MarkdownHelpModal />
-      </p>
+      </div>
 
       <label htmlFor="content">Content (Markdown)</label>
       <label htmlFor="contentFile">Upload an image or document to insert it here</label>
