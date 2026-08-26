@@ -29,6 +29,41 @@ export interface GridCellData {
   sessionType: string;
   status: SessionStatus;
   needsModel: boolean;
+  description: string | null;
+  startTime: Date;
+  endTime: Date;
+  hostUsername: string | null;
+  modelRequired: boolean;
+  modelNames: string | null;
+  bookedCount: number;
+  maxCapacity: number;
+}
+
+const TOOLTIP_TIME_FORMAT = new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit" });
+
+function describeModel(cell: GridCellData): string {
+  if (cell.modelNames) return cell.modelNames;
+  return cell.modelRequired ? "Not yet assigned" : "None required";
+}
+
+/**
+ * Mouseover elaboration for a grid cell — the cell itself only has room for
+ * a one/two-letter session-type glyph (see sessionTypeInfo), so anything
+ * beyond that (the session's own name, who's modeling, capacity) has nowhere
+ * else to show without opening the cell. A plain `title` attribute rather
+ * than a custom tooltip component, matching every other hover hint already
+ * on this page (EmptyCell, the corner status icons).
+ */
+export function describeCellTooltip(cell: GridCellData): string {
+  const info = sessionTypeInfo(cell.sessionType);
+  const timeRange = `${TOOLTIP_TIME_FORMAT.format(cell.startTime)}–${TOOLTIP_TIME_FORMAT.format(cell.endTime)}`;
+  const name = cell.description ? `${cell.description} (${info.label})` : info.label;
+  return [
+    `${name} · ${timeRange}`,
+    `Model: ${describeModel(cell)}`,
+    `Host: ${cell.hostUsername ?? "Open — needs a host"}`,
+    `${cell.bookedCount}/${cell.maxCapacity} booked`,
+  ].join("\n");
 }
 
 /** Whether the cell should render as a normal, clickable session (vs. dimmed/disabled). */

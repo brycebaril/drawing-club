@@ -26,6 +26,7 @@ interface SessionRow {
   series_id: string | null;
   model_required: boolean;
   has_model: boolean;
+  model_names: string | null;
 }
 
 export default async function SchedulePage({
@@ -56,12 +57,18 @@ export default async function SchedulePage({
     `SELECT s.id, s.session_type, s.description, s.start_time, s.end_time, s.max_capacity,
             u.username AS host_username, s.series_id, s.model_required,
             EXISTS(SELECT 1 FROM session_model_mapping smm WHERE smm.session_id = s.id) AS has_model,
+            mn.model_names,
             COALESCE(bc.booked_count, 0)::int AS booked_count
      FROM sessions s
      LEFT JOIN users u ON u.id = s.host_user_id
      LEFT JOIN (
        SELECT session_id, count(*) AS booked_count FROM passes WHERE status = 'Used' GROUP BY session_id
      ) bc ON bc.session_id = s.id
+     LEFT JOIN (
+       SELECT smm.session_id, string_agg(m.name, ', ') AS model_names
+       FROM session_model_mapping smm JOIN models m ON m.id = smm.model_id
+       GROUP BY smm.session_id
+     ) mn ON mn.session_id = s.id
      WHERE s.status = 'Scheduled' AND s.start_time >= $1 AND s.start_time < $2
      ORDER BY s.start_time ASC`,
     [gridStart, gridEnd],
@@ -110,6 +117,14 @@ export default async function SchedulePage({
         sessionType: s.session_type,
         status: statusFor(s),
         needsModel: s.model_required && !s.has_model,
+        description: s.description,
+        startTime: new Date(s.start_time),
+        endTime: new Date(s.end_time),
+        hostUsername: s.host_username,
+        modelRequired: s.model_required,
+        modelNames: s.model_names,
+        bookedCount: s.booked_count,
+        maxCapacity: s.max_capacity,
       }); // one session per cell for this phase (no overlap handling yet)
     }
   }

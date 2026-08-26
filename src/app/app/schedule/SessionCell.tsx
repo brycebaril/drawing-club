@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { CheckCircle2, Clock, Lock, UserX } from "lucide-react";
-import { isCellInteractive, sessionTypeInfo, type GridCellData } from "./scheduleTypes";
+import { describeCellTooltip, isCellInteractive, sessionTypeInfo, type GridCellData } from "./scheduleTypes";
 
 export function EmptyCell() {
   return (
@@ -58,16 +58,22 @@ export function SessionCell({ cell, href }: { cell: GridCellData; href: string }
     </div>
   );
 
+  const tooltip = describeCellTooltip(cell);
+
   if (!interactive) {
     return (
-      <div aria-label={`${info.label} session — not yet open for your booking window`} aria-disabled="true">
+      <div
+        aria-label={`${info.label} session — not yet open for your booking window`}
+        aria-disabled="true"
+        title={tooltip}
+      >
         {content}
       </div>
     );
   }
 
   return (
-    <Link href={href} aria-label={`View ${info.label} session`}>
+    <Link href={href} aria-label={`View ${info.label} session`} title={tooltip}>
       {content}
     </Link>
   );
