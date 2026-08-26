@@ -49,6 +49,12 @@ const ROUTE_RULES: RouteRule[] = [
   // One rule covers every admin-created static page, present and future —
   // see src/app/pages/[slug]/page.tsx.
   { pattern: "/pages/*", public: true },
+  // Uploaded files (src/lib/uploads/storage.ts's local-disk fallback) are
+  // served from public/ specifically so CMS content (public pages included)
+  // can reference them — without this rule they fell through the default
+  // fail-closed and got redirected to /auth/login for any guest, breaking
+  // every uploaded image on every public page whenever S3 isn't configured.
+  { pattern: "/uploads/*", public: true },
 ];
 
 function matchesPattern(pathname: string, pattern: string): boolean {

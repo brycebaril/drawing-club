@@ -21,9 +21,17 @@ test("VOL_MKT uploads a file and gets back a URL that's actually served", async 
   const urlText = await page.locator('[role="status"] code').textContent();
   expect(urlText).toBeTruthy();
 
-  // Local-disk fallback (no AWS vars in CI/local dev) serves it back at that URL.
+  // Local-disk fallback (no AWS vars in CI/local dev) serves it back at that
+  // URL — checked with a request context that never logged in (unlike
+  // page.request, this `request` fixture carries no session cookie), since
+  // response.ok() alone doesn't prove much: a route this app's own RBAC
+  // fails closed on 307s to /auth/login, which itself renders 200, so
+  // response.ok() would stay true even while every guest got the login page
+  // back instead of the image. Asserting the real content-type is what
+  // actually distinguishes those two cases.
   const response = await request.get(urlText!.startsWith("http") ? urlText! : `http://localhost:3000${urlText}`);
   expect(response.ok()).toBe(true);
+  expect(response.headers()["content-type"]).toBe("image/png");
 });
 
 test("an oversized file is rejected", async ({ page }) => {
