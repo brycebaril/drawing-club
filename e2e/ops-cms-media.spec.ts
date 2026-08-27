@@ -9,6 +9,7 @@ async function createContentEditor(usernamePrefix: string) {
 
 test("uploading records dimensions/size, the library lists it, the picker reuses it without a duplicate, and delete removes it", async ({
   page,
+  request,
 }) => {
   const editor = await createContentEditor("e2ecmsmedia");
   await loginAsUser(page, editor);
@@ -25,14 +26,24 @@ test("uploading records dimensions/size, the library lists it, the picker reuses
   await page.getByRole("button", { name: "Upload" }).click();
   await expect(page.getByRole("status")).toContainText("Uploaded —");
 
-  const row = await pool.query<{ id: string; width: number; height: number; content_type: string }>(
-    `SELECT id, width, height, content_type FROM uploaded_files WHERE original_filename = $1`,
+  const row = await pool.query<{ id: string; width: number; height: number; content_type: string; url: string }>(
+    `SELECT id, width, height, content_type, url FROM uploaded_files WHERE original_filename = $1`,
     [fileName],
   );
   expect(row.rowCount).toBe(1);
   expect(row.rows[0].width).toBe(1);
   expect(row.rows[0].height).toBe(1);
   expect(row.rows[0].content_type).toBe("image/png");
+
+  // The record existing isn't enough — the file it points at has to
+  // actually be servable. Checked with a session-less request context,
+  // same reasoning as ops-cms-uploads.spec.ts: a route this app fails
+  // closed on would 307-then-200 to the login page, so response.ok() alone
+  // wouldn't catch it, but the wrong content-type would.
+  const fileUrl = row.rows[0].url;
+  const fileResponse = await request.get(fileUrl.startsWith("http") ? fileUrl : `http://localhost:3000${fileUrl}`);
+  expect(fileResponse.ok()).toBe(true);
+  expect(fileResponse.headers()["content-type"]).toBe("image/png");
 
   await page.goto("/ops/cms/media");
   await expect(page.getByRole("cell", { name: fileName })).toBeVisible();

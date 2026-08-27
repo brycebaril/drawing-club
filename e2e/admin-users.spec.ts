@@ -19,13 +19,33 @@ test("banning a user releases their upcoming bookings, notifies the waitlist, an
   );
   await page.goto(`/app/schedule?session_id=${sessionId}`);
   await page.getByRole("button", { name: "Book (uses 1 ticket)" }).click();
-  await page.waitForURL(`**/app/schedule?session_id=${sessionId}`);
+  // waitForURL alone resolves instantly (redirect lands on the same
+  // session_id URL already loaded) without proving the booking committed —
+  // the next line's loginAsUser navigates to about:blank immediately after,
+  // which cancels a still-in-flight request from this page. Caught live in
+  // booking.spec.ts (see its comments) as an intermittent "session not
+  // actually full yet" failure with no code-level cause. Poll for the real
+  // DB effect first.
+  await expect(async () => {
+    const passRow = await pool.query<{ status: string }>(
+      `SELECT status FROM passes WHERE owner_id = $1 AND session_id = $2 AND status = 'Used'`,
+      [target.id, sessionId],
+    );
+    expect(passRow.rowCount).toBe(1);
+  }).toPass({ timeout: 5000 });
 
   const waiter = await createTestUser({ username: `e2ewaiter${Date.now()}` });
   await loginAsUser(page, waiter);
   await page.goto(`/app/schedule?session_id=${sessionId}`);
   await page.getByRole("button", { name: "Join waitlist" }).click();
-  await page.waitForURL(`**/app/schedule?session_id=${sessionId}`);
+  // Same reasoning as above, for the join-waitlist step.
+  await expect(async () => {
+    const waitlistRow = await pool.query(`SELECT id FROM waitlist_entries WHERE session_id = $1 AND user_id = $2`, [
+      sessionId,
+      waiter.id,
+    ]);
+    expect(waitlistRow.rowCount).toBe(1);
+  }).toPass({ timeout: 5000 });
 
   const manager = await createTestUser({
     username: `e2emanager${Date.now()}`,

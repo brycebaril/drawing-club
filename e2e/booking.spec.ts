@@ -62,7 +62,22 @@ test("waitlisting: a second user is notified after the booked user cancels a ful
   );
   await page.goto(`/app/schedule?session_id=${sessionId}`);
   await page.getByRole("button", { name: "Book (uses 1 ticket)" }).click();
-  await page.waitForURL(`**/app/schedule?session_id=${sessionId}`);
+  // waitForURL alone resolves instantly here — the redirect lands on the
+  // exact URL already loaded (session_id unchanged), so it doesn't prove
+  // the booking committed. The very next line's loginAsUser immediately
+  // navigates to about:blank, which cancels a still-in-flight request from
+  // this page — caught live: this exact race intermittently left the
+  // session not actually full yet when `second` loaded it below, failing
+  // the "Join waitlist" visibility check with no code-level cause. Poll for
+  // the real DB effect first (same fix applied to the forfeiture test below
+  // after it hit the identical bug on its own join-waitlist step).
+  await expect(async () => {
+    const passRow = await pool.query<{ status: string }>(
+      `SELECT status FROM passes WHERE owner_id = $1 AND session_id = $2 AND status = 'Used'`,
+      [first.id, sessionId],
+    );
+    expect(passRow.rowCount).toBe(1);
+  }).toPass({ timeout: 5000 });
 
   const second = await createTestUser({ username: `e2esecond${Date.now()}` });
   await loginAsUser(page, second);
@@ -114,13 +129,38 @@ test("canceling within the cutoff forfeits the pass but still frees the seat and
   );
   await page.goto(`/app/schedule?session_id=${sessionId}`);
   await page.getByRole("button", { name: "Book (uses 1 ticket)" }).click();
-  await page.waitForURL(`**/app/schedule?session_id=${sessionId}`);
+  // Not just page.waitForURL(sameUrlItStartedOn) — the join/book redirect
+  // lands back on the exact URL already loaded (session_id doesn't change),
+  // so that resolves instantly without proving the mutation committed (the
+  // documented "sameUrlItStartedOn" trap, CLAUDE.md's CMS implementation
+  // notes). That trivial resolution let the very next step's loginAsUser
+  // race ahead into its own page.goto("about:blank") hop — which discards
+  // any still-in-flight request from the previous page — cancelling this
+  // click's own form submission before the server ever processed it. Found
+  // live: booking/joining intermittently silently no-op'd, not from a real
+  // backend bug. Poll for the actual DB effect instead.
+  await expect(async () => {
+    const passRow = await pool.query<{ status: string }>(
+      `SELECT status FROM passes WHERE owner_id = $1 AND session_id = $2 AND status = 'Used'`,
+      [first.id, sessionId],
+    );
+    expect(passRow.rowCount).toBe(1);
+  }).toPass({ timeout: 5000 });
 
   const second = await createTestUser({ username: `e2elatesecond${Date.now()}` });
   await loginAsUser(page, second);
   await page.goto(`/app/schedule?session_id=${sessionId}`);
   await page.getByRole("button", { name: "Join waitlist" }).click();
-  await page.waitForURL(`**/app/schedule?session_id=${sessionId}`);
+  // Same reasoning as the booking step above — wait for the real DB effect,
+  // not the no-op-resolving waitForURL, before the next loginAsUser's
+  // about:blank hop can cancel this request mid-flight.
+  await expect(async () => {
+    const waitlistRow = await pool.query(`SELECT id FROM waitlist_entries WHERE session_id = $1 AND user_id = $2`, [
+      sessionId,
+      second.id,
+    ]);
+    expect(waitlistRow.rowCount).toBe(1);
+  }).toPass({ timeout: 5000 });
 
   await loginAsUser(page, first);
   await page.goto(`/app/schedule?session_id=${sessionId}`);

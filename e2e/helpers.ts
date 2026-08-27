@@ -2,6 +2,7 @@ import type { Page } from "@playwright/test";
 import { Pool } from "pg";
 import { Secret, TOTP } from "otpauth";
 import { hashPassword } from "@/lib/auth/password";
+import { slotFor, startOfDay } from "@/lib/sessions/shared";
 
 // Module-level singleton shared by every spec file that imports it.
 // Deliberately never closed here or in any spec file's afterAll — Playwright
@@ -11,12 +12,6 @@ import { hashPassword } from "@/lib/auth/password";
 // the pool"). Connections close naturally when the worker process exits.
 export const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
-const SLOT_HOUR_RANGE: Record<"Morning" | "Afternoon" | "Evening", [number, number]> = {
-  Morning: [0, 13],
-  Afternoon: [14, 17],
-  Evening: [18, 23],
-};
-
 function toDateOnly(date: Date): string {
   const pad = (n: number) => String(n).padStart(2, "0");
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
@@ -25,14 +20,36 @@ function toDateOnly(date: Date): string {
 /**
  * Finds the smallest base day-offset (searching minBase..maxBase) whose
  * `offsets`-derived dates (e.g. [base, base+7, base+21]) are all free of an
- * existing Scheduled session in the given slot's hour range — a plain
- * random offset used to collide reliably once the dev DB holds real
- * migrated/recurring session data instead of just sparse fixtures (a
- * legacy-migration re-run populates a genuinely busy near-term calendar),
- * since the admin slot picker shows an occupied slot as a disabled "Booked"
- * label with no checkbox to check. Falls back to minBase if every candidate
- * in range collides (matching the previous unconditional random-offset
- * behavior), so this can't turn a real app bug into a hung test.
+ * existing Scheduled session in the given slot — a plain random offset used
+ * to collide reliably once the dev DB holds real migrated/recurring session
+ * data instead of just sparse fixtures (a legacy-migration re-run populates
+ * a genuinely busy near-term calendar), since the admin slot picker shows an
+ * occupied slot as a disabled "Booked" label with no checkbox to check.
+ * Falls back to minBase if every candidate in range collides (matching the
+ * previous unconditional random-offset behavior), so this can't turn a real
+ * app bug into a hung test.
+ *
+ * Occupancy is computed in JS via slotFor/toDateOnly (the app's own local
+ * server-time helpers, src/lib/sessions/shared.ts) — not `EXTRACT(HOUR FROM
+ * start_time)`/`start_time::date` in SQL. Those evaluate in the DB session's
+ * timezone (UTC), but `start_time` is stored as whatever UTC instant the
+ * app's local server time converts to (e.g. an 18:00 America/Los_Angeles
+ * Evening session lands at 01:00 UTC the *next calendar day*) — a real bug
+ * found live: it made the Evening-slot collision check silently inert
+ * (checking UTC hour 18-23 against sessions actually stored at UTC hour
+ * 0-6) and the day-boundary check wrong by one date for any slot crossing
+ * midnight UTC. recurring.spec.ts's own schedule-grid link check caught it
+ * after several same-day reruns quietly filled every day-of-week with a
+ * same-instant collision this check should have avoided from the start.
+ *
+ * The scan window is anchored at `startOfDay(now)`, not the raw `now`
+ * instant — another real edge found alongside the above: run this any time
+ * after a slot's own local start-of-day time (e.g. after 2pm for
+ * "Afternoon"), and an unaligned `now.getTime() + minBase * 86400000`
+ * window start lands *later* in that candidate day than the slot's actual
+ * session start, excluding a real same-day occupant from the scan even
+ * though the app's own occupancy checks (checkSlotConflicts,
+ * new-series/page.tsx) always reason in whole local calendar days.
  */
 export async function findOpenSlotBase(
   now: Date,
@@ -41,17 +58,19 @@ export async function findOpenSlotBase(
   minBase: number,
   maxBase: number,
 ): Promise<number> {
-  const [hourStart, hourEnd] = SLOT_HOUR_RANGE[slot];
+  const dayStart = startOfDay(now);
   const maxOffset = Math.max(...offsets);
-  const windowStart = new Date(now.getTime() + minBase * 86400000);
-  const windowEnd = new Date(now.getTime() + (maxBase + maxOffset + 1) * 86400000);
-  const occupiedResult = await pool.query<{ day: string }>(
-    `SELECT DISTINCT start_time::date::text AS day FROM sessions
-     WHERE status = 'Scheduled' AND start_time >= $1 AND start_time < $2
-       AND EXTRACT(HOUR FROM start_time) BETWEEN $3 AND $4`,
-    [windowStart, windowEnd, hourStart, hourEnd],
+  const windowStart = new Date(dayStart.getTime() + minBase * 86400000);
+  const windowEnd = new Date(dayStart.getTime() + (maxBase + maxOffset + 1) * 86400000);
+  const occupiedResult = await pool.query<{ start_time: Date }>(
+    `SELECT start_time FROM sessions WHERE status = 'Scheduled' AND start_time >= $1 AND start_time < $2`,
+    [windowStart, windowEnd],
   );
-  const occupiedDays = new Set(occupiedResult.rows.map((r) => r.day));
+  const occupiedDays = new Set(
+    occupiedResult.rows
+      .filter((r) => slotFor(new Date(r.start_time)) === slot)
+      .map((r) => toDateOnly(new Date(r.start_time))),
+  );
 
   for (let base = minBase; base <= maxBase; base++) {
     const candidates = offsets.map((offset) => toDateOnly(new Date(now.getTime() + (base + offset) * 86400000)));

@@ -24,12 +24,17 @@ test("multi-week series lifecycle: create, partial-date seat booking, seat conte
   // calendar — on the exact same calendar dates. The admin picker shows an
   // already-occupied slot as a disabled "Booked" label with no checkbox,
   // which would make this test flaky without checking first. Kept small
-  // enough (day1 stays <= 10 days out) that
+  // enough (day1 stays <= 13 days out) that
   // it's always comfortably inside an Account Holder's 14-day booking
   // window — the member2-vs-member1 seat conflict check below deliberately
   // runs before member2 has a membership, so day1 must never trip the
   // window check first and mask the seat-conflict one it's meant to test.
-  const base = await findOpenSlotBase(now, "Afternoon", [0, 7, 21], 3, 10);
+  // maxBase widened from 10 to 13 after the full re-migrated legacy dataset
+  // turned out to solidly occupy the Afternoon slot for the first ~10 days
+  // out (confirmed directly against the dev DB) — every base in 3..10
+  // collided on at least one of its three far-apart candidate dates, every
+  // time, not just occasionally.
+  const base = await findOpenSlotBase(now, "Afternoon", [0, 7, 21], 3, 13);
   // Non-consecutive: base and base+7 days, then skip a week and pick base+21.
   const day1 = toDateOnly(new Date(now.getTime() + base * 86400000));
   const day2 = toDateOnly(new Date(now.getTime() + (base + 7) * 86400000));

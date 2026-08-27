@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { createTestUser, loginAsUser, pool } from "./helpers";
+import { createTestUser, findOpenSlotBase, loginAsUser, pool } from "./helpers";
 import { generateSessionsForRule } from "@/lib/recurrence/generate";
 
 function toDateInput(date: Date): string {
@@ -19,18 +19,32 @@ test("recurring session lifecycle: create, book, cancel this-and-future, idempot
   await loginAsUser(page, admin);
 
   const description = `recurring-test-${Date.now()}`;
-  // 3 days from today, so the rule's start_date (today) reaches the first
-  // matching day-of-week without wrapping a whole week first.
-  const targetDow = (new Date().getDay() + 3) % 7;
+  const now = new Date();
+
+  // The dev DB carries the full re-migrated legacy dataset (CLAUDE.md's
+  // "Post-reporting-overhaul" notes), which densely occupies the Evening
+  // slot on most near-term days — a fixed +3-days-from-today weekday (the
+  // old approach here) can land the rule's weekly occurrences on the same
+  // day+slot as a real pre-existing session, and the schedule grid's
+  // one-session-per-cell display then shows that other session instead of
+  // this test's own occurrence. findOpenSlotBase (already used by
+  // series.spec.ts/series-edit.spec.ts for the same reason) picks a base
+  // offset (3-9 days out, covering every day-of-week once) whose whole
+  // weekly cadence — 4 occurrences, matching the rowCount check below — is
+  // genuinely free.
+  const base = await findOpenSlotBase(now, "Evening", [0, 7, 14, 21], 3, 9);
+  const targetDow = (now.getDay() + base) % 7;
 
   // Capped to a 4-week end date (rather than a perpetual rule): the full
   // 90-day/~13-occurrence horizon is already covered by dates.test.ts's
   // computeOccurrenceDates unit tests, and this e2e test's own
   // this-and-future cancellation loop does real per-session DB work — a
   // perpetual rule here would mean canceling ~11 occurrences serially and
-  // risk the test itself timing out under parallel-worker contention.
+  // risk the test itself timing out under parallel-worker contention. The
+  // +3-day buffer past the 4th occurrence (base+21) leaves room regardless
+  // of which base findOpenSlotBase picked.
   const endDate = new Date();
-  endDate.setDate(endDate.getDate() + 26);
+  endDate.setDate(endDate.getDate() + base + 24);
 
   await page.goto("/admin/sessions/new-recurring");
   await page.getByLabel("Description").fill(description);

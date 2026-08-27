@@ -22,6 +22,16 @@ const EXTENSION_FOR_CONTENT_TYPE: Record<string, string> = {
 };
 
 /**
+ * The reverse of EXTENSION_FOR_CONTENT_TYPE — used by
+ * src/app/uploads/[key]/route.ts to answer "what Content-Type should this
+ * stored file be served with" without a DB round trip per request. Update
+ * both maps together; they're meant to stay each other's exact inverse.
+ */
+export const CONTENT_TYPE_FOR_EXTENSION: Record<string, string> = Object.fromEntries(
+  Object.entries(EXTENSION_FOR_CONTENT_TYPE).map(([contentType, ext]) => [ext, contentType]),
+);
+
+/**
  * Mirrors src/lib/email/sender.ts's shape: real S3 whenever AWS_REGION/
  * S3_BUCKET_NAME are set (reusing the AWS_REGION var SES already added —
  * no new region config), a local-disk fallback under public/uploads
