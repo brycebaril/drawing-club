@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { createOneOffSessionAsAdmin, createTestUser, loginAsUser, pool } from "./helpers";
+import { createOneOffSessionAsAdmin, createTestUser, findOpenSlotBase, loginAsUser, pool } from "./helpers";
 
 test("a member books a session, cancels it, and the pass returns to their balance", async ({
   page,
@@ -196,4 +196,40 @@ test("canceling within the cutoff forfeits the pass but still frees the seat and
   );
   await page.goto(`/app/schedule?session_id=${sessionId}`);
   await expect(page.getByRole("button", { name: "Book (uses 1 ticket)" })).toBeVisible();
+});
+
+test("the schedule grid cell's mouseover tooltip carries the detail the compact icon glyph has no room for", async ({
+  page,
+}) => {
+  // The schedule grid shows one session per day+slot cell — a genuinely
+  // open slot is required, or the dense migrated dataset's own real
+  // session in that cell would render instead of this test's own (same
+  // reasoning as recurring.spec.ts/series.spec.ts's use of this helper).
+  const base = await findOpenSlotBase(new Date(), "Evening", [0], 3, 27);
+  const todayAt6pm = new Date();
+  todayAt6pm.setHours(18, 0, 0, 0);
+  const startTime = new Date(todayAt6pm.getTime() + base * 86400000);
+  const description = `mouseover-test-${Date.now()}`;
+  const sessionId = await createOneOffSessionAsAdmin(page, { description, startTime, capacity: 3 });
+
+  // Needs the wider Member booking window (30 days) — findOpenSlotBase's
+  // base can land past a plain Account Holder's 14-day window, where the
+  // cell renders as a non-interactive <div> (isCellInteractive), not the
+  // <Link> this test's own locator needs.
+  const viewer = await createTestUser({ username: `e2emouseover${Date.now()}` });
+  await pool.query(`UPDATE users SET membership_expires_at = now() + interval '60 days' WHERE id = $1`, [
+    viewer.id,
+  ]);
+  await loginAsUser(page, viewer);
+  await page.goto("/app/schedule");
+
+  const cell = page.locator(`a[href*="session_id=${sessionId}"]`);
+  await expect(cell).toBeVisible();
+  const tooltip = await cell.getAttribute("title");
+  // describeCellTooltip (scheduleTypes.ts) — the compact grid glyph itself
+  // shows only a one/two-letter session-type code, so this mouseover text
+  // is the only place the description, host, and capacity actually surface.
+  expect(tooltip).toContain(description);
+  expect(tooltip).toContain("Open — needs a host");
+  expect(tooltip).toContain("0/3 booked");
 });

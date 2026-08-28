@@ -224,3 +224,36 @@ test("the search field narrows the users list by display name or email, not user
   expect(csvBody).toContain(target.username);
   expect(csvBody).not.toContain(other.username);
 });
+
+test("the Username column header sorts the list, ascending by default and flipping on a second click", async ({
+  page,
+}) => {
+  const admin = await createTestUser({ username: `e2eadminsort${Date.now()}`, baseRole: "Admin" });
+  // "A"/"Z" right after the shared prefix guarantees string-order regardless
+  // of the timestamp/entropy suffix createTestUser appends.
+  const marker = `SortableColTest${Date.now()}`;
+  const userA = await createTestUser({ username: `e2esortA${Date.now()}` });
+  const userZ = await createTestUser({ username: `e2esortZ${Date.now()}` });
+  await pool.query(`UPDATE users SET display_name = $1 WHERE id = ANY($2::uuid[])`, [
+    marker,
+    [userA.id, userZ.id],
+  ]);
+
+  await loginAsUser(page, admin);
+  await page.goto(`/admin/users?q=${encodeURIComponent(marker)}`);
+
+  const rows = page.locator("tbody tr");
+  await expect(rows).toHaveCount(2);
+  // Default sort is username ascending — SQL-level ORDER BY happens before
+  // the JS-side search filter (src/lib/users/filterUsers.ts), so relative
+  // order survives the filter intact.
+  await expect(rows.nth(0)).toContainText(userA.username);
+  await expect(rows.nth(1)).toContainText(userZ.username);
+
+  await page.getByRole("link", { name: /^Username/ }).click();
+  await expect(page).toHaveURL(/sort=username&dir=desc/);
+  const rowsAfterSort = page.locator("tbody tr");
+  await expect(rowsAfterSort).toHaveCount(2);
+  await expect(rowsAfterSort.nth(0)).toContainText(userZ.username);
+  await expect(rowsAfterSort.nth(1)).toContainText(userA.username);
+});
