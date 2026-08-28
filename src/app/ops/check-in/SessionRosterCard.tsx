@@ -12,6 +12,12 @@ const ROLE_LABELS: Record<string, string> = {
   ContentEditor: "Content Editor",
   ModelBooker: "Model Booker",
   Controller: "Controller",
+  // Was missing here too (same gap as admin/users/[id]'s and
+  // filterUsers.ts's own separate copies of this map, fixed at the same
+  // time as those) — a Board or Support volunteer's note author fell
+  // through to the generic "Member" label until now.
+  Board: "Board Member",
+  SupportAgent: "Support Agent",
 };
 
 function describeAuthorRole(baseRole: string, volunteerRoles: string[]): string {

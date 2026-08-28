@@ -16,10 +16,21 @@ export interface PendingNotification {
 export async function getPendingNotifications(userId: string): Promise<PendingNotification[]> {
   const notifications: PendingNotification[] = [];
 
-  const pendingTransfersResult = await pool.query<{ count: number }>(
-    `SELECT count(*)::int AS count FROM passes WHERE pending_recipient_id = $1`,
-    [userId],
-  );
+  // Independent, data-independent counts — run concurrently (this backs
+  // NotificationBanner, rendered on every authenticated page view) but
+  // still pushed in a fixed order below so the list itself stays
+  // deterministic regardless of which query happens to resolve first.
+  const [pendingTransfersResult, ticketsNeedingReplyResult] = await Promise.all([
+    pool.query<{ count: number }>(`SELECT count(*)::int AS count FROM passes WHERE pending_recipient_id = $1`, [
+      userId,
+    ]),
+    pool.query<{ count: number }>(
+      `SELECT count(*)::int AS count FROM support_tickets
+       WHERE requester_user_id = $1 AND status = 'Open' AND last_message_by_user_id != requester_user_id`,
+      [userId],
+    ),
+  ]);
+
   const pendingCount = pendingTransfersResult.rows[0].count;
   if (pendingCount > 0) {
     notifications.push({
@@ -32,11 +43,6 @@ export async function getPendingNotifications(userId: string): Promise<PendingNo
     });
   }
 
-  const ticketsNeedingReplyResult = await pool.query<{ count: number }>(
-    `SELECT count(*)::int AS count FROM support_tickets
-     WHERE requester_user_id = $1 AND status = 'Open' AND last_message_by_user_id != requester_user_id`,
-    [userId],
-  );
   const ticketsNeedingReply = ticketsNeedingReplyResult.rows[0].count;
   if (ticketsNeedingReply > 0) {
     notifications.push({

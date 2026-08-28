@@ -18,8 +18,16 @@ import { sendEmail } from "@/lib/email/sender";
  */
 
 async function emailSupportAgents(subject: string, body: string): Promise<void> {
+  // ADMIN is always authorized for the shared support inbox (same as the
+  // rest of this feature — see replyToTicketAction's own check) but doesn't
+  // necessarily also hold the separate VOL_SUPPORT role, so it has to be
+  // unioned in explicitly rather than relying on volunteer_roles alone —
+  // a deployment staffed only by ADMIN accounts would otherwise get zero
+  // notification emails for new tickets/replies.
   const recipients = await pool.query<{ email: string }>(
-    `SELECT DISTINCT u.email FROM volunteer_roles vr JOIN users u ON u.id = vr.user_id WHERE vr.role = 'SupportAgent'`,
+    `SELECT DISTINCT u.email FROM volunteer_roles vr JOIN users u ON u.id = vr.user_id WHERE vr.role = 'SupportAgent'
+     UNION
+     SELECT u.email FROM users u WHERE u.base_role = 'Admin'`,
   );
   for (const recipient of recipients.rows) {
     try {
@@ -187,8 +195,12 @@ async function setTicketStatus(formData: FormData, status: "Open" | "Resolved", 
   if (!ctx) return;
 
   const ticketId = String(formData.get("ticketId") ?? "");
-  await pool.query(`UPDATE support_tickets SET status = $1 WHERE id = $2`, [status, ticketId]);
-  await writeAuditLog({ actorId: ctx.id, actionType, metadata: { ticketId } });
+  const result = await pool.query(`UPDATE support_tickets SET status = $1 WHERE id = $2`, [status, ticketId]);
+  // Same row-count gate as setCheckedInAction — a stale/mismatched ticketId
+  // shouldn't produce an audit-log entry claiming a status change happened.
+  if (result.rowCount) {
+    await writeAuditLog({ actorId: ctx.id, actionType, metadata: { ticketId } });
+  }
 
   revalidatePath(`/ops/support/${ticketId}`);
   revalidatePath("/ops/support");

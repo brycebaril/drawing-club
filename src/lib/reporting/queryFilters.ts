@@ -46,7 +46,13 @@ export function dateRangeClause(column: string, range: DateRange | undefined, pa
     parts.push(`${column} >= $${paramOffset + values.length}`);
   }
   if (range.to) {
-    const exclusiveUpperBound = new Date(range.to.getTime() + 24 * 60 * 60 * 1000);
+    // A calendar-day increment via setDate, not +24*60*60*1000 in raw
+    // milliseconds — the latter drifts by an hour on a DST transition day
+    // (a 23- or 25-hour local day), silently excluding or including an
+    // extra hour of data. setDate operates on the local wall-clock fields,
+    // so it lands on the correct next local midnight regardless.
+    const exclusiveUpperBound = new Date(range.to);
+    exclusiveUpperBound.setDate(exclusiveUpperBound.getDate() + 1);
     values.push(exclusiveUpperBound);
     parts.push(`${column} < $${paramOffset + values.length}`);
   }

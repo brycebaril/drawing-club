@@ -454,6 +454,16 @@ tbody tr:hover {
   right: -6px;
 }
 
+.grid-cell-flag--extra {
+  top: auto;
+  bottom: -6px;
+  right: -6px;
+  width: auto;
+  min-width: 1rem;
+  padding: 0 0.2rem;
+  background: var(--color-accent);
+}
+
 .grid-cell--empty {
   background: none;
   border: 1px dashed var(--color-border);

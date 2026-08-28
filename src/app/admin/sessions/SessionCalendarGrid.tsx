@@ -11,6 +11,8 @@ export interface OccupiedCell {
   sessionType: string;
   needsHost: boolean;
   needsModel: boolean;
+  /** Count of additional sessions also landing in this day+slot cell (see page.tsx) — undefined/0 means just the one shown. */
+  extraCount?: number;
 }
 
 type ModalState = { kind: "add"; date: Date; slot: Slot } | { kind: "edit"; sessionId: string } | null;
@@ -83,7 +85,7 @@ export function SessionCalendarGrid({
                         <button
                           type="button"
                           className={`grid-cell grid-cell--filled${incomplete ? " grid-cell--incomplete" : ""}`}
-                          aria-label={`Edit ${cell.sessionType} session on ${d.toLocaleDateString()} (${slot})`}
+                          aria-label={`Edit ${cell.sessionType} session on ${d.toLocaleDateString()} (${slot})${cell.extraCount ? ` — ${cell.extraCount} more session(s) also scheduled in this slot` : ""}`}
                           onClick={() => setModal({ kind: "edit", sessionId: cell.sessionId })}
                         >
                           {cell.needsModel && (
@@ -94,6 +96,14 @@ export function SessionCalendarGrid({
                           {cell.needsHost && (
                             <span className="grid-cell-flag grid-cell-flag--host" title="Needs a host">
                               H
+                            </span>
+                          )}
+                          {!!cell.extraCount && (
+                            <span
+                              className="grid-cell-flag grid-cell-flag--extra"
+                              title={`${cell.extraCount} more session(s) also scheduled in this slot`}
+                            >
+                              +{cell.extraCount}
                             </span>
                           )}
                           {cell.sessionType}

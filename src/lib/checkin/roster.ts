@@ -54,26 +54,10 @@ export async function getCheckInRoster(sessionId: string): Promise<CheckInRoster
   const ctx = await requireCheckInAccess(sessionId);
   if (!ctx) return null;
 
-  const sessionResult = await pool.query<{
-    session_type: string;
-    description: string | null;
-    start_time: Date;
-    end_time: Date;
-    status: string;
-    max_capacity: number;
-    host_username: string | null;
-    series_id: string | null;
-  }>(
-    `SELECT s.session_type, s.description, s.start_time, s.end_time, s.status, s.max_capacity,
-            u.username AS host_username, s.series_id
-     FROM sessions s
-     LEFT JOIN users u ON u.id = s.host_user_id
-     WHERE s.id = $1`,
-    [sessionId],
-  );
-  if (sessionResult.rowCount === 0) return null;
-  const sessionRow = sessionResult.rows[0];
-  const isSeries = sessionRow.series_id !== null;
+  // requireCheckInAccess already fetched this session's display row as
+  // part of its own access check — no need to query it again here.
+  const sessionRow = ctx.session;
+  const isSeries = sessionRow.seriesId !== null;
 
   const [modelResult, rosterBaseResult, notesResult] = await Promise.all([
     pool.query<{ name: string }>(
@@ -170,13 +154,13 @@ export async function getCheckInRoster(sessionId: string): Promise<CheckInRoster
   return {
     session: {
       id: sessionId,
-      sessionType: sessionRow.session_type,
+      sessionType: sessionRow.sessionType,
       description: sessionRow.description,
-      startTime: sessionRow.start_time,
-      endTime: sessionRow.end_time,
+      startTime: sessionRow.startTime,
+      endTime: sessionRow.endTime,
       status: sessionRow.status,
-      maxCapacity: sessionRow.max_capacity,
-      hostUsername: sessionRow.host_username,
+      maxCapacity: sessionRow.maxCapacity,
+      hostUsername: sessionRow.hostUsername,
       isSeries,
     },
     modelName: modelResult.rows[0]?.name ?? null,

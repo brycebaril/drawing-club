@@ -65,7 +65,15 @@ export function AddSessionModal({
     const key = `${extraDate}|${extraSlot}`;
     if (seriesSlots.some((s) => `${s.date}|${s.slot}` === key)) return;
     setSeriesSlots((prev) =>
-      [...prev, { date: extraDate, slot: extraSlot }].sort((a, b) => `${a.date}${a.slot}`.localeCompare(`${b.date}${b.slot}`)),
+      // Chronological, not a plain string sort on `${date}${slot}` — that
+      // sorted "Afternoon" before "Evening" before "Morning" alphabetically
+      // for a shared date, reversed from actual time-of-day order. SLOTS is
+      // already declared in chronological order (Morning, Afternoon,
+      // Evening), so its index is the real sort key.
+      [...prev, { date: extraDate, slot: extraSlot }].sort((a, b) => {
+        const dateCompare = a.date.localeCompare(b.date);
+        return dateCompare !== 0 ? dateCompare : SLOTS.indexOf(a.slot) - SLOTS.indexOf(b.slot);
+      }),
     );
     setExtraDate("");
   }

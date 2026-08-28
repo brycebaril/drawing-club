@@ -23,12 +23,18 @@ export function NoteForm({ sessionId, onPosted }: { sessionId: string; onPosted:
     wasPending.current = pending;
   }, [pending, state.error, onPosted]);
 
+  // Prefixed per session, matching this codebase's established fix for the
+  // exact same bug on /admin/users/[id] — the overview page renders one
+  // NoteForm per upcoming session, and a duplicate id across forms silently
+  // breaks both label association and getByLabel targeting.
+  const contentId = `note-content-${sessionId}`;
+
   return (
     <form ref={formRef} action={formAction}>
       <input type="hidden" name="sessionId" value={sessionId} />
       {state.error && <p role="alert">{state.error}</p>}
-      <label htmlFor="note-content">Add a note</label>
-      <textarea id="note-content" name="content" rows={3} />
+      <label htmlFor={contentId}>Add a note</label>
+      <textarea id={contentId} name="content" rows={3} />
       <button type="submit" disabled={pending}>
         {pending ? "Posting…" : "Post note"}
       </button>

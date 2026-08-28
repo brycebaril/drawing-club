@@ -67,7 +67,8 @@ export default async function AdminSessionsPage({
                 SELECT 1 FROM session_model_mapping smm WHERE smm.session_id = s.id
               )) AS needs_model
        FROM sessions s
-       WHERE s.status = 'Scheduled' AND s.start_time >= $1 AND s.start_time < $2`,
+       WHERE s.status = 'Scheduled' AND s.start_time >= $1 AND s.start_time < $2
+       ORDER BY s.start_time ASC, s.id ASC`,
       [gridStart, gridEnd],
     ),
     getSettingNumber("SESSION_DEFAULT_CAPACITY"),
@@ -78,10 +79,22 @@ export default async function AdminSessionsPage({
   // /admin/sessions/new-series's own precedent).
   const defaultSeatCount = defaultCapacity;
 
+  // createSessionAction has no slot-conflict check for one-off sessions
+  // (unlike series creation's checkSlotConflicts), so two sessions can
+  // genuinely land in the same day+slot cell. Rather than silently
+  // overwriting one with the other (invisible on the grid even though both
+  // still exist), the first (earliest by start_time, per the ORDER BY
+  // above) wins the cell and any others are counted so the UI can flag it.
   const gridOccupied: Record<string, OccupiedCell> = {};
   for (const row of gridResult.rows) {
     const date = new Date(row.start_time);
-    gridOccupied[`${dayIndex(gridStart, date)}:${slotFor(date)}`] = {
+    const key = `${dayIndex(gridStart, date)}:${slotFor(date)}`;
+    const existing = gridOccupied[key];
+    if (existing) {
+      existing.extraCount = (existing.extraCount ?? 0) + 1;
+      continue;
+    }
+    gridOccupied[key] = {
       sessionId: row.id,
       sessionType: row.session_type,
       needsHost: row.needs_host,

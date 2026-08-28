@@ -27,25 +27,30 @@ export async function setCheckedInAction(
   const ctx = await requireCheckInAccess(sessionId);
   if (!ctx) return { ok: false, error: "Not authorized." };
 
-  if (rowType === "pass") {
-    await pool.query(`UPDATE passes SET checked_in = $1 WHERE id = $2 AND session_id = $3`, [
-      checkedIn,
-      rowId,
-      sessionId,
-    ]);
-  } else {
-    await pool.query(`UPDATE seat_reservations SET checked_in = $1 WHERE id = $2 AND session_id = $3`, [
-      checkedIn,
-      rowId,
-      sessionId,
-    ]);
-  }
+  const result =
+    rowType === "pass"
+      ? await pool.query(`UPDATE passes SET checked_in = $1 WHERE id = $2 AND session_id = $3`, [
+          checkedIn,
+          rowId,
+          sessionId,
+        ])
+      : await pool.query(`UPDATE seat_reservations SET checked_in = $1 WHERE id = $2 AND session_id = $3`, [
+          checkedIn,
+          rowId,
+          sessionId,
+        ]);
 
-  await writeAuditLog({
-    actorId: ctx.id,
-    actionType: "SESSION_CHECKED_IN",
-    metadata: { sessionId, rowType, rowId, checkedIn },
-  });
+  // Only log a real state change — a mismatched rowId/sessionId (stale
+  // client state) matches zero rows and shouldn't produce a misleading
+  // audit-log entry claiming the check-in happened, same reasoning as
+  // removeVolunteerRoleAction's row-count gate.
+  if (result.rowCount) {
+    await writeAuditLog({
+      actorId: ctx.id,
+      actionType: "SESSION_CHECKED_IN",
+      metadata: { sessionId, rowType, rowId, checkedIn },
+    });
+  }
 
   revalidatePath(`/ops/check-in/${sessionId}`);
   revalidatePath("/ops/check-in");
