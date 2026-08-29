@@ -27,6 +27,12 @@ const ROUTE_RULES: RouteRule[] = [
   { pattern: "/auth/reset-password", public: true }, // reachable whether or not the clicker still has a session
   { pattern: "/auth/verify-email", public: true }, // reachable whether or not the clicker still has a session
   { pattern: "/auth/mfa-setup", allow: AUTHENTICATED_ROLES }, // forced here by middleware when mfaRequired && !mfaEnabled
+  // Reachable by guests too — /app/schedule is the unified public + member
+  // schedule page (a guest sees the same grid and detail modal, just with
+  // login-gated actions instead of real booking forms; see
+  // src/app/app/schedule/page.tsx). Must come before the /app/* rule below
+  // since rules are first-match-wins.
+  { pattern: "/app/schedule", public: true },
   { pattern: "/app/*", allow: AUTHENTICATED_ROLES },
   { pattern: "/dashboard", allow: AUTHENTICATED_ROLES },
   { pattern: "/ops/check-in/*", allow: ["VOL_HOST", "VOL_MBR"] },
@@ -41,7 +47,6 @@ const ROUTE_RULES: RouteRule[] = [
   { pattern: "/admin/*", allow: [] }, // ADMIN-only via the implicit rule below
   { pattern: "/", public: true },
   { pattern: "/about", public: true },
-  { pattern: "/schedule", public: true },
   { pattern: "/news", public: true },
   { pattern: "/news/*", public: true },
   { pattern: "/contact", public: true },

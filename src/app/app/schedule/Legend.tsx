@@ -38,6 +38,12 @@ export function Legend() {
               <span>No model assigned yet</span>
             </div>
             <div className="flex items-center gap-2.5">
+              <span className="flex h-3.5 min-w-[14px] items-center justify-center rounded-full bg-ink-soft/70 px-0.5 text-[8px] font-bold leading-none text-white">
+                3
+              </span>
+              <span>Open spots left (red once nearly full)</span>
+            </div>
+            <div className="flex items-center gap-2.5">
               <div className="h-4 w-4 rounded border border-line bg-canvas opacity-60" />
               <span>Nothing scheduled</span>
             </div>

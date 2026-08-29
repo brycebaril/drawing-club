@@ -15,6 +15,7 @@ export function SessionCell({ cell, href }: { cell: GridCellData; href: string }
   const info = sessionTypeInfo(cell.sessionType);
   const interactive = isCellInteractive(cell.status);
   const isMine = cell.status === "Registered" || cell.status === "CancelableNoRefund";
+  const spotsLeft = cell.maxCapacity - cell.bookedCount;
 
   // Matches globals.css's button:disabled opacity (0.5) rather than an
   // invented value — "not yet in your booking window" is this page's one
@@ -47,6 +48,22 @@ export function SessionCell({ cell, href }: { cell: GridCellData; href: string }
         </span>
       )}
       <span className={`text-lg font-black ${info.textClass}`}>{info.display}</span>
+      {interactive && (
+        // Open slot count, visible on the grid itself rather than only in
+        // the hover tooltip (describeCellTooltip already carries the same
+        // number for anyone who can't hover, e.g. touch devices) — an
+        // improvement for every viewer, not just guests browsing without an
+        // account. Bottom-left is the one corner none of the other overlays
+        // (needsModel/isMine/OnWaitlist/CancelableNoRefund) use.
+        <span
+          className={`absolute bottom-1 left-1 flex h-3.5 min-w-[14px] items-center justify-center rounded-full px-0.5 text-[8px] font-bold leading-none text-white ${
+            spotsLeft <= 2 ? "bg-warn-line" : "bg-ink-soft/70"
+          }`}
+          title={spotsLeft <= 0 ? "Full" : `${spotsLeft} spot${spotsLeft === 1 ? "" : "s"} left`}
+        >
+          {Math.max(spotsLeft, 0)}
+        </span>
+      )}
       {cell.status === "CancelableNoRefund" && (
         <span
           className="absolute bottom-1 right-1 rounded-full bg-panel p-px"

@@ -1,5 +1,4 @@
 import "./tailwind.css";
-import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { pool } from "@/lib/db/pool";
 import { getUserAuthContext } from "@/lib/auth/roles";
@@ -34,11 +33,13 @@ export default async function SchedulePage({
 }: {
   searchParams: Promise<{ session_id?: string; bookingError?: string; seat?: string }>;
 }) {
+  // Unified public + member page (see src/lib/auth/rbac.ts's dedicated
+  // public rule for this exact route) — a guest sees the same grid and
+  // detail modal as a member, just with login-gated actions instead of
+  // real booking forms. ctx is null for a guest; every downstream query and
+  // computation that depends on a viewer identity accounts for that.
   const session = await auth();
-  if (!session?.user?.id) redirect("/auth/login?redirect=/app/schedule");
-
-  const ctx = await getUserAuthContext(session.user.id);
-  if (!ctx) redirect("/auth/login");
+  const ctx = session?.user?.id ? await getUserAuthContext(session.user.id) : null;
 
   const [cutoffHours, accountDays, memberDays] = await Promise.all([
     getSettingNumber("CANCELLATION_CUTOFF_HOURS"),
@@ -76,14 +77,16 @@ export default async function SchedulePage({
   const sessions = sessionsResult.rows;
   const sessionIds = sessions.map((s) => s.id);
 
+  // A guest never has a booking or waitlist entry — skip both queries
+  // entirely rather than querying with a userId that doesn't exist.
   const [bookedRows, waitlistRows] = await Promise.all([
-    sessionIds.length
+    ctx && sessionIds.length
       ? pool.query<{ session_id: string }>(
           `SELECT session_id FROM passes WHERE owner_id = $1 AND status = 'Used' AND session_id = ANY($2::uuid[])`,
           [ctx.id, sessionIds],
         )
       : { rows: [] as { session_id: string }[] },
-    sessionIds.length
+    ctx && sessionIds.length
       ? pool.query<{ session_id: string }>(
           `SELECT session_id FROM waitlist_entries WHERE user_id = $1 AND session_id = ANY($2::uuid[])`,
           [ctx.id, sessionIds],
@@ -93,7 +96,7 @@ export default async function SchedulePage({
   const bookedSessionIds = new Set(bookedRows.rows.map((r) => r.session_id));
   const waitlistedSessionIds = new Set(waitlistRows.rows.map((r) => r.session_id));
 
-  const viewerRoles = ctx.roles;
+  const viewerRoles = ctx?.roles ?? null;
   function statusFor(s: SessionRow) {
     return computeSessionStatus({
       session: { startTime: new Date(s.start_time), maxCapacity: s.max_capacity },
@@ -141,7 +144,15 @@ export default async function SchedulePage({
       <main className="main--wide">
         <h1>Schedule</h1>
         <p>
-          Viewing as {ctx.username} ({ctx.roles.join(", ")}) · next {gridDays} days
+          {ctx ? (
+            <>
+              Viewing as {ctx.username} ({ctx.roles.join(", ")}) · next {gridDays} days
+            </>
+          ) : (
+            <>
+              <a href="/auth/login?redirect=/app/schedule">Log in</a> to book a session · next {gridDays} days
+            </>
+          )}
         </p>
 
         <ScheduleGrid days={days} grid={grid} />
@@ -153,7 +164,7 @@ export default async function SchedulePage({
               <SeriesPanel
                 seriesId={selectedSession.series_id}
                 clickedSessionId={selectedSession.id}
-                viewerId={ctx.id}
+                viewerId={ctx?.id ?? null}
                 selectedSeat={selectedSeat}
                 bookingError={bookingError}
                 cutoffHours={cutoffHours}
@@ -164,6 +175,7 @@ export default async function SchedulePage({
                 status={statusFor(selectedSession)}
                 needsModel={selectedSession.model_required && !selectedSession.has_model}
                 bookingError={bookingError}
+                loggedIn={ctx !== null}
               />
             )}
           </Modal>

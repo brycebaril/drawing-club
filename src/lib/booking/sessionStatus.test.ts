@@ -69,8 +69,16 @@ describe("computeSessionStatus", () => {
     ).toBe("Registered");
   });
 
-  it("Available for a guest is impossible — window is 0 days, so it's TooFarFuture", () => {
-    expect(computeSessionStatus(baseInput({ roles: null }))).toBe("TooFarFuture");
+  it("Available for a guest regardless of date — the booking window doesn't apply to null roles", () => {
+    // Far beyond even a Member's 30-day window (19 days would already be
+    // TooFarFuture for an Account Holder per the test above).
+    const session = { startTime: new Date("2026-03-01T18:00:00Z"), maxCapacity: 2 };
+    expect(computeSessionStatus(baseInput({ session, roles: null }))).toBe("Available");
+  });
+
+  it("Full for a guest when a far-future session is already at capacity", () => {
+    const session = { startTime: new Date("2026-03-01T18:00:00Z"), maxCapacity: 2 };
+    expect(computeSessionStatus(baseInput({ session, roles: null, bookedCount: 2 }))).toBe("Full");
   });
 });
 

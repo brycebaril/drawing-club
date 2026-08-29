@@ -19,12 +19,24 @@ export function SessionDetailsPanel({
   status,
   needsModel,
   bookingError,
+  loggedIn,
 }: {
   session: SessionInfo;
   status: SessionStatus;
   needsModel: boolean;
   bookingError?: string;
+  /**
+   * Registered/CancelableNoRefund/OnWaitlist are unreachable for a guest
+   * (computeSessionStatus never produces them without a viewer identity),
+   * so only the Available/Full branches below need a guest variant — a
+   * "Log in to..." link in place of the real booking form.
+   */
+  loggedIn: boolean;
 }) {
+  // Matches requireUserId's own redirect shape in actions.ts (unencoded —
+  // the embedded "?" is a literal character within the redirect param's
+  // value, not a second query-string boundary).
+  const loginHref = `/auth/login?redirect=/app/schedule?session_id=${session.id}`;
   const info = sessionTypeInfo(session.session_type);
   const dateStr = new Date(session.start_time).toLocaleDateString(undefined, {
     weekday: "short",
@@ -81,7 +93,7 @@ export function SessionDetailsPanel({
           {session.max_capacity}
         </p>
 
-        {status === "Available" && (
+        {status === "Available" && loggedIn && (
           <form action={bookSessionAction}>
             <input type="hidden" name="sessionId" value={session.id} />
             <button
@@ -91,6 +103,14 @@ export function SessionDetailsPanel({
               Book (uses 1 ticket)
             </button>
           </form>
+        )}
+        {status === "Available" && !loggedIn && (
+          <a
+            href={loginHref}
+            className="block w-full rounded-lg bg-brand py-3.5 text-center font-bold text-white shadow-sm transition-all hover:bg-brand-strong hover:shadow-md"
+          >
+            Log in to book
+          </a>
         )}
         {status === "Registered" && (
           <form action={cancelBookingAction}>
@@ -118,7 +138,7 @@ export function SessionDetailsPanel({
             </button>
           </form>
         )}
-        {status === "Full" && (
+        {status === "Full" && loggedIn && (
           <form action={joinWaitlistAction}>
             <input type="hidden" name="sessionId" value={session.id} />
             <button
@@ -128,6 +148,14 @@ export function SessionDetailsPanel({
               Join waitlist
             </button>
           </form>
+        )}
+        {status === "Full" && !loggedIn && (
+          <a
+            href={loginHref}
+            className="block w-full rounded-lg bg-brand py-3.5 text-center font-bold text-white shadow-sm transition-all hover:bg-brand-strong hover:shadow-md"
+          >
+            Log in to join the waitlist
+          </a>
         )}
         {status === "OnWaitlist" && (
           <p className="text-sm text-ink-soft">You&rsquo;re on the waitlist — we&rsquo;ll email you if a spot opens.</p>

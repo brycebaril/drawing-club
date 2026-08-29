@@ -115,7 +115,9 @@ export async function SiteNav() {
             <Link href="/pricing">Pricing</Link>
           </li>
           <li>
-            <Link href={ctx ? "/app/schedule" : "/auth/login?redirect=/app/schedule"}>Schedule</Link>
+            {/* /app/schedule is the unified public + member page (src/lib/auth/rbac.ts
+                has a dedicated public rule for it) — no more conditional login redirect. */}
+            <Link href="/app/schedule">Schedule</Link>
           </li>
           {ctx ? (
             <>

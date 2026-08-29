@@ -16,7 +16,14 @@ export type SessionStatus =
 
 export interface SessionStatusInput {
   session: { startTime: Date; maxCapacity: number } | null;
-  /** null = guest (nothing bookable). From getUserAuthContext().roles. */
+  /**
+   * null = guest. From getUserAuthContext().roles. A guest still resolves
+   * to a real Available/Full status (the unified public + member schedule
+   * page shows a real preview, not a wall of locked cells) — they just
+   * never reach Registered/CancelableNoRefund/OnWaitlist, since
+   * viewerHasBooking/viewerOnWaitlist are always false for them, and the
+   * booking-window check (TooFarFuture) is skipped entirely for null roles.
+   */
   roles: Role[] | null;
   bookedCount: number;
   viewerHasBooking: boolean;
@@ -55,13 +62,22 @@ export function computeSessionStatus(input: SessionStatusInput): SessionStatus {
       : "CancelableNoRefund";
   }
 
-  const windowDays = viewerBookingWindowDays(
-    input.roles,
-    input.bookingWindowAccountDays,
-    input.bookingWindowMemberDays,
-  );
-  const windowEnd = new Date(now.getTime() + windowDays * 24 * 60 * 60 * 1000);
-  if (startTime > windowEnd) return "TooFarFuture";
+  // The booking window gates *which authenticated tier* can book how far
+  // out (an Account Holder vs. Member upsell) — it has no meaning for a
+  // fully anonymous guest, who can't book at all regardless of date. Guests
+  // skip straight to the capacity check instead of landing on TooFarFuture
+  // for every session (viewerBookingWindowDays returns 0 for null roles,
+  // which is correct for "can this viewer book" but wrong for "what should
+  // a public schedule preview display").
+  if (input.roles !== null) {
+    const windowDays = viewerBookingWindowDays(
+      input.roles,
+      input.bookingWindowAccountDays,
+      input.bookingWindowMemberDays,
+    );
+    const windowEnd = new Date(now.getTime() + windowDays * 24 * 60 * 60 * 1000);
+    if (startTime > windowEnd) return "TooFarFuture";
+  }
 
   if (input.bookedCount >= maxCapacity) {
     return input.viewerOnWaitlist ? "OnWaitlist" : "Full";

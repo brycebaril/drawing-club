@@ -12,7 +12,7 @@ const VOL_CTRL: Role[] = ["ACCT", "VOL_CTRL"];
 const ADMIN: Role[] = ["ACCT", "ADMIN"];
 
 describe("isAllowed — public pages (SiteOutline.md §4)", () => {
-  it.each(["/", "/about", "/schedule", "/news", "/contact"])(
+  it.each(["/", "/about", "/news", "/contact"])(
     "%s is reachable by everyone, including guests",
     (path) => {
       expect(isAllowed(path, GUEST)).toBe(true);
@@ -41,12 +41,19 @@ describe("isAllowed — /dashboard, /app/*", () => {
     for (const roles of [ACCT, MBR, VOL_HOST, VOL_MKT, VOL_MBR, VOL_CTRL, ADMIN]) {
       expect(isAllowed("/dashboard", roles)).toBe(true);
       expect(isAllowed("/app/schedule", roles)).toBe(true);
+      expect(isAllowed("/app/wallet", roles)).toBe(true);
     }
   });
 
-  it("guests cannot", () => {
+  it("guests cannot reach most /app/* pages, or /dashboard", () => {
     expect(isAllowed("/dashboard", GUEST)).toBe(false);
-    expect(isAllowed("/app/schedule", GUEST)).toBe(false);
+    expect(isAllowed("/app/wallet", GUEST)).toBe(false);
+  });
+});
+
+describe("isAllowed — /app/schedule (unified public + member page)", () => {
+  it("is reachable by guests too, unlike the rest of /app/*", () => {
+    expect(isAllowed("/app/schedule", GUEST)).toBe(true);
   });
 });
 

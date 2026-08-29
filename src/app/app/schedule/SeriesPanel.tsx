@@ -39,11 +39,14 @@ export async function SeriesPanel({
 }: {
   seriesId: string;
   clickedSessionId: string;
-  viewerId: string;
+  /** null for a guest — computeSeatGrid already treats null as "nothing is ever mine." */
+  viewerId: string | null;
   selectedSeat: number | null;
   bookingError?: string;
   cutoffHours: number;
 }) {
+  // Matches requireUserId's own redirect shape in actions.ts.
+  const loginHref = `/auth/login?redirect=/app/schedule?session_id=${clickedSessionId}`;
   const seriesResult = await pool.query<SeriesInfo>(`SELECT id, name, seat_count FROM series WHERE id = $1`, [
     seriesId,
   ]);
@@ -114,37 +117,60 @@ export async function SeriesPanel({
       ) : (
         <>
           <p className="mt-4 text-sm font-semibold text-ink">Seat {chosenRow.seatNumber}</p>
-          <form action={bookSeriesSeatAction} className="mt-2">
-            <input type="hidden" name="seriesId" value={series.id} />
-            <input type="hidden" name="clickedSessionId" value={clickedSessionId} />
-            <input type="hidden" name="seatNumber" value={chosenRow.seatNumber} />
-            <div className="table-scroll">
-              <table>
-              <tbody>
-                {chosenRow.cells.map((cell) => (
-                  <tr key={cell.sessionId}>
-                    <td>{new Date(cell.startTime).toLocaleString()}</td>
-                    <td>
-                      {cell.state === "Open" && (
-                        <label>
-                          <input type="checkbox" name="sessionIds" value={cell.sessionId} /> Reserve
-                        </label>
-                      )}
-                      {cell.state === "Yours" && "Booked (yours)"}
-                      {cell.state === "TakenByOther" && "Taken"}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-              </table>
+          {viewerId ? (
+            <form action={bookSeriesSeatAction} className="mt-2">
+              <input type="hidden" name="seriesId" value={series.id} />
+              <input type="hidden" name="clickedSessionId" value={clickedSessionId} />
+              <input type="hidden" name="seatNumber" value={chosenRow.seatNumber} />
+              <div className="table-scroll">
+                <table>
+                <tbody>
+                  {chosenRow.cells.map((cell) => (
+                    <tr key={cell.sessionId}>
+                      <td>{new Date(cell.startTime).toLocaleString()}</td>
+                      <td>
+                        {cell.state === "Open" && (
+                          <label>
+                            <input type="checkbox" name="sessionIds" value={cell.sessionId} /> Reserve
+                          </label>
+                        )}
+                        {cell.state === "Yours" && "Booked (yours)"}
+                        {cell.state === "TakenByOther" && "Taken"}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+                </table>
+              </div>
+              <button
+                type="submit"
+                className="mt-3 w-full rounded-lg bg-brand py-3.5 font-bold text-white shadow-sm transition-all hover:bg-brand-strong hover:shadow-md"
+              >
+                Reserve checked dates (1 ticket each)
+              </button>
+            </form>
+          ) : (
+            <div className="mt-2">
+              <div className="table-scroll">
+                <table>
+                <tbody>
+                  {chosenRow.cells.map((cell) => (
+                    <tr key={cell.sessionId}>
+                      <td>{new Date(cell.startTime).toLocaleString()}</td>
+                      <td>{cell.state === "Open" ? "Open" : "Taken"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+                </table>
+              </div>
+              <a
+                href={loginHref}
+                className="mt-3 block w-full rounded-lg bg-brand py-3.5 text-center font-bold text-white shadow-sm transition-all hover:bg-brand-strong hover:shadow-md"
+              >
+                Log in to reserve
+              </a>
             </div>
-            <button
-              type="submit"
-              className="mt-3 w-full rounded-lg bg-brand py-3.5 font-bold text-white shadow-sm transition-all hover:bg-brand-strong hover:shadow-md"
-            >
-              Reserve checked dates (1 ticket each)
-            </button>
-          </form>
+          )}
 
           {chosenRow.cells.some((cell) => cell.state === "Yours") && (
             <>

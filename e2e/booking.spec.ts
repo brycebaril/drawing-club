@@ -233,3 +233,81 @@ test("the schedule grid cell's mouseover tooltip carries the detail the compact 
   expect(tooltip).toContain("Open — needs a host");
   expect(tooltip).toContain("0/3 booked");
 });
+
+test("a guest reaches /app/schedule without being redirected, sees capacity, and gets a login CTA instead of a real booking form", async ({
+  page,
+}) => {
+  const base = await findOpenSlotBase(new Date(), "Evening", [0], 3, 27);
+  const todayAt6pm = new Date();
+  todayAt6pm.setHours(18, 0, 0, 0);
+  const startTime = new Date(todayAt6pm.getTime() + base * 86400000);
+  const description = `guest-schedule-test-${Date.now()}`;
+  const sessionId = await createOneOffSessionAsAdmin(page, { description, startTime, capacity: 3 });
+
+  // createOneOffSessionAsAdmin logs in as the admin it creates internally —
+  // become a genuine guest the same way loginAsUser clears a prior session
+  // (about:blank first, so no in-flight request from the admin page keeps
+  // the session looking valid).
+  await page.goto("about:blank");
+  await page.context().clearCookies();
+
+  await page.goto("/app/schedule");
+  await expect(page).toHaveURL(/\/app\/schedule$/); // not bounced to /auth/login
+  // SiteNav also has its own "Log in" link for guests — scope to <main> to
+  // target this page's own guest prompt specifically.
+  await expect(page.locator("main").getByRole("link", { name: "Log in" })).toBeVisible();
+
+  const cell = page.locator(`a[href*="session_id=${sessionId}"]`);
+  await expect(cell).toBeVisible();
+  // The open-slot-count badge (SessionCell.tsx) — visible on the grid
+  // itself now, not just in the hover tooltip.
+  await expect(cell).toContainText("3");
+
+  await page.goto(`/app/schedule?session_id=${sessionId}`);
+  await expect(page.getByText(description)).toBeVisible();
+  await expect(page.getByRole("button", { name: "Book (uses 1 ticket)" })).toHaveCount(0);
+  const loginCta = page.getByRole("link", { name: "Log in to book" });
+  await expect(loginCta).toBeVisible();
+  await expect(loginCta).toHaveAttribute("href", `/auth/login?redirect=/app/schedule?session_id=${sessionId}`);
+
+  // Following the CTA through login round-trips back to the same session,
+  // where the real booking form is now available. Needs the wider Member
+  // window (30 days) — findOpenSlotBase's base can land past a plain
+  // Account Holder's 14-day window (same reasoning as the mouseover test
+  // above).
+  const viewer = await createTestUser({ username: `e2eguestschedule${Date.now()}` });
+  await pool.query(`UPDATE users SET membership_expires_at = now() + interval '60 days' WHERE id = $1`, [
+    viewer.id,
+  ]);
+  await pool.query(`INSERT INTO passes (owner_id, status, effective_price) VALUES ($1, 'Available', 0)`, [
+    viewer.id,
+  ]);
+  await loginCta.click();
+  await page.getByLabel("Username").fill(viewer.username);
+  await page.getByLabel("Password").fill("e2e-test-password-123");
+  await page.getByRole("button", { name: "Log in" }).click();
+  await page.waitForURL(`**/app/schedule?session_id=${sessionId}`);
+  await expect(page.getByRole("button", { name: "Book (uses 1 ticket)" })).toBeVisible();
+});
+
+test("a guest viewing a full session sees a login-to-waitlist CTA, not the real waitlist form", async ({ page }) => {
+  const base = await findOpenSlotBase(new Date(), "Evening", [0], 3, 27);
+  const todayAt6pm = new Date();
+  todayAt6pm.setHours(18, 0, 0, 0);
+  const startTime = new Date(todayAt6pm.getTime() + base * 86400000);
+  const description = `guest-full-test-${Date.now()}`;
+  const sessionId = await createOneOffSessionAsAdmin(page, { description, startTime, capacity: 1 });
+
+  const filler = await createTestUser({ username: `e2eguestfullfiller${Date.now()}` });
+  await pool.query(
+    `INSERT INTO passes (owner_id, session_id, status, effective_price) VALUES ($1, $2, 'Used', 0)`,
+    [filler.id, sessionId],
+  );
+
+  await page.goto("about:blank");
+  await page.context().clearCookies();
+
+  await page.goto(`/app/schedule?session_id=${sessionId}`);
+  await expect(page.getByRole("button", { name: "Join waitlist" })).toHaveCount(0);
+  await expect(page.getByRole("link", { name: "Log in to join the waitlist" })).toBeVisible();
+});
