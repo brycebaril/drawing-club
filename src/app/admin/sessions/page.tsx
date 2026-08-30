@@ -69,6 +69,11 @@ export default async function AdminSessionsPage({
       max_capacity: number;
       booked_count: string;
     }>(
+      // booked_count's subquery matches the "All sessions" query above
+      // exactly (same definition of "booked": a Used pass) — duplicated
+      // rather than shared, since these are two separately-parameterized
+      // queries in raw SQL with no query-builder to factor a fragment
+      // through; keep the two in sync by hand if this definition ever changes.
       `SELECT s.id, s.start_time, s.session_type, s.max_capacity,
               (s.host_user_id IS NULL) AS needs_host,
               (s.model_required AND NOT EXISTS(

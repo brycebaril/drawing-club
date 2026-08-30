@@ -24,17 +24,19 @@ export interface OccupiedCell {
  * admin and a member can talk about the same cell." Wording matches
  * SessionCell.tsx's own "no model yet" exactly where both apply, rather
  * than inventing separate copy for the same fact on two different grids.
+ *
+ * extraCount (a same-cell collision — two sessions accidentally landing in
+ * the same day+slot) is deliberately NOT folded in here: this line is
+ * CSS-truncated to fit the cell (.grid-cell-caption, globals.css), and a
+ * collision is a data-integrity anomaly, not a session state — it needs to
+ * stay visible regardless of how long the state text is, so it renders as
+ * its own small badge instead (see grid-cell-collision-badge below).
  */
 function captionFor(cell: OccupiedCell): string {
-  const state =
-    cell.needsModel && cell.needsHost
-      ? "no model, no host"
-      : cell.needsModel
-        ? "no model yet"
-        : cell.needsHost
-          ? "no host"
-          : `${cell.bookedCount}/${cell.maxCapacity}`;
-  return cell.extraCount ? `${state} · +${cell.extraCount}` : state;
+  if (cell.needsModel && cell.needsHost) return "no model, no host";
+  if (cell.needsModel) return "no model yet";
+  if (cell.needsHost) return "no host";
+  return `${cell.bookedCount}/${cell.maxCapacity}`;
 }
 
 type ModalState = { kind: "add"; date: Date; slot: Slot } | { kind: "edit"; sessionId: string } | null;
@@ -112,6 +114,14 @@ export function SessionCalendarGrid({
                         >
                           <span className="grid-cell-glyph">{cell.sessionType}</span>
                           <span className="grid-cell-caption">{captionFor(cell)}</span>
+                          {!!cell.extraCount && (
+                            <span
+                              className="grid-cell-collision-badge"
+                              title={`${cell.extraCount} more session(s) also scheduled in this slot`}
+                            >
+                              +{cell.extraCount}
+                            </span>
+                          )}
                         </button>
                       ) : (
                         <button

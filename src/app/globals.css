@@ -410,6 +410,29 @@ tbody tr:hover {
   opacity: 0.85;
 }
 
+/* The one corner badge that survived the M/H-flag removal below — not a
+   session *state* (those are the caption's job now), but a data-integrity
+   signal (two sessions accidentally landing in the same day+slot cell) that
+   must stay visible regardless of how long the caption text runs, since
+   .grid-cell-caption truncates with an ellipsis and this can't afford to be
+   the part that gets cut off. */
+.grid-cell-collision-badge {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1rem;
+  padding: 0 0.2rem;
+  border-radius: 999px;
+  background: var(--color-accent);
+  color: #fff;
+  font-size: 0.5625rem;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
 .grid-cell--filled {
   background: var(--color-accent-bg);
   border: 1px solid var(--color-accent-border);
@@ -425,10 +448,12 @@ tbody tr:hover {
 /* A scheduled session still missing a host or a model — dashed outline,
    same "incomplete" language /app/schedule's SessionCell.tsx uses for a
    missing model, wording ("no model yet"/"no host") carried in
-   .grid-cell-caption rather than a corner badge (Design Philosophy.dc.html
-   §03/§07: colour is never the only signal, and no corner is ever free of
-   the glyph at this size anyway). Combined-selector specificity (not
-   source order) is what makes this win over .grid-cell--filled's own
+   .grid-cell-caption rather than a per-status corner badge (Design
+   Philosophy.dc.html §03/§07: colour is never the only signal). The one
+   remaining corner badge (.grid-cell-collision-badge, above) flags a
+   different kind of fact — a data anomaly, not a session state — so it's
+   deliberately not folded into this wording. Combined-selector specificity
+   (not source order) is what makes this win over .grid-cell--filled's own
    bg/border/color. */
 .grid-cell--filled.grid-cell--incomplete {
   background: var(--color-alert-bg);
