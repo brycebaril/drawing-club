@@ -11,8 +11,30 @@ export interface OccupiedCell {
   sessionType: string;
   needsHost: boolean;
   needsModel: boolean;
+  bookedCount: number;
+  maxCapacity: number;
   /** Count of additional sessions also landing in this day+slot cell (see page.tsx) — undefined/0 means just the one shown. */
   extraCount?: number;
+}
+
+/**
+ * The cell's one caption line — Design Philosophy.dc.html §07's admin
+ * calendar: "admins get one extra flag the member grid never shows — no
+ * host — and counts instead of 'left'. Same fills, same letters, so an
+ * admin and a member can talk about the same cell." Wording matches
+ * SessionCell.tsx's own "no model yet" exactly where both apply, rather
+ * than inventing separate copy for the same fact on two different grids.
+ */
+function captionFor(cell: OccupiedCell): string {
+  const state =
+    cell.needsModel && cell.needsHost
+      ? "no model, no host"
+      : cell.needsModel
+        ? "no model yet"
+        : cell.needsHost
+          ? "no host"
+          : `${cell.bookedCount}/${cell.maxCapacity}`;
+  return cell.extraCount ? `${state} · +${cell.extraCount}` : state;
 }
 
 type ModalState = { kind: "add"; date: Date; slot: Slot } | { kind: "edit"; sessionId: string } | null;
@@ -88,25 +110,8 @@ export function SessionCalendarGrid({
                           aria-label={`Edit ${cell.sessionType} session on ${d.toLocaleDateString()} (${slot})${cell.extraCount ? ` — ${cell.extraCount} more session(s) also scheduled in this slot` : ""}`}
                           onClick={() => setModal({ kind: "edit", sessionId: cell.sessionId })}
                         >
-                          {cell.needsModel && (
-                            <span className="grid-cell-flag grid-cell-flag--model" title="Needs a model">
-                              M
-                            </span>
-                          )}
-                          {cell.needsHost && (
-                            <span className="grid-cell-flag grid-cell-flag--host" title="Needs a host">
-                              H
-                            </span>
-                          )}
-                          {!!cell.extraCount && (
-                            <span
-                              className="grid-cell-flag grid-cell-flag--extra"
-                              title={`${cell.extraCount} more session(s) also scheduled in this slot`}
-                            >
-                              +{cell.extraCount}
-                            </span>
-                          )}
-                          {cell.sessionType}
+                          <span className="grid-cell-glyph">{cell.sessionType}</span>
+                          <span className="grid-cell-caption">{captionFor(cell)}</span>
                         </button>
                       ) : (
                         <button

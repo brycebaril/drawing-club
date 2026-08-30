@@ -375,16 +375,39 @@ tbody tr:hover {
 .grid-cell {
   position: relative;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
-  width: 2.5rem;
-  height: 2.5rem;
+  gap: 1px;
+  /* Grown from a 40px letter-only square to fit a one-line caption below
+     the glyph (Design Philosophy.dc.html §07: "counts instead of 'left'",
+     and "no host"/"no model" as wording rather than a corner badge — see
+     the Admin calendar implementation notes). */
+  width: 4.5rem;
+  height: 3.25rem;
   margin: 0;
-  padding: 0;
+  padding: 0 var(--space-1);
   border-radius: var(--radius);
   font-size: 0.8125rem;
   font-weight: 600;
   text-decoration: none;
+}
+
+.grid-cell-glyph {
+  font-size: 1.0625rem;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.grid-cell-caption {
+  max-width: 100%;
+  overflow: hidden;
+  font-size: 0.625rem;
+  font-weight: 600;
+  line-height: 1.15;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  opacity: 0.85;
 }
 
 .grid-cell--filled {
@@ -399,12 +422,14 @@ tbody tr:hover {
   color: #fff;
 }
 
-/* A scheduled session still missing a host or a model — dashed amber outline
-   (same "incomplete" language /app/schedule already uses for a missing
-   model) plus a small corner flag per missing piece, so "needs a host" and
-   "needs a model" stay distinguishable at a glance rather than collapsing
-   into one generic warning. Combined-selector specificity (not source
-   order) is what makes this win over .grid-cell--filled's own bg/border/color. */
+/* A scheduled session still missing a host or a model — dashed outline,
+   same "incomplete" language /app/schedule's SessionCell.tsx uses for a
+   missing model, wording ("no model yet"/"no host") carried in
+   .grid-cell-caption rather than a corner badge (Design Philosophy.dc.html
+   §03/§07: colour is never the only signal, and no corner is ever free of
+   the glyph at this size anyway). Combined-selector specificity (not
+   source order) is what makes this win over .grid-cell--filled's own
+   bg/border/color. */
 .grid-cell--filled.grid-cell--incomplete {
   background: var(--color-alert-bg);
   border: 1px dashed var(--color-alert-border);
@@ -415,40 +440,6 @@ tbody tr:hover {
   background: var(--color-alert-border);
   border-style: solid;
   color: #fff;
-}
-
-.grid-cell-flag {
-  position: absolute;
-  top: -6px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 1rem;
-  height: 1rem;
-  border-radius: 999px;
-  background: var(--color-alert-border);
-  color: #fff;
-  font-size: 0.5625rem;
-  font-weight: 700;
-  line-height: 1;
-}
-
-.grid-cell-flag--model {
-  left: -6px;
-}
-
-.grid-cell-flag--host {
-  right: -6px;
-}
-
-.grid-cell-flag--extra {
-  top: auto;
-  bottom: -6px;
-  right: -6px;
-  width: auto;
-  min-width: 1rem;
-  padding: 0 0.2rem;
-  background: var(--color-accent);
 }
 
 .grid-cell--empty {

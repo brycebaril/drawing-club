@@ -60,12 +60,21 @@ export default async function AdminSessionsPage({
        WHERE s.status = 'Scheduled'
        ORDER BY ${orderBy}, s.id ASC`,
     ),
-    pool.query<{ id: string; start_time: Date; session_type: string; needs_host: boolean; needs_model: boolean }>(
-      `SELECT s.id, s.start_time, s.session_type,
+    pool.query<{
+      id: string;
+      start_time: Date;
+      session_type: string;
+      needs_host: boolean;
+      needs_model: boolean;
+      max_capacity: number;
+      booked_count: string;
+    }>(
+      `SELECT s.id, s.start_time, s.session_type, s.max_capacity,
               (s.host_user_id IS NULL) AS needs_host,
               (s.model_required AND NOT EXISTS(
                 SELECT 1 FROM session_model_mapping smm WHERE smm.session_id = s.id
-              )) AS needs_model
+              )) AS needs_model,
+              (SELECT count(*) FROM passes p WHERE p.session_id = s.id AND p.status = 'Used') AS booked_count
        FROM sessions s
        WHERE s.status = 'Scheduled' AND s.start_time >= $1 AND s.start_time < $2
        ORDER BY s.start_time ASC, s.id ASC`,
@@ -99,6 +108,8 @@ export default async function AdminSessionsPage({
       sessionType: row.session_type,
       needsHost: row.needs_host,
       needsModel: row.needs_model,
+      bookedCount: Number(row.booked_count),
+      maxCapacity: row.max_capacity,
     };
   }
 
@@ -126,8 +137,9 @@ export default async function AdminSessionsPage({
       <h2>Upcoming schedule</h2>
       <p className="section-note">
         Click an open slot to add a one-off session, recurring session, or multi-week series starting there. A
-        dashed amber outline marks a scheduled session that&apos;s still incomplete — <strong>M</strong> for no
-        model assigned, <strong>H</strong> for no host assigned.
+        dashed outline marks a scheduled session that&apos;s still incomplete — the caption under the letter says
+        &ldquo;no model yet&rdquo;, &ldquo;no host&rdquo;, or both; a complete session shows its booked/capacity
+        count there instead.
       </p>
       <p>
         <Link href={prevHref}>&larr; Previous {GRID_WINDOW_DAYS / 7} weeks</Link>
