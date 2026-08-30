@@ -210,12 +210,13 @@ test("the schedule grid cell's mouseover tooltip carries the detail the compact 
   // steps with nothing stopping a concurrent worker from doing the same for
   // the same slot in between — withSlotLock serializes the whole sequence
   // across every process sharing this DB, not just this file's own calls.
-  const sessionId = await withSlotLock("Evening", async () => {
+  const { sessionId, weekOffset } = await withSlotLock("Evening", async () => {
     const base = await findOpenSlotBase(new Date(), "Evening", [0], 3, 27);
     const todayAt6pm = new Date();
     todayAt6pm.setHours(18, 0, 0, 0);
     const startTime = new Date(todayAt6pm.getTime() + base * 86400000);
-    return createOneOffSessionAsAdmin(page, { description, startTime, capacity: 3 });
+    const id = await createOneOffSessionAsAdmin(page, { description, startTime, capacity: 3 });
+    return { sessionId: id, weekOffset: Math.floor(base / 7) };
   });
 
   // Needs the wider Member booking window (30 days) — findOpenSlotBase's
@@ -227,7 +228,10 @@ test("the schedule grid cell's mouseover tooltip carries the detail the compact 
     viewer.id,
   ]);
   await loginAsUser(page, viewer);
-  await page.goto("/app/schedule");
+  // findOpenSlotBase's base can land well past week 0 — the grid pages a
+  // week at a time now (Design Philosophy.dc.html §04), so this needs to
+  // request the actual week the created session falls on, not just today's.
+  await page.goto(`/app/schedule?week=${weekOffset}`);
 
   const cell = page.locator(`a[href*="session_id=${sessionId}"]`);
   await expect(cell).toBeVisible();
@@ -244,12 +248,13 @@ test("a guest reaches /app/schedule without being redirected, sees capacity, and
   page,
 }) => {
   const description = `guest-schedule-test-${Date.now()}`;
-  const sessionId = await withSlotLock("Evening", async () => {
+  const { sessionId, weekOffset } = await withSlotLock("Evening", async () => {
     const base = await findOpenSlotBase(new Date(), "Evening", [0], 3, 27);
     const todayAt6pm = new Date();
     todayAt6pm.setHours(18, 0, 0, 0);
     const startTime = new Date(todayAt6pm.getTime() + base * 86400000);
-    return createOneOffSessionAsAdmin(page, { description, startTime, capacity: 3 });
+    const id = await createOneOffSessionAsAdmin(page, { description, startTime, capacity: 3 });
+    return { sessionId: id, weekOffset: Math.floor(base / 7) };
   });
 
   // createOneOffSessionAsAdmin logs in as the admin it creates internally —
@@ -259,12 +264,17 @@ test("a guest reaches /app/schedule without being redirected, sees capacity, and
   await page.goto("about:blank");
   await page.context().clearCookies();
 
+  // week 0 specifically here (not the created session's own week) — this
+  // part of the test is about a guest landing on the page's default view at
+  // all, not about seeing this particular far-future session yet.
   await page.goto("/app/schedule");
   await expect(page).toHaveURL(/\/app\/schedule$/); // not bounced to /auth/login
   // SiteNav also has its own "Log in" link for guests — scope to <main> to
   // target this page's own guest prompt specifically.
   await expect(page.locator("main").getByRole("link", { name: "Log in" })).toBeVisible();
 
+  // Now the created session's own week, to check its grid cell specifically.
+  await page.goto(`/app/schedule?week=${weekOffset}`);
   const cell = page.locator(`a[href*="session_id=${sessionId}"]`);
   await expect(cell).toBeVisible();
   // The open-slot-count badge (SessionCell.tsx) — visible on the grid
@@ -320,4 +330,52 @@ test("a guest viewing a full session sees a login-to-waitlist CTA, not the real 
   await page.goto(`/app/schedule?session_id=${sessionId}`);
   await expect(page.getByRole("button", { name: "Join waitlist" })).toHaveCount(0);
   await expect(page.getByRole("link", { name: "Log in to join the waitlist" })).toBeVisible();
+});
+
+test("paging the schedule grid forward never widens an Account Holder's booking window", async ({ page }) => {
+  // Design Philosophy.dc.html §11 step 4's own required coverage: the week
+  // offset only changes what's *visible*, never what's *bookable* — a
+  // session beyond the viewer's own window must still render Locked
+  // (non-interactive, "Opens {date}") no matter which week paging put it on
+  // screen, exactly as it would have without pagination at all.
+  const settingsResult = await pool.query<{ key: string; value: string }>(
+    `SELECT key, value FROM system_settings WHERE key IN ('BOOKING_WINDOW_ACCOUNT_DAYS', 'BOOKING_WINDOW_MEMBER_DAYS')`,
+  );
+  const settings = Object.fromEntries(settingsResult.rows.map((r) => [r.key, Number(r.value)]));
+  const accountDays: number = settings.BOOKING_WINDOW_ACCOUNT_DAYS;
+  const memberDays: number = settings.BOOKING_WINDOW_MEMBER_DAYS;
+
+  const description = `week-pagination-test-${Date.now()}`;
+  // "Afternoon", not this file's usual "Evening" — this test needs a single
+  // absolute date strictly between the two windows, not the scarce Evening
+  // slot the other three Evening-locked one-off tests in this file already
+  // compete over (see CLAUDE.md's Evening-slot-collision notes).
+  const created = await withSlotLock("Afternoon", async () => {
+    const base = await findOpenSlotBase(new Date(), "Afternoon", [0], accountDays + 2, memberDays - 2);
+    const todayAt2pm = new Date();
+    todayAt2pm.setHours(14, 0, 0, 0);
+    const startTime = new Date(todayAt2pm.getTime() + base * 86400000);
+    const id = await createOneOffSessionAsAdmin(page, { description, startTime, capacity: 5 });
+    return { id, weekOffset: Math.floor(base / 7) };
+  });
+
+  const viewer = await createTestUser({ username: `e2eweekpaging${Date.now()}` }); // AccountHolder by default
+  await loginAsUser(page, viewer);
+
+  await page.goto(`/app/schedule?week=${created.weekOffset}`);
+  // Locked cells are a non-interactive <div> with an "Opens {date}" line,
+  // never a <Link> — the pagination surfaced this far-future session, but
+  // it's still not a real booking target. Scoped to this specific cell (via
+  // its own title, which carries the unique test description) rather than a
+  // bare "Opens" text search — plenty of *other* cells on a 7-day-out week
+  // are legitimately Locked too, and would make an unscoped locator
+  // ambiguous (Playwright strict mode).
+  await expect(page.locator(`a[href*="session_id=${created.id}"]`)).toHaveCount(0);
+  const lockedCell = page.locator(`[title*="${description}"]`);
+  await expect(lockedCell).toBeVisible();
+  await expect(lockedCell).toContainText(/Opens \w/);
+
+  await page.goto(`/app/schedule?session_id=${created.id}&week=${created.weekOffset}`);
+  await expect(page.getByText("Not yet bookable for your account tier.")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Book (uses 1 ticket)" })).toHaveCount(0);
 });

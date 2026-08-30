@@ -5,14 +5,24 @@ import type { GridCellData } from "./scheduleTypes";
 const WEEKDAY_FORMAT = new Intl.DateTimeFormat("en-US", { weekday: "short" });
 const DAY_NUMBER_FORMAT = new Intl.DateTimeFormat("en-US", { day: "numeric" });
 
+// week=0 cells omit the param entirely (plain `?session_id=X`, exactly what
+// every pre-pagination e2e test and Server Action redirect already expects)
+// — only a genuinely paginated cell needs it, appended after session_id so
+// the common case's exact string never changes.
+function cellHref(sessionId: string, weekOffset: number): string {
+  return weekOffset === 0 ? `?session_id=${sessionId}` : `?session_id=${sessionId}&week=${weekOffset}`;
+}
+
 export function ScheduleGrid({
   days,
   grid,
   windowDays,
+  weekOffset,
 }: {
   days: Date[];
   grid: Map<string, GridCellData>;
   windowDays: number;
+  weekOffset: number;
 }) {
   return (
     <div className="rounded-lg border border-line bg-panel shadow-sm">
@@ -67,7 +77,7 @@ export function ScheduleGrid({
                       className={`w-[92px] shrink-0 rounded-lg p-0.5 ${isWeekend ? "bg-ink/10" : ""}`}
                     >
                       {cell ? (
-                        <SessionCell cell={cell} href={`?session_id=${cell.id}`} windowDays={windowDays} />
+                        <SessionCell cell={cell} href={cellHref(cell.id, weekOffset)} windowDays={windowDays} />
                       ) : (
                         <EmptyCell />
                       )}

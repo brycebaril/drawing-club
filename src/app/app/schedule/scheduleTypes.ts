@@ -52,9 +52,23 @@ export function formatCellTime(date: Date): string {
   return TOOLTIP_TIME_FORMAT.format(date).replace(/\s?[AP]M$/i, "");
 }
 
-/** "12 Sep" — used only for a Locked cell's "Opens 12 Sep" line. */
+/** "12 Sep" — used for a Locked cell's "Opens 12 Sep" line, and the header's
+ * "booking open through" date. */
 export function formatOpensDate(date: Date): string {
   return OPENS_DATE_FORMAT.format(date);
+}
+
+const WEEK_RANGE_DAY_FORMAT = new Intl.DateTimeFormat("en-US", { day: "numeric" });
+const WEEK_RANGE_MONTH_DAY_FORMAT = new Intl.DateTimeFormat("en-US", { day: "numeric", month: "long" });
+
+/** "1 – 7 September" / "28 August – 3 September" — the page header for a
+ * displayed 7-day week. `end` is exclusive (viewStart + 7 days). */
+export function formatWeekRange(start: Date, end: Date): string {
+  const last = new Date(end.getTime() - 24 * 60 * 60 * 1000);
+  const sameMonth = start.getMonth() === last.getMonth() && start.getFullYear() === last.getFullYear();
+  return sameMonth
+    ? `${WEEK_RANGE_DAY_FORMAT.format(start)} – ${WEEK_RANGE_MONTH_DAY_FORMAT.format(last)}`
+    : `${WEEK_RANGE_MONTH_DAY_FORMAT.format(start)} – ${WEEK_RANGE_MONTH_DAY_FORMAT.format(last)}`;
 }
 
 export function describeModel(cell: GridCellData): string {

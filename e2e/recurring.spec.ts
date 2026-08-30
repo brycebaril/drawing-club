@@ -117,7 +117,15 @@ test("recurring session lifecycle: create, book, cancel this-and-future, idempot
   ]);
   await loginAsUser(page, member);
 
-  await page.goto("/app/schedule");
+  // The grid pages a week at a time now (Design Philosophy.dc.html §04) —
+  // the clicked (middle) occurrence can land well past week 0, so request
+  // its own week rather than assuming the default view shows it.
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
+  const clickedDayOffset = Math.floor(
+    (new Date(clickedOccurrence.start_time).getTime() - todayStart.getTime()) / 86400000,
+  );
+  await page.goto(`/app/schedule?week=${Math.floor(clickedDayOffset / 7)}`);
   await expect(page.locator(`a[href*="session_id=${clickedOccurrence.id}"]`)).toBeVisible();
 
   await page.goto(`/app/schedule?session_id=${clickedOccurrence.id}`);
