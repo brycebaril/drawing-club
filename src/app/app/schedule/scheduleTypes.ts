@@ -6,18 +6,22 @@ export interface SessionTypeInfo {
   textClass: string;
 }
 
-// Each session_type gets a distinct hue from the schedule's own warm,
-// muted category palette (tailwind.css's --color-type-* tokens) — analogous
-// to the site's terracotta accent, not Tailwind's stock blue/purple/indigo.
+// The type letter distinguishes L/R/G/P/S/X — color no longer does. Only two
+// voices (Design Philosophy.dc.html §02/§09): terracotta for every ticketed
+// type, sage for Gallery Hours/Party (no ticket involved, "drop in"
+// language). Eight per-type hues read as a single biggest departure from
+// the old design, where each type's own hue then had to compete with seven
+// status colors in the same small cell — see the Rebuild-the-grid-cell step
+// in the implementation plan for the fuller reasoning.
 export const SESSION_TYPE_INFO: Record<string, SessionTypeInfo> = {
-  L: { label: "Long Pose", display: "L", textClass: "text-type-l" },
-  R: { label: "Regular", display: "R", textClass: "text-type-r" },
-  G: { label: "Gesture", display: "G", textClass: "text-type-g" },
-  P: { label: "Portrait", display: "P", textClass: "text-type-p" },
-  S: { label: "Special", display: "S", textClass: "text-type-s" },
-  X: { label: "Extra Long Pose", display: "X", textClass: "text-type-x" },
-  Gallery: { label: "Gallery Hours", display: "Ga", textClass: "text-type-gallery" },
-  Party: { label: "Party", display: "Pa", textClass: "text-type-party" },
+  L: { label: "Long Pose", display: "L", textClass: "text-type-ticketed" },
+  R: { label: "Regular", display: "R", textClass: "text-type-ticketed" },
+  G: { label: "Gesture", display: "G", textClass: "text-type-ticketed" },
+  P: { label: "Portrait", display: "P", textClass: "text-type-ticketed" },
+  S: { label: "Special", display: "S", textClass: "text-type-ticketed" },
+  X: { label: "Extra Long Pose", display: "X", textClass: "text-type-ticketed" },
+  Gallery: { label: "Gallery Hours", display: "Ga", textClass: "text-type-open" },
+  Party: { label: "Party", display: "Pa", textClass: "text-type-open" },
 };
 
 export function sessionTypeInfo(type: string): SessionTypeInfo {
@@ -40,8 +44,20 @@ export interface GridCellData {
 }
 
 const TOOLTIP_TIME_FORMAT = new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit" });
+const OPENS_DATE_FORMAT = new Intl.DateTimeFormat("en-US", { day: "numeric", month: "short" });
 
-function describeModel(cell: GridCellData): string {
+/** "6:00 PM" -> "6:00" — the cell's own bottom line has no room for AM/PM,
+ * and the Morning/Afternoon/Evening slot row it sits in already disambiguates. */
+export function formatCellTime(date: Date): string {
+  return TOOLTIP_TIME_FORMAT.format(date).replace(/\s?[AP]M$/i, "");
+}
+
+/** "12 Sep" — used only for a Locked cell's "Opens 12 Sep" line. */
+export function formatOpensDate(date: Date): string {
+  return OPENS_DATE_FORMAT.format(date);
+}
+
+export function describeModel(cell: GridCellData): string {
   if (cell.modelNames) return cell.modelNames;
   return cell.modelRequired ? "Not yet assigned" : "None required";
 }

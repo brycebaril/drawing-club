@@ -1,77 +1,108 @@
 import Link from "next/link";
-import { CheckCircle2, Clock, Lock, UserX } from "lucide-react";
-import { describeCellTooltip, isCellInteractive, sessionTypeInfo, type GridCellData } from "./scheduleTypes";
+import {
+  describeCellTooltip,
+  describeModel,
+  formatCellTime,
+  formatOpensDate,
+  isCellInteractive,
+  sessionTypeInfo,
+  type GridCellData,
+} from "./scheduleTypes";
+
+// 92x88 — Design Philosophy.dc.html §03/§04: three lines (type letter, model,
+// start time + state), sized to hold real text rather than the compact
+// icon-badge cell this replaces.
+const CELL_SIZE = "h-[88px] w-[92px]";
 
 export function EmptyCell() {
   return (
     <div
-      className="aspect-square w-11 shrink-0 rounded-lg border border-line bg-canvas opacity-60"
+      className={`${CELL_SIZE} shrink-0 rounded-lg border border-dashed border-line/60 bg-canvas`}
       title="No session scheduled"
     />
   );
 }
 
-export function SessionCell({ cell, href }: { cell: GridCellData; href: string }) {
+type CellVariant = "open" | "yours" | "gone" | "locked";
+
+function variantFor(status: GridCellData["status"]): CellVariant {
+  switch (status) {
+    case "Registered":
+    case "CancelableNoRefund":
+      return "yours";
+    case "Full":
+    case "OnWaitlist":
+      return "gone";
+    case "TooFarFuture":
+      return "locked";
+    default:
+      // "Available" — NoSession never reaches here, EmptyCell handles it.
+      return "open";
+  }
+}
+
+/**
+ * Four states + one flag (Design Philosophy.dc.html §03), replacing the
+ * previous seven-state/four-corner-icon cell. Colour is never the only
+ * signal: every variant differs in fill, border weight, border style AND
+ * wording, not hue alone — readable in greyscale. The needsModel flag is
+ * the one thing that ever layers on top, and only over Open/Yours (a Gone
+ * or Locked cell never shows it, even if the underlying session still
+ * technically needs a model) — matching the doc's own explicit rule.
+ */
+export function SessionCell({ cell, href, windowDays }: { cell: GridCellData; href: string; windowDays: number }) {
   const info = sessionTypeInfo(cell.sessionType);
   const interactive = isCellInteractive(cell.status);
-  const isMine = cell.status === "Registered" || cell.status === "CancelableNoRefund";
+  const variant = variantFor(cell.status);
+  const showsNeedsModelFlag = cell.needsModel && (variant === "open" || variant === "yours");
   const spotsLeft = cell.maxCapacity - cell.bookedCount;
 
-  // Matches globals.css's button:disabled opacity (0.5) rather than an
-  // invented value — "not yet in your booking window" is this page's one
-  // disabled-ish state.
-  const stateClasses = !interactive
-    ? "border border-line bg-canvas opacity-50 grayscale cursor-not-allowed"
-    : isMine
-      ? "border-2 border-good-line bg-good-bg ring-2 ring-good-line/40 hover:shadow-md hover:-translate-y-0.5"
-      : cell.needsModel
-        ? "border-2 border-dashed border-warn-line bg-warn-bg hover:shadow-md hover:-translate-y-0.5"
-        : "border border-line bg-panel hover:border-brand hover:shadow-md hover:-translate-y-0.5";
+  const fillClasses = showsNeedsModelFlag
+    ? "border-2 border-dashed border-warn-line bg-warn-bg"
+    : variant === "yours"
+      ? "border-2 border-good-line bg-good-bg"
+      : variant === "gone"
+        ? "border border-line bg-ink-soft/10"
+        : variant === "locked"
+          ? "border border-dashed border-line/60 bg-canvas opacity-60"
+          : "border border-line bg-panel"; // open, no flag
+
+  const glyphClass = showsNeedsModelFlag
+    ? "text-warn"
+    : variant === "yours"
+      ? "text-good"
+      : variant === "gone" || variant === "locked"
+        ? "text-ink-soft"
+        : info.textClass;
+
+  const middleLine = showsNeedsModelFlag ? "no model yet" : describeModel(cell);
+  const middleLineClass = showsNeedsModelFlag ? "text-warn" : "text-ink-soft";
+
+  let bottomLine: string;
+  if (variant === "locked") {
+    const opensOn = Number.isFinite(windowDays)
+      ? new Date(cell.startTime.getTime() - windowDays * 24 * 60 * 60 * 1000)
+      : null;
+    bottomLine = opensOn ? `Opens ${formatOpensDate(opensOn)}` : "Not yet open";
+  } else if (variant === "yours") {
+    bottomLine = `${formatCellTime(cell.startTime)} · Booked`;
+  } else if (variant === "gone") {
+    bottomLine = `${formatCellTime(cell.startTime)} · Full`;
+  } else {
+    bottomLine = `${formatCellTime(cell.startTime)} · ${Math.max(spotsLeft, 0)} left`;
+  }
 
   const content = (
     <div
-      className={`relative aspect-square w-11 shrink-0 flex flex-col items-center justify-center rounded-lg shadow-sm transition-all duration-150 ${stateClasses}`}
+      className={`${CELL_SIZE} shrink-0 flex flex-col items-center justify-center gap-px rounded-lg px-1 text-center shadow-sm transition-all duration-150 ${fillClasses} ${
+        interactive ? "hover:shadow-md hover:-translate-y-0.5" : "cursor-not-allowed"
+      }`}
     >
-      {cell.needsModel && interactive && (
-        <span className="absolute top-1 left-1" title="No model assigned yet">
-          <UserX className="h-3 w-3 text-warn" strokeWidth={2.5} />
-        </span>
-      )}
-      {isMine && (
-        <span className="absolute top-1 right-1" title="You're registered">
-          <CheckCircle2 className="h-3 w-3 text-good" fill="currentColor" />
-        </span>
-      )}
-      {cell.status === "OnWaitlist" && (
-        <span className="absolute top-1 right-1" title="You're on the waitlist">
-          <Clock className="h-3 w-3 text-warn" strokeWidth={2.5} />
-        </span>
-      )}
-      <span className={`text-lg font-black ${info.textClass}`}>{info.display}</span>
-      {interactive && (
-        // Open slot count, visible on the grid itself rather than only in
-        // the hover tooltip (describeCellTooltip already carries the same
-        // number for anyone who can't hover, e.g. touch devices) — an
-        // improvement for every viewer, not just guests browsing without an
-        // account. Bottom-left is the one corner none of the other overlays
-        // (needsModel/isMine/OnWaitlist/CancelableNoRefund) use.
-        <span
-          className={`absolute bottom-1 left-1 flex h-3.5 min-w-[14px] items-center justify-center rounded-full px-0.5 text-[8px] font-bold leading-none text-white ${
-            spotsLeft <= 2 ? "bg-warn-line" : "bg-ink-soft/70"
-          }`}
-          title={spotsLeft <= 0 ? "Full" : `${spotsLeft} spot${spotsLeft === 1 ? "" : "s"} left`}
-        >
-          {Math.max(spotsLeft, 0)}
-        </span>
-      )}
-      {cell.status === "CancelableNoRefund" && (
-        <span
-          className="absolute bottom-1 right-1 rounded-full bg-panel p-px"
-          title="Canceling now won't refund your ticket"
-        >
-          <Lock className="h-2.5 w-2.5 text-warn" strokeWidth={3} />
-        </span>
-      )}
+      <span className={`text-3xl font-black leading-none ${glyphClass}`}>{info.display}</span>
+      <span className={`w-full truncate text-[11px] font-semibold leading-tight ${middleLineClass}`}>
+        {middleLine}
+      </span>
+      <span className="w-full truncate text-[11px] font-bold leading-tight text-ink">{bottomLine}</span>
     </div>
   );
 

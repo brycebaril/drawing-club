@@ -3,7 +3,7 @@ import { auth } from "@/auth";
 import { pool } from "@/lib/db/pool";
 import { getUserAuthContext } from "@/lib/auth/roles";
 import { getSettingNumber } from "@/lib/settings";
-import { computeSessionStatus } from "@/lib/booking/sessionStatus";
+import { computeSessionStatus, viewerBookingWindowDays } from "@/lib/booking/sessionStatus";
 import { slotFor, startOfDay, dayIndex } from "@/lib/sessions/shared";
 import { SeriesPanel } from "./SeriesPanel";
 import { SessionDetailsPanel } from "./SessionDetailsPanel";
@@ -97,6 +97,11 @@ export default async function SchedulePage({
   const waitlistedSessionIds = new Set(waitlistRows.rows.map((r) => r.session_id));
 
   const viewerRoles = ctx?.roles ?? null;
+  // Used by a Locked cell to say "Opens {date}" instead of just being dimmed
+  // (Design Philosophy.dc.html §03) — Infinity for ADMIN, but TooFarFuture
+  // never actually occurs for an unrestricted viewer, so SessionCell's own
+  // Number.isFinite guard is what matters, not clamping this value itself.
+  const viewerWindowDays = viewerBookingWindowDays(viewerRoles, accountDays, memberDays);
   function statusFor(s: SessionRow) {
     return computeSessionStatus({
       session: { startTime: new Date(s.start_time), maxCapacity: s.max_capacity },
@@ -155,7 +160,7 @@ export default async function SchedulePage({
           )}
         </p>
 
-        <ScheduleGrid days={days} grid={grid} />
+        <ScheduleGrid days={days} grid={grid} windowDays={viewerWindowDays} />
         <Legend />
 
         {selectedSession && (

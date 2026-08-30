@@ -50,10 +50,10 @@
   --color-good-bg: var(--color-status-bg);
   --color-good-line: var(--color-status-border);
 
-  /* The site's one flat --radius (6px), applied across Tailwind's whole
-     scale — every rounded-* utility below resolves to the same tight
-     corner the rest of the app uses, not Tailwind's much rounder stock
-     scale (rounded-3xl is 24px by default). */
+  /* The site's one flat --radius (16px, the Organic palette's generous
+     rounding), applied across Tailwind's whole scale — every rounded-*
+     utility below resolves to the same corner the rest of the app uses,
+     not Tailwind's own stock scale. */
   --radius-sm: var(--radius);
   --radius-md: var(--radius);
   --radius-lg: var(--radius);
@@ -70,18 +70,16 @@
   --shadow-xl: 0 8px 24px rgba(0, 0, 0, 0.16);
   --shadow-2xl: 0 12px 32px rgba(0, 0, 0, 0.2);
 
-  /* Session-type category colors — a small palette of its own (the rest of
-     the site has no per-category color language to reuse), deliberately
-     chosen as warm/muted tones analogous to --color-accent's terracotta
-     rather than Tailwind's default blue/purple/indigo, which would read as
-     a completely different, colder visual world next to the rest of the
-     app. */
-  --color-type-l: #8a4a3d;
-  --color-type-r: #6b7a4f;
-  --color-type-g: #b8863a;
-  --color-type-p: #8a5a72;
-  --color-type-s: #a8566b;
-  --color-type-x: #6f4a35;
-  --color-type-gallery: #7a6f63;
-  --color-type-party: #c2694a;
+  /* Session type carries only two voices now, not one hue per type (Design
+     Philosophy.dc.html §02/§09: "Eight letters, two voices" — the letter is
+     the type, the tint says only whether a ticket is involved). Aliased
+     onto the same deep ramp steps already used elsewhere for legible-at-
+     body-size accent text (--color-alert-text/--color-status-text, both
+     re-pointed at the Organic terracotta/sage 700-step during the palette
+     retune) under names specific to this use, so a reader isn't left
+     wondering whether "this session type is ticketed" is secretly the same
+     thing as an unrelated warning/success state that happens to resolve to
+     the same value. */
+  --color-type-ticketed: var(--color-alert-text);
+  --color-type-open: var(--color-status-text);
 }
