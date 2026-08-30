@@ -126,7 +126,9 @@ test("recurring session lifecycle: create, book, cancel this-and-future, idempot
     (new Date(clickedOccurrence.start_time).getTime() - todayStart.getTime()) / 86400000,
   );
   await page.goto(`/app/schedule?week=${Math.floor(clickedDayOffset / 7)}`);
-  await expect(page.locator(`a[href*="session_id=${clickedOccurrence.id}"]`)).toBeVisible();
+  // Scoped to the grid, not the agenda — both carry this session's link at
+  // once (CSS-breakpoint-swapped, ScheduleAgenda.tsx), so unscoped matches two.
+  await expect(page.locator("#schedule-grid-view").locator(`a[href*="session_id=${clickedOccurrence.id}"]`)).toBeVisible();
 
   await page.goto(`/app/schedule?session_id=${clickedOccurrence.id}`);
   await page.getByRole("button", { name: "Book (uses 1 ticket)" }).click();

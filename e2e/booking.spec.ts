@@ -233,7 +233,10 @@ test("the schedule grid cell's mouseover tooltip carries the detail the compact 
   // request the actual week the created session falls on, not just today's.
   await page.goto(`/app/schedule?week=${weekOffset}`);
 
-  const cell = page.locator(`a[href*="session_id=${sessionId}"]`);
+  // Scoped to the grid specifically (not the agenda) — both render the same
+  // session's link/tooltip in the DOM at once, swapped only by a CSS
+  // breakpoint (ScheduleAgenda.tsx), so an unscoped locator now matches two.
+  const cell = page.locator("#schedule-grid-view").locator(`a[href*="session_id=${sessionId}"]`);
   await expect(cell).toBeVisible();
   const tooltip = await cell.getAttribute("title");
   // describeCellTooltip (scheduleTypes.ts) — the compact grid glyph itself
@@ -274,8 +277,10 @@ test("a guest reaches /app/schedule without being redirected, sees capacity, and
   await expect(page.locator("main").getByRole("link", { name: "Log in" })).toBeVisible();
 
   // Now the created session's own week, to check its grid cell specifically.
+  // Scoped to the grid, not the agenda — both carry this session's link at
+  // once (CSS-breakpoint-swapped, ScheduleAgenda.tsx), so unscoped matches two.
   await page.goto(`/app/schedule?week=${weekOffset}`);
-  const cell = page.locator(`a[href*="session_id=${sessionId}"]`);
+  const cell = page.locator("#schedule-grid-view").locator(`a[href*="session_id=${sessionId}"]`);
   await expect(cell).toBeVisible();
   // The open-slot-count badge (SessionCell.tsx) — visible on the grid
   // itself now, not just in the hover tooltip.
@@ -365,13 +370,15 @@ test("paging the schedule grid forward never widens an Account Holder's booking 
   await page.goto(`/app/schedule?week=${created.weekOffset}`);
   // Locked cells are a non-interactive <div> with an "Opens {date}" line,
   // never a <Link> — the pagination surfaced this far-future session, but
-  // it's still not a real booking target. Scoped to this specific cell (via
-  // its own title, which carries the unique test description) rather than a
-  // bare "Opens" text search — plenty of *other* cells on a 7-day-out week
-  // are legitimately Locked too, and would make an unscoped locator
-  // ambiguous (Playwright strict mode).
-  await expect(page.locator(`a[href*="session_id=${created.id}"]`)).toHaveCount(0);
-  const lockedCell = page.locator(`[title*="${description}"]`);
+  // it's still not a real booking target. Scoped to the grid specifically
+  // (both it and the agenda carry this cell's own title at once, CSS-
+  // breakpoint-swapped — ScheduleAgenda.tsx), and via its own title (which
+  // carries the unique test description) rather than a bare "Opens" text
+  // search — plenty of *other* cells on a 7-day-out week are legitimately
+  // Locked too, and would make an unscoped locator ambiguous either way.
+  const gridView = page.locator("#schedule-grid-view");
+  await expect(gridView.locator(`a[href*="session_id=${created.id}"]`)).toHaveCount(0);
+  const lockedCell = gridView.locator(`[title*="${description}"]`);
   await expect(lockedCell).toBeVisible();
   await expect(lockedCell).toContainText(/Opens \w/);
 

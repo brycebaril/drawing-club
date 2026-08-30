@@ -1,17 +1,9 @@
 import { SLOTS } from "@/lib/sessions/shared";
 import { EmptyCell, SessionCell } from "./SessionCell";
-import type { GridCellData } from "./scheduleTypes";
+import { cellHref, type GridCellData } from "./scheduleTypes";
 
 const WEEKDAY_FORMAT = new Intl.DateTimeFormat("en-US", { weekday: "short" });
 const DAY_NUMBER_FORMAT = new Intl.DateTimeFormat("en-US", { day: "numeric" });
-
-// week=0 cells omit the param entirely (plain `?session_id=X`, exactly what
-// every pre-pagination e2e test and Server Action redirect already expects)
-// — only a genuinely paginated cell needs it, appended after session_id so
-// the common case's exact string never changes.
-function cellHref(sessionId: string, weekOffset: number): string {
-  return weekOffset === 0 ? `?session_id=${sessionId}` : `?session_id=${sessionId}&week=${weekOffset}`;
-}
 
 export function ScheduleGrid({
   days,
@@ -30,13 +22,13 @@ export function ScheduleGrid({
         <div className="w-max">
           <div className="mb-2 ml-[104px] flex gap-1.5">
             {days.map((d, i) => {
-              // days[0] is always today — the grid has no pagination, it's
-              // always drawn from startOfDay(new Date()) (see page.tsx).
-              // The ring only goes on the header, not every cell down the
-              // column, per explicit feedback that repeating it read as too
-              // much — the filled date badge below already carries most of
-              // the "today" signal on its own.
-              const isToday = i === 0;
+              // days[0] is only "today" on week 0 — a paginated week's own
+              // first day is never actually today (page.tsx). The ring only
+              // goes on the header, not every cell down the column, per
+              // explicit feedback that repeating it read as too much — the
+              // filled date badge below already carries most of the "today"
+              // signal on its own.
+              const isToday = weekOffset === 0 && i === 0;
               const isWeekend = d.getDay() === 0 || d.getDay() === 6;
               return (
                 <div

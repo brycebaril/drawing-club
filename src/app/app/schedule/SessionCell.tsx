@@ -5,7 +5,9 @@ import {
   formatCellTime,
   formatOpensDate,
   isCellInteractive,
+  opensOnDate,
   sessionTypeInfo,
+  variantFor,
   type GridCellData,
 } from "./scheduleTypes";
 
@@ -21,24 +23,6 @@ export function EmptyCell() {
       title="No session scheduled"
     />
   );
-}
-
-type CellVariant = "open" | "yours" | "gone" | "locked";
-
-function variantFor(status: GridCellData["status"]): CellVariant {
-  switch (status) {
-    case "Registered":
-    case "CancelableNoRefund":
-      return "yours";
-    case "Full":
-    case "OnWaitlist":
-      return "gone";
-    case "TooFarFuture":
-      return "locked";
-    default:
-      // "Available" — NoSession never reaches here, EmptyCell handles it.
-      return "open";
-  }
 }
 
 /**
@@ -80,9 +64,7 @@ export function SessionCell({ cell, href, windowDays }: { cell: GridCellData; hr
 
   let bottomLine: string;
   if (variant === "locked") {
-    const opensOn = Number.isFinite(windowDays)
-      ? new Date(cell.startTime.getTime() - windowDays * 24 * 60 * 60 * 1000)
-      : null;
+    const opensOn = opensOnDate(cell, windowDays);
     bottomLine = opensOn ? `Opens ${formatOpensDate(opensOn)}` : "Not yet open";
   } else if (variant === "yours") {
     bottomLine = `${formatCellTime(cell.startTime)} · Booked`;

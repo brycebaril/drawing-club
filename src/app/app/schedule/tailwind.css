@@ -83,3 +83,26 @@
   --color-type-ticketed: var(--color-alert-text);
   --color-type-open: var(--color-status-text);
 }
+
+/**
+ * ScheduleAgenda.tsx's All/Mine/Open filter — pure CSS, no client JS, so the
+ * mobile agenda stays a plain Server Component. Three radio inputs
+ * (`#agenda-filter-all/-mine/-open`) live inside `.agenda-filter-scope`;
+ * `:has()` reads which one is checked and hides everything that doesn't
+ * match, then a second rule per filter hides a day group whose every row got
+ * hidden (":not(:has(a visible row))") rather than leaving an empty day
+ * heading behind. "All" needs no rules at all — nothing is ever hidden when
+ * it's checked, matching its default-checked state.
+ */
+.agenda-filter-scope:has(#agenda-filter-mine:checked) .agenda-row[data-mine="false"] {
+  display: none;
+}
+.agenda-filter-scope:has(#agenda-filter-mine:checked) .agenda-day:not(:has(.agenda-row[data-mine="true"])) {
+  display: none;
+}
+.agenda-filter-scope:has(#agenda-filter-open:checked) .agenda-row[data-open="false"] {
+  display: none;
+}
+.agenda-filter-scope:has(#agenda-filter-open:checked) .agenda-day:not(:has(.agenda-row[data-open="true"])) {
+  display: none;
+}

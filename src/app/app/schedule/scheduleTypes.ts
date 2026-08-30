@@ -101,6 +101,50 @@ export function isCellInteractive(status: SessionStatus): boolean {
   return status !== "TooFarFuture";
 }
 
+export type CellVariant = "open" | "yours" | "gone" | "locked";
+
+/**
+ * Four states (Design Philosophy.dc.html §03), shared by SessionCell.tsx
+ * (the grid) and ScheduleAgenda.tsx (the mobile list) so the two surfaces
+ * can't drift into classifying the same status differently — a lesson this
+ * codebase has hit before with a series/generic booking path silently
+ * diverging (see CLAUDE.md's booking implementation notes).
+ */
+export function variantFor(status: SessionStatus): CellVariant {
+  switch (status) {
+    case "Registered":
+    case "CancelableNoRefund":
+      return "yours";
+    case "Full":
+    case "OnWaitlist":
+      return "gone";
+    case "TooFarFuture":
+      return "locked";
+    default:
+      // "Available" — NoSession is never passed in here, both surfaces
+      // filter it out before reaching a variant-classified render.
+      return "open";
+  }
+}
+
+/** The date a Locked cell's session will enter the viewer's own booking
+ * window — null once windowDays is Infinity (ADMIN, where TooFarFuture
+ * never actually occurs, so there's nothing meaningful to compute). */
+export function opensOnDate(cell: GridCellData, windowDays: number): Date | null {
+  return Number.isFinite(windowDays)
+    ? new Date(cell.startTime.getTime() - windowDays * 24 * 60 * 60 * 1000)
+    : null;
+}
+
+// week=0 cells omit the param entirely (plain `?session_id=X`, exactly what
+// every pre-pagination e2e test and Server Action redirect already expects)
+// — only a genuinely paginated cell needs it, appended after session_id so
+// the common case's exact string never changes. Shared by ScheduleGrid.tsx
+// and ScheduleAgenda.tsx — both link into the same modal the same way.
+export function cellHref(sessionId: string, weekOffset: number): string {
+  return weekOffset === 0 ? `?session_id=${sessionId}` : `?session_id=${sessionId}&week=${weekOffset}`;
+}
+
 /**
  * bookSession/bookSeriesSeat (src/lib/booking/actions.ts, src/lib/series/actions.ts)
  * return a `reason` discriminant on failure. It used to be shown to members

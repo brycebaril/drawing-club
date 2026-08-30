@@ -8,6 +8,7 @@ import { slotFor, startOfDay, dayIndex } from "@/lib/sessions/shared";
 import { SeriesPanel } from "./SeriesPanel";
 import { SessionDetailsPanel } from "./SessionDetailsPanel";
 import { ScheduleGrid } from "./ScheduleGrid";
+import { ScheduleAgenda } from "./ScheduleAgenda";
 import { Legend } from "./Legend";
 import { Modal } from "./Modal";
 import { SiteNav } from "@/components/SiteNav";
@@ -268,7 +269,22 @@ export default async function SchedulePage({
           </div>
         </div>
 
-        <ScheduleGrid days={days} grid={grid} windowDays={viewerWindowDays} weekOffset={weekOffset} />
+        {/* Design Philosophy.dc.html §06: the grid doesn't survive a phone —
+            below 824px (the grid's own horizontal-scroll threshold) an
+            agenda list replaces it. Both render server-side; only a CSS
+            breakpoint decides which is visible, so there's no client JS and
+            no hydration mismatch to worry about. Both carry every session's
+            own link/tooltip, so a plain `a[href*="session_id=..."]` or
+            `[title*="..."]` e2e locator now matches one in each — id'd here
+            specifically so e2e specs can scope to the surface that's
+            actually visible at their project's viewport (every existing
+            spec runs the desktop "chromium" project against the grid). */}
+        <div id="schedule-grid-view" className="hidden min-[824px]:block">
+          <ScheduleGrid days={days} grid={grid} windowDays={viewerWindowDays} weekOffset={weekOffset} />
+        </div>
+        <div id="schedule-agenda-view" className="min-[824px]:hidden">
+          <ScheduleAgenda days={days} grid={grid} windowDays={viewerWindowDays} weekOffset={weekOffset} />
+        </div>
         <Legend />
 
         {selectedSession && (
