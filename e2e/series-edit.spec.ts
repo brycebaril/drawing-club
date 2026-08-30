@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { createTestUser, findOpenSlotBase, loginAsUser, pool } from "./helpers";
+import { createTestUser, findOpenSlotBase, loginAsUser, pool, withSlotLock } from "./helpers";
 import { bookSeriesSeat } from "@/lib/series/actions";
 
 function toDateOnly(date: Date): string {
@@ -17,22 +17,32 @@ test("series editing: seat-count guard, add more dates, instance editor", async 
   const now = new Date();
   // DB-checked base offset, same reasoning as series.spec.ts (avoids
   // colliding with leftover sessions from a previous run, or with a
-  // genuinely busy migrated/recurring near-term calendar) — but picked on
-  // the Morning slot rather than Evening, so it can't collide with
-  // series.spec.ts (Afternoon) or either recurring test file (Evening-only)
-  // regardless of which days get picked.
-  const base = await findOpenSlotBase(now, "Morning", [0, 7, 14], 3, 22);
-  const day1 = toDateOnly(new Date(now.getTime() + base * 86400000));
-  const day2 = toDateOnly(new Date(now.getTime() + (base + 7) * 86400000));
-  const day3 = toDateOnly(new Date(now.getTime() + (base + 14) * 86400000));
+  // genuinely busy migrated/recurring near-term calendar). "Morning" is
+  // also used by admin-sessions.spec.ts's own findOpenSlotBase calls —
+  // slot-per-file exclusivity ran out of room once enough spec files
+  // needed single-date grid-visible sessions (only 3 slots exist).
+  // withSlotLock is what actually closes the collision now, not which slot
+  // name gets picked — it serializes the search + the actual series creation across
+  // every concurrent worker/process targeting "Morning" — the search alone
+  // (findOpenSlotBase) can't prevent two workers both picking the same open
+  // day before either has committed. day3 is checked as free here too (part
+  // of the same offsets array) but not actually reserved until the
+  // "add more dates" step below, which gets its own separate lock.
+  const day3 = await withSlotLock("Morning", async () => {
+    const base = await findOpenSlotBase(now, "Morning", [0, 7, 14], 3, 22);
+    const day1 = toDateOnly(new Date(now.getTime() + base * 86400000));
+    const day2 = toDateOnly(new Date(now.getTime() + (base + 7) * 86400000));
+    const day3 = toDateOnly(new Date(now.getTime() + (base + 14) * 86400000));
 
-  await page.goto("/admin/sessions/new-series");
-  await page.getByLabel("Series name").fill(name);
-  await page.getByLabel(/^Seat count/).fill("3");
-  await page.locator(`input[name="slots"][value="${day1}|Morning"]`).check();
-  await page.locator(`input[name="slots"][value="${day2}|Morning"]`).check();
-  await page.getByRole("button", { name: "Create series" }).click();
-  await page.waitForURL("**/admin/sessions/series");
+    await page.goto("/admin/sessions/new-series");
+    await page.getByLabel("Series name").fill(name);
+    await page.getByLabel(/^Seat count/).fill("3");
+    await page.locator(`input[name="slots"][value="${day1}|Morning"]`).check();
+    await page.locator(`input[name="slots"][value="${day2}|Morning"]`).check();
+    await page.getByRole("button", { name: "Create series" }).click();
+    await page.waitForURL("**/admin/sessions/series");
+    return day3;
+  });
 
   const seriesResult = await pool.query<{ id: string }>(`SELECT id FROM series WHERE name = $1`, [name]);
   expect(seriesResult.rowCount).toBe(1);
@@ -79,11 +89,16 @@ test("series editing: seat-count guard, add more dates, instance editor", async 
   }).toPass({ timeout: 5000 });
 
   // Add more dates to the existing series via the picker's add-dates mode.
-  await page.goto(`/admin/sessions/new-series?seriesId=${seriesId}`);
-  await expect(page.getByRole("heading", { name: `Add dates to "${name}"` })).toBeVisible();
-  await page.locator(`input[name="slots"][value="${day3}|Morning"]`).check();
-  await page.getByRole("button", { name: "Add dates to series" }).click();
-  await page.waitForURL(`**/admin/sessions/series/${seriesId}`);
+  // day3 was checked free back when it was picked, but wasn't actually
+  // reserved until now — the same withSlotLock protection applies to this
+  // second creation step independently.
+  await withSlotLock("Morning", async () => {
+    await page.goto(`/admin/sessions/new-series?seriesId=${seriesId}`);
+    await expect(page.getByRole("heading", { name: `Add dates to "${name}"` })).toBeVisible();
+    await page.locator(`input[name="slots"][value="${day3}|Morning"]`).check();
+    await page.getByRole("button", { name: "Add dates to series" }).click();
+    await page.waitForURL(`**/admin/sessions/series/${seriesId}`);
+  });
 
   await expect(async () => {
     const afterAdd = await pool.query<{ count: string }>(

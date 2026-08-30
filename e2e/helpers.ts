@@ -81,6 +81,98 @@ export async function findOpenSlotBase(
   return minBase;
 }
 
+/**
+ * Finds a day-of-week (0-6) for a *new weekly recurring rule* such that
+ * every occurrence date implied by `weekOffsets` (added to the nearest
+ * on-or-after-today date matching that day-of-week) is free of an existing
+ * Scheduled session in the given slot.
+ *
+ * Deliberately NOT built on findOpenSlotBase, even though it looks similar —
+ * that function is for *absolute* date lists (one-off/series bookings,
+ * where the app literally creates a session on whatever calendar date was
+ * checked). A weekly recurring rule is different: the app resolves "the
+ * first date on/after the rule's start_date matching this day-of-week," then
+ * repeats every 7 days — the actual occurrence dates depend only on
+ * `dayOfWeek`, never on an arbitrary day-count offset from today. A previous
+ * version of this test called findOpenSlotBase with a widened maxBase
+ * (beyond 6) on the theory that a larger offset would surface new, distinct
+ * candidate dates to check — but since the app only ever derives `delta =
+ * (dayOfWeek - today.getDay() + 7) % 7`, any offset base > 6 collapses right
+ * back onto a day-of-week already covered by base % 7, while findOpenSlotBase
+ * kept checking occupancy at the *literal* (unreduced) offset dates — dates
+ * the rule would never actually land on. That let a stale "free" result slip
+ * through for a day-of-week that's really permanently booked, confirmed
+ * directly: 5 of 7 weekdays (Mon-Fri) have a real permanent Evening-slot
+ * recurring class from the legacy migration; only Sat/Sun are genuinely
+ * open. This function fixes that by only ever testing the 7 real candidate
+ * day-of-week values, each against the exact dates the app would actually
+ * generate for it.
+ */
+export async function findOpenWeekday(
+  now: Date,
+  slot: "Morning" | "Afternoon" | "Evening",
+  weekOffsets: number[],
+): Promise<number> {
+  const dayStart = startOfDay(now);
+  const maxWeekOffset = Math.max(...weekOffsets);
+  const windowEnd = new Date(dayStart.getTime() + (6 + maxWeekOffset + 1) * 86400000);
+  const occupiedResult = await pool.query<{ start_time: Date }>(
+    `SELECT start_time FROM sessions WHERE status = 'Scheduled' AND start_time >= $1 AND start_time < $2`,
+    [dayStart, windowEnd],
+  );
+  const occupiedDays = new Set(
+    occupiedResult.rows
+      .filter((r) => slotFor(new Date(r.start_time)) === slot)
+      .map((r) => toDateOnly(new Date(r.start_time))),
+  );
+
+  for (let delta = 1; delta <= 6; delta++) {
+    const candidates = weekOffsets.map((offset) =>
+      toDateOnly(new Date(dayStart.getTime() + (delta + offset) * 86400000)),
+    );
+    if (candidates.every((day) => !occupiedDays.has(day))) {
+      return (now.getDay() + delta) % 7;
+    }
+  }
+  throw new Error(`findOpenWeekday: no open day-of-week found for slot ${slot} in the search window`);
+}
+
+const SLOT_LOCK_KEYS: Record<"Morning" | "Afternoon" | "Evening", number> = {
+  Morning: 872_001,
+  Afternoon: 872_002,
+  Evening: 872_003,
+};
+
+/**
+ * Serializes "find a free day for this slot, then create something there"
+ * across every concurrent Playwright worker/process sharing this DB — the
+ * actual bug findOpenSlotBase alone can't close. findOpenSlotBase only
+ * answers "is day X free right now"; the real reservation (a UI-driven
+ * session/rule/series creation) happens as a separate step afterward, with
+ * nothing stopping two workers from both reading "day X is free" before
+ * either has committed its own creation. A wider search range only lowers
+ * the odds of that race, it doesn't close it — this does, the same way a
+ * real booking flow would use a row lock, just at the granularity of "one
+ * slot" rather than one row, since these tests reserve a slot before any
+ * row backing it exists yet. Uses a dedicated connection (advisory locks
+ * are session-scoped: acquire and release must happen on the same one) —
+ * callers pass everything from the findOpenSlotBase call through the
+ * actual creation inside `fn`, not just the search.
+ */
+export async function withSlotLock<T>(
+  slot: "Morning" | "Afternoon" | "Evening",
+  fn: () => Promise<T>,
+): Promise<T> {
+  const client = await pool.connect();
+  try {
+    await client.query("SELECT pg_advisory_lock($1)", [SLOT_LOCK_KEYS[slot]]);
+    return await fn();
+  } finally {
+    await client.query("SELECT pg_advisory_unlock($1)", [SLOT_LOCK_KEYS[slot]]);
+    client.release();
+  }
+}
+
 export async function createTestUser(opts: {
   username: string;
   baseRole?: "AccountHolder" | "Admin";

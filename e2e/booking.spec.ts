@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { createOneOffSessionAsAdmin, createTestUser, findOpenSlotBase, loginAsUser, pool } from "./helpers";
+import { createOneOffSessionAsAdmin, createTestUser, findOpenSlotBase, loginAsUser, pool, withSlotLock } from "./helpers";
 
 test("a member books a session, cancels it, and the pass returns to their balance", async ({
   page,
@@ -205,12 +205,18 @@ test("the schedule grid cell's mouseover tooltip carries the detail the compact 
   // open slot is required, or the dense migrated dataset's own real
   // session in that cell would render instead of this test's own (same
   // reasoning as recurring.spec.ts/series.spec.ts's use of this helper).
-  const base = await findOpenSlotBase(new Date(), "Evening", [0], 3, 27);
-  const todayAt6pm = new Date();
-  todayAt6pm.setHours(18, 0, 0, 0);
-  const startTime = new Date(todayAt6pm.getTime() + base * 86400000);
   const description = `mouseover-test-${Date.now()}`;
-  const sessionId = await createOneOffSessionAsAdmin(page, { description, startTime, capacity: 3 });
+  // The search (is day X free?) and the actual creation are two separate
+  // steps with nothing stopping a concurrent worker from doing the same for
+  // the same slot in between — withSlotLock serializes the whole sequence
+  // across every process sharing this DB, not just this file's own calls.
+  const sessionId = await withSlotLock("Evening", async () => {
+    const base = await findOpenSlotBase(new Date(), "Evening", [0], 3, 27);
+    const todayAt6pm = new Date();
+    todayAt6pm.setHours(18, 0, 0, 0);
+    const startTime = new Date(todayAt6pm.getTime() + base * 86400000);
+    return createOneOffSessionAsAdmin(page, { description, startTime, capacity: 3 });
+  });
 
   // Needs the wider Member booking window (30 days) — findOpenSlotBase's
   // base can land past a plain Account Holder's 14-day window, where the
@@ -237,12 +243,14 @@ test("the schedule grid cell's mouseover tooltip carries the detail the compact 
 test("a guest reaches /app/schedule without being redirected, sees capacity, and gets a login CTA instead of a real booking form", async ({
   page,
 }) => {
-  const base = await findOpenSlotBase(new Date(), "Evening", [0], 3, 27);
-  const todayAt6pm = new Date();
-  todayAt6pm.setHours(18, 0, 0, 0);
-  const startTime = new Date(todayAt6pm.getTime() + base * 86400000);
   const description = `guest-schedule-test-${Date.now()}`;
-  const sessionId = await createOneOffSessionAsAdmin(page, { description, startTime, capacity: 3 });
+  const sessionId = await withSlotLock("Evening", async () => {
+    const base = await findOpenSlotBase(new Date(), "Evening", [0], 3, 27);
+    const todayAt6pm = new Date();
+    todayAt6pm.setHours(18, 0, 0, 0);
+    const startTime = new Date(todayAt6pm.getTime() + base * 86400000);
+    return createOneOffSessionAsAdmin(page, { description, startTime, capacity: 3 });
+  });
 
   // createOneOffSessionAsAdmin logs in as the admin it creates internally —
   // become a genuine guest the same way loginAsUser clears a prior session
@@ -291,12 +299,14 @@ test("a guest reaches /app/schedule without being redirected, sees capacity, and
 });
 
 test("a guest viewing a full session sees a login-to-waitlist CTA, not the real waitlist form", async ({ page }) => {
-  const base = await findOpenSlotBase(new Date(), "Evening", [0], 3, 27);
-  const todayAt6pm = new Date();
-  todayAt6pm.setHours(18, 0, 0, 0);
-  const startTime = new Date(todayAt6pm.getTime() + base * 86400000);
   const description = `guest-full-test-${Date.now()}`;
-  const sessionId = await createOneOffSessionAsAdmin(page, { description, startTime, capacity: 1 });
+  const sessionId = await withSlotLock("Evening", async () => {
+    const base = await findOpenSlotBase(new Date(), "Evening", [0], 3, 27);
+    const todayAt6pm = new Date();
+    todayAt6pm.setHours(18, 0, 0, 0);
+    const startTime = new Date(todayAt6pm.getTime() + base * 86400000);
+    return createOneOffSessionAsAdmin(page, { description, startTime, capacity: 1 });
+  });
 
   const filler = await createTestUser({ username: `e2eguestfullfiller${Date.now()}` });
   await pool.query(

@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { createTestUser, findOpenSlotBase, loginAsUser, pool } from "./helpers";
+import { createTestUser, findOpenSlotBase, loginAsUser, pool, withSlotLock } from "./helpers";
 import { bookSeriesSeat } from "@/lib/series/actions";
 
 function toDateOnly(date: Date): string {
@@ -34,29 +34,30 @@ test("multi-week series lifecycle: create, partial-date seat booking, seat conte
   // out (confirmed directly against the dev DB) — every base in 3..10
   // collided on at least one of its three far-apart candidate dates, every
   // time, not just occasionally.
-  const base = await findOpenSlotBase(now, "Afternoon", [0, 7, 21], 3, 13);
-  // Non-consecutive: base and base+7 days, then skip a week and pick base+21.
-  const day1 = toDateOnly(new Date(now.getTime() + base * 86400000));
-  const day2 = toDateOnly(new Date(now.getTime() + (base + 7) * 86400000));
-  const day3 = toDateOnly(new Date(now.getTime() + (base + 21) * 86400000));
+  // Afternoon is also used by admin-sessions.spec.ts's own findOpenSlotBase
+  // calls — slot-per-file exclusivity ran out of room once enough spec
+  // files needed single-date grid-visible sessions (only 3 slots exist).
+  // withSlotLock is what actually closes the collision now, not which slot
+  // name gets picked: it serializes the search + the real reservation (this
+  // series's creation) across every concurrent worker/process targeting
+  // "Afternoon", so two workers can no longer both see the same day as free
+  // before either has committed.
+  await withSlotLock("Afternoon", async () => {
+    const base = await findOpenSlotBase(now, "Afternoon", [0, 7, 21], 3, 13);
+    // Non-consecutive: base and base+7 days, then skip a week and pick base+21.
+    const day1 = toDateOnly(new Date(now.getTime() + base * 86400000));
+    const day2 = toDateOnly(new Date(now.getTime() + (base + 7) * 86400000));
+    const day3 = toDateOnly(new Date(now.getTime() + (base + 21) * 86400000));
 
-  // Afternoon, not Evening or Morning: recurring.spec.ts and
-  // recurring-edit.spec.ts hardcode 18:00 ("Evening") rules, and
-  // series-edit.spec.ts already claimed "Morning" for itself, on a
-  // day-offset range that overlaps this file's — so either of the other two
-  // slots can collide with one of those files' generated occurrences under
-  // parallel workers even on a freshly seeded DB. Afternoon is the one slot
-  // no other spec file uses, which avoids the collision regardless of day
-  // arithmetic (a day-offset-only fix would need every file's ranges kept
-  // disjoint by hand, which is what caused this in the first place).
-  await page.goto("/admin/sessions/new-series");
-  await page.getByLabel("Series name").fill(name);
-  await page.getByLabel(/^Seat count/).fill("2");
-  await page.locator(`input[name="slots"][value="${day1}|Afternoon"]`).check();
-  await page.locator(`input[name="slots"][value="${day2}|Afternoon"]`).check();
-  await page.locator(`input[name="slots"][value="${day3}|Afternoon"]`).check();
-  await page.getByRole("button", { name: "Create series" }).click();
-  await page.waitForURL("**/admin/sessions/series");
+    await page.goto("/admin/sessions/new-series");
+    await page.getByLabel("Series name").fill(name);
+    await page.getByLabel(/^Seat count/).fill("2");
+    await page.locator(`input[name="slots"][value="${day1}|Afternoon"]`).check();
+    await page.locator(`input[name="slots"][value="${day2}|Afternoon"]`).check();
+    await page.locator(`input[name="slots"][value="${day3}|Afternoon"]`).check();
+    await page.getByRole("button", { name: "Create series" }).click();
+    await page.waitForURL("**/admin/sessions/series");
+  });
 
   const seriesResult = await pool.query<{ id: string }>(`SELECT id FROM series WHERE name = $1`, [name]);
   expect(seriesResult.rowCount).toBe(1);
