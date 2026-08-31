@@ -270,19 +270,31 @@ export default async function SchedulePage({
         </div>
 
         {/* Design Philosophy.dc.html §06: the grid doesn't survive a phone —
-            below 824px (the grid's own horizontal-scroll threshold) an
-            agenda list replaces it. Both render server-side; only a CSS
-            breakpoint decides which is visible, so there's no client JS and
-            no hydration mismatch to worry about. Both carry every session's
-            own link/tooltip, so a plain `a[href*="session_id=..."]` or
-            `[title*="..."]` e2e locator now matches one in each — id'd here
-            specifically so e2e specs can scope to the surface that's
-            actually visible at their project's viewport (every existing
-            spec runs the desktop "chromium" project against the grid). */}
-        <div id="schedule-grid-view" className="hidden min-[824px]:block">
+            below the breakpoint an agenda list replaces it. Both render
+            server-side; only a CSS breakpoint decides which is visible, so
+            there's no client JS and no hydration mismatch to worry about.
+            Both carry every session's own link/tooltip, so a plain
+            `a[href*="session_id=..."]` or `[title*="..."]` e2e locator now
+            matches one in each — id'd here specifically so e2e specs can
+            scope to the surface that's actually visible at their project's
+            viewport (every existing spec runs the desktop "chromium"
+            project against the grid).
+
+            960px, not the doc's own stated 824px: that figure is ScheduleGrid's
+            raw content width (7×92px cells + the 100px rail + gaps), but the
+            breakpoint has to compare against the full viewport — which also
+            has to fit main.main--wide's own horizontal margins
+            (2×var(--space-5) = 48px) and a scrollbar (~15-17px) around that
+            content. Using 824px directly left a real dead zone (roughly
+            824-890px) where the grid rendered instead of the agenda but still
+            needed its own horizontal scroll to fit — confirmed by computing
+            ScheduleGrid's actual rendered width (~838px, close to but not
+            exactly the doc's figure) plus that overhead (≈903px minimum),
+            then rounding up for safety margin. */}
+        <div id="schedule-grid-view" className="hidden min-[960px]:block">
           <ScheduleGrid days={days} grid={grid} windowDays={viewerWindowDays} weekOffset={weekOffset} />
         </div>
-        <div id="schedule-agenda-view" className="min-[824px]:hidden">
+        <div id="schedule-agenda-view" className="min-[960px]:hidden">
           <ScheduleAgenda days={days} grid={grid} windowDays={viewerWindowDays} weekOffset={weekOffset} />
         </div>
         <Legend />

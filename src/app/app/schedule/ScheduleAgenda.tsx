@@ -116,8 +116,9 @@ function AgendaRow({ cell, href, windowDays }: { cell: GridCellData; href: strin
 /**
  * The mobile alternative to ScheduleGrid — Design Philosophy.dc.html §06
  * "Option A": days stack, only days with sessions appear, an All/Mine/Open
- * filter. Swapped in below 824px purely by CSS (see page.tsx's
- * `min-[824px]:` wrapper classes), so this stays a plain Server Component
+ * filter. Swapped in below 960px purely by CSS (see page.tsx's
+ * `min-[960px]:` wrapper classes and its own comment on why 960, not the
+ * doc's stated 824px), so this stays a plain Server Component
  * consuming the exact same `grid`/`days` data ScheduleGrid does — no client
  * bundle, no risk of the two surfaces disagreeing about what a session's
  * state means. The filter itself is pure CSS too: three radio inputs plus

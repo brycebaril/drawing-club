@@ -14,6 +14,31 @@
 @import "tailwindcss/utilities.css";
 
 /**
+ * ScheduleGrid.tsx's horizontal scroll container — a native scrollbar alone
+ * is too easy to miss (this codebase has already hit and fixed exactly this
+ * problem twice for the admin audit-logs table; see globals.css's
+ * .table-scroll and its own notes). Same pure-CSS "scroll shadow" technique
+ * as .table-scroll — two solid-color fade gradients that scroll WITH the
+ * content (background-attachment: local) covering two fixed radial shadows
+ * (background-attachment: scroll) — tuned to var(--color-panel) instead of
+ * --color-surface since that's this container's own background
+ * (ScheduleGrid.tsx's outer div is bg-panel). Grid's own class name, not
+ * .table-scroll itself: that class also sets max-height/sticky-th behavior
+ * meant for an arbitrarily-long data table, neither of which applies to a
+ * fixed 3-slot-row grid.
+ */
+.schedule-scroll {
+  background-image: linear-gradient(to right, var(--color-panel) 30%, transparent),
+    linear-gradient(to left, var(--color-panel) 30%, transparent),
+    radial-gradient(farthest-side at 0 50%, rgba(0, 0, 0, 0.2), rgba(0, 0, 0, 0)),
+    radial-gradient(farthest-side at 100% 50%, rgba(0, 0, 0, 0.2), rgba(0, 0, 0, 0));
+  background-repeat: no-repeat;
+  background-size: 40px 100%, 40px 100%, 14px 100%, 14px 100%;
+  background-position: 0 0, 100% 0, 0 0, 100% 0;
+  background-attachment: local, local, scroll, scroll;
+}
+
+/**
  * Design tokens — aliases onto the SAME custom properties src/app/globals.css
  * already defines (--color-accent, --color-surface, etc.), never a second,
  * independent palette. Because these are var() indirections (not copied
