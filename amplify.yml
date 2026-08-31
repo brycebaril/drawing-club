@@ -1,0 +1,27 @@
+version: 1
+# Amplify Hosting build spec — see docs/StagingEnvironment.md for the full
+# setup this supports. Deliberately does NOT run `pnpm seed` or any data
+# reset here: schema migrations are safe (and necessary) to run on every
+# build so the deployed code never runs against a stale schema, but
+# resetting/seeding data is a deliberate, occasional action a human
+# triggers on purpose (see the doc's "reset flows" section) — never
+# something that should fire silently on every push and wipe an
+# in-progress migration rehearsal or manual test setup.
+frontend:
+  phases:
+    preBuild:
+      commands:
+        - corepack enable
+        - pnpm install --frozen-lockfile
+        - pnpm exec node-pg-migrate up
+    build:
+      commands:
+        - pnpm build
+  artifacts:
+    baseDirectory: .next
+    files:
+      - '**/*'
+  cache:
+    paths:
+      - .next/cache/**/*
+      - node_modules/**/*

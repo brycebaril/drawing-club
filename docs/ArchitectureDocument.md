@@ -29,7 +29,7 @@ This document specifies how the system described in `DesignDocument.md` and `Sit
 Three environments, mapped to Amplify branch deploys:
 
 * **dev** — tracks a development branch, ephemeral/disposable data.
-* **staging** — pre-production; this is the rehearsal target for the legacy data migration import described in `MigrationPlan.md` before any production cutover. Any data seeded here from production (post-launch) must be anonymized first — see `SecurityDocument.md` §6 on the GDPR-relevant handling of member data.
+* **staging** — pre-production; this is the rehearsal target for the legacy data migration import described in `MigrationPlan.md` before any production cutover. Any data seeded here from production (post-launch) must be anonymized first — see `SecurityDocument.md` §6 on the GDPR-relevant handling of member data. **Provisioned** — see `StagingEnvironment.md` for the concrete setup, what's deliberately scoped down vs. this document's full target architecture (no SES, no RDS Proxy, no custom domain), and the operational runbook (deploys, resets, reaching the database).
 * **prod** — the production branch; deploys require passing CI checks (type-check, lint, test suite) before merge.
 
 ## **5. Local Development**
