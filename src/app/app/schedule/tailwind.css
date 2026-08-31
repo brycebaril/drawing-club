@@ -36,6 +36,17 @@
 @theme {
   --color-brand: var(--color-accent);
   --color-brand-strong: var(--color-accent-hover);
+  /* Body/link-sized terracotta text — --color-brand itself is only tuned
+     for large text/UI chrome (~3:1 against the paper ground), not
+     paragraph-sized text (globals.css's --color-link has the fuller
+     reasoning). Named differently from the globals.css property it
+     aliases (same reasoning as brand/canvas/panel/ink/line above — aliasing
+     a Tailwind theme key to the identically-named custom property compiles
+     to an unresolvable self-reference). Use text-linktext (and
+     hover:text-linktext-hover) for inline link-style text on this page,
+     not text-brand. */
+  --color-linktext: var(--color-link);
+  --color-linktext-hover: var(--color-link-hover);
   --color-canvas: var(--color-bg);
   --color-panel: var(--color-surface);
   --color-ink: var(--color-text);
@@ -105,4 +116,17 @@
 }
 .agenda-filter-scope:has(#agenda-filter-open:checked) .agenda-day:not(:has(.agenda-row[data-open="true"])) {
   display: none;
+}
+
+/* Reveals ScheduleAgenda.tsx's "nothing matches this filter" messages —
+   :has(.agenda-day) guards against also firing when the week is genuinely
+   empty (that case has its own message, computed server-side, unrelated to
+   which filter is checked), so the two messages never show at once. */
+.agenda-filter-scope:has(#agenda-filter-mine:checked):has(.agenda-day):not(:has(.agenda-row[data-mine="true"]))
+  .agenda-empty-filter--mine {
+  display: block;
+}
+.agenda-filter-scope:has(#agenda-filter-open:checked):has(.agenda-day):not(:has(.agenda-row[data-open="true"]))
+  .agenda-empty-filter--open {
+  display: block;
 }

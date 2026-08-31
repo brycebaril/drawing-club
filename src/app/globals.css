@@ -16,6 +16,21 @@
   --color-border: color-mix(in srgb, #201e1d 16%, transparent);
   --color-accent: #c67139;
   --color-accent-hover: #b2622d;
+  /* Body-sized terracotta text — the Organic system's own readme is explicit
+     that --color-accent itself (~3:1 against this ground) is "enough for
+     icons, large text and interface chrome, not for body copy," and
+     prescribes a 700-deep ramp step instead for anything paragraph/link
+     sized. --color-accent-hover (accent-600, ~3.6:1) turned out to fail the
+     same 4.5:1 AA threshold when used as hover-state text, not just the
+     base color — confirmed by calculation, not assumed — hence a separate,
+     darker pair here rather than reusing --color-accent/-hover for text.
+     Same literal value as --color-accent-text/--color-alert-text
+     (both already accent-700) — kept as its own token rather than aliased
+     to either, since those two are scoped to specific badge/tint contexts
+     and shouldn't be coupled to "the site's link color" changing for an
+     unrelated reason later. */
+  --color-link: #8c491a;
+  --color-link-hover: #643312;
   --color-danger: #a8402a;
   --color-danger-hover: #8a3220;
   /* "Needs attention" tint — terracotta-family, not amber, matching the
@@ -191,7 +206,7 @@ p {
 }
 
 a {
-  color: var(--color-accent);
+  color: var(--color-link);
   text-decoration: underline;
   text-decoration-color: transparent;
   transition: text-decoration-color 0.15s ease;
@@ -235,7 +250,7 @@ nav a {
 }
 
 nav a:hover {
-  color: var(--color-accent);
+  color: var(--color-link);
 }
 
 /* ---- Tables ---- */
@@ -479,7 +494,7 @@ tbody tr:hover {
 .grid-cell--empty:hover {
   border-color: var(--color-accent);
   border-style: solid;
-  color: var(--color-accent);
+  color: var(--color-link);
 }
 
 /* ---- Forms ---- */
@@ -728,7 +743,7 @@ button:disabled {
 
 .staff-menu summary:hover,
 .staff-menu[open] summary {
-  color: var(--color-accent);
+  color: var(--color-link);
 }
 
 .staff-menu-panel {
@@ -825,14 +840,14 @@ button:disabled {
   padding: 0;
   border: none;
   background: none;
-  color: var(--color-accent);
+  color: var(--color-link);
   font-size: inherit;
   text-decoration: underline;
   cursor: pointer;
 }
 
 .link-button:hover {
-  color: var(--color-accent-hover);
+  color: var(--color-link-hover);
 }
 
 /* ---- Media picker (src/components/cms/MediaPickerModal.tsx) ---- */
@@ -897,7 +912,7 @@ button:disabled {
 }
 
 .segmented-btn--active {
-  color: var(--color-accent);
+  color: var(--color-link);
   border-bottom-color: var(--color-accent);
 }
 

@@ -383,6 +383,10 @@ test("paging the schedule grid forward never widens an Account Holder's booking 
   await expect(lockedCell).toContainText(/Opens \w/);
 
   await page.goto(`/app/schedule?session_id=${created.id}&week=${created.weekOffset}`);
-  await expect(page.getByText("Not yet bookable for your account tier.")).toBeVisible();
+  await expect(page.getByText("Not yet bookable for your account tier")).toBeVisible();
+  // The "membership pitch" the design doc names for a Locked cell's own
+  // "Opens {date}" line — this is the modal-side half of it: a real link,
+  // not just implied copy.
+  await expect(page.getByRole("link", { name: "members book further ahead" })).toHaveAttribute("href", "/pricing");
   await expect(page.getByRole("button", { name: "Book (uses 1 ticket)" })).toHaveCount(0);
 });

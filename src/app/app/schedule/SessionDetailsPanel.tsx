@@ -66,7 +66,14 @@ export function SessionDetailsPanel({
       <div className="space-y-5 p-6">
         {status === "TooFarFuture" && (
           <div className="flex items-center gap-2 rounded-lg bg-canvas p-3 text-sm font-medium text-ink">
-            <Info className="h-4 w-4 shrink-0" /> Not yet bookable for your account tier.
+            <Info className="h-4 w-4 shrink-0" />
+            <span>
+              Not yet bookable for your account tier —{" "}
+              <a href="/pricing" className="text-linktext hover:text-linktext-hover hover:underline">
+                members book further ahead
+              </a>
+              .
+            </span>
           </div>
         )}
         {needsModel && (

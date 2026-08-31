@@ -104,7 +104,7 @@ export async function SeriesPanel({
                 ) : (
                   <a
                     href={`?session_id=${clickedSessionId}&seat=${row.seatNumber}`}
-                    className="font-medium text-brand hover:text-brand-strong hover:underline"
+                    className="font-medium text-linktext hover:text-linktext-hover hover:underline"
                   >
                     Seat {row.seatNumber} (
                     {row.status === "FullSeriesAvailable" ? "all dates open" : "some dates open"})
