@@ -20,7 +20,7 @@ what the AWS side needs to match.
 | Component | Status | Why |
 | :--- | :--- | :--- |
 | Amplify Hosting | Provisioned | Tracks the `staging` git branch; auto-builds on push via `amplify.yml` at the repo root. |
-| RDS for PostgreSQL 16 | Provisioned | `db.t4g.micro`, single-AZ, private subnet, not publicly accessible. Matches `docker-compose.yml`'s Postgres major version. |
+| RDS for PostgreSQL 18 | Provisioned | `db.t4g.micro`, single-AZ, private subnet, not publicly accessible. Matches `docker-compose.yml`'s Postgres major version — deliberately chosen to be the same everywhere (local dev, CI, staging) rather than picking one version for staging in isolation, since a version skew between environments is exactly the "works locally, breaks in staging" risk this setup is trying to avoid. |
 | S3 | Provisioned | One bucket for CMS uploads, public-read only on object `GetObject`, not the bucket itself. |
 | SES (email) | **Not provisioned** | Staging uses the app's existing console-log fallback (`src/lib/email/sender.ts`) instead of sending real email. No SES setup, no sandbox-approval wait. If a change ever needs to prove real delivery, that's a deliberate future addition, not a staging default. |
 | Custom domain | **Not provisioned** | Staging is reachable at Amplify's own default URL (`https://staging.<app-id>.amplifyapp.com`). No DNS/Route 53 work for an internal rehearsal environment. |

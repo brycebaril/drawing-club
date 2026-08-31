@@ -1,6 +1,6 @@
 services:
   db:
-    image: postgres:16-alpine
+    image: postgres:18-alpine
     restart: unless-stopped
     environment:
       POSTGRES_USER: drawing_club
@@ -9,7 +9,11 @@ services:
     ports:
       - "5432:5432"
     volumes:
-      - db-data:/var/lib/postgresql/data
+      # Postgres 18's official image expects a single mount at
+      # /var/lib/postgresql (it manages its own major-version-specific
+      # subdirectory underneath) rather than the pre-18 convention of
+      # mounting straight at /var/lib/postgresql/data.
+      - db-data:/var/lib/postgresql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U drawing_club"]
       interval: 5s
