@@ -23,6 +23,17 @@ frontend:
         - pnpm exec node-pg-migrate up
     build:
       commands:
+        # Amplify only injects Console/branch-configured env vars at build
+        # time, never into the SSR runtime that actually serves requests
+        # (confirmed against AWS's own docs) — the app needs these at
+        # request time (DB pool, auth, uploads), so they have to be written
+        # into a real .env file before `pnpm build` runs. This targets plain
+        # .env, not the AWS-doc-recommended .env.production: verified
+        # directly against this app's `output: "standalone"` build that
+        # Next's standalone bundler copies the literal .env file into
+        # .next/standalone/.env (and only that file, not .env.production),
+        # and that the generated server.js loads it at startup.
+        - env | grep -e '^APP_ENV=' -e '^DATABASE_URL=' -e '^NEXTAUTH_SECRET=' -e '^NEXTAUTH_URL=' -e '^STRIPE_SECRET_KEY=' -e '^STRIPE_PUBLISHABLE_KEY=' -e '^STRIPE_WEBHOOK_SECRET=' -e '^S3_BUCKET_NAME=' -e '^JOB_TRIGGER_SECRET=' -e '^ORG_LEGAL_NAME=' -e '^ORG_DBA_NAME=' -e '^CONTACT_FORM_RECIPIENT_EMAIL=' -e '^AWS_REGION=' -e '^SES_FROM_EMAIL=' >> .env
         - pnpm build
   artifacts:
     baseDirectory: .next
