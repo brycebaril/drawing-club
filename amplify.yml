@@ -12,7 +12,14 @@ frontend:
     preBuild:
       commands:
         - corepack enable
-        - pnpm install --frozen-lockfile
+        # node-linker=hoisted (flat node_modules, no .pnpm virtual store /
+        # symlinks) is scoped to this build only — Amplify Hosting's SSR
+        # compute packages the app into a Lambda deployment, and pnpm's
+        # default symlinked node_modules doesn't survive that move (symlinks
+        # point at absolute build-machine paths). Local dev/CI don't hit
+        # this — they run node_modules in place, never repackaged elsewhere
+        # — so this flag is deliberately not a repo-wide .npmrc change.
+        - pnpm install --frozen-lockfile --config.node-linker=hoisted
         - pnpm exec node-pg-migrate up
     build:
       commands:

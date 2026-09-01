@@ -20,7 +20,7 @@ what the AWS side needs to match.
 | Component | Status | Why |
 | :--- | :--- | :--- |
 | Amplify Hosting | Provisioned | Tracks the `staging` git branch; auto-builds on push via `amplify.yml` at the repo root. |
-| RDS for PostgreSQL 18 | Provisioned | `db.t4g.micro`, single-AZ, private subnet, not publicly accessible. Matches `docker-compose.yml`'s Postgres major version — deliberately chosen to be the same everywhere (local dev, CI, staging) rather than picking one version for staging in isolation, since a version skew between environments is exactly the "works locally, breaks in staging" risk this setup is trying to avoid. |
+| RDS for PostgreSQL 18 | Provisioned | `db.t4g.micro`, single-AZ, **publicly accessible** (see "A real gap worth knowing about: network exposure" below — this was not the original design). Matches `docker-compose.yml`'s Postgres major version — deliberately chosen to be the same everywhere (local dev, CI, staging) rather than picking one version for staging in isolation, since a version skew between environments is exactly the "works locally, breaks in staging" risk this setup is trying to avoid. |
 | S3 | Provisioned | One bucket for CMS uploads, public-read only on object `GetObject`, not the bucket itself. |
 | SES (email) | **Not provisioned** | Staging uses the app's existing console-log fallback (`src/lib/email/sender.ts`) instead of sending real email. No SES setup, no sandbox-approval wait. If a change ever needs to prove real delivery, that's a deliberate future addition, not a staging default. |
 | Custom domain | **Not provisioned** | Staging is reachable at Amplify's own default URL (`https://staging.<app-id>.amplifyapp.com`). No DNS/Route 53 work for an internal rehearsal environment. |
@@ -48,6 +48,33 @@ fetched by the running app.
 Closing this gap for real (the app reading secrets from Secrets Manager at runtime) is a
 deliberate future hardening task, not something this doc's setup silently papers over.
 
+## A real gap worth knowing about: network exposure
+
+The original design (and this doc's earlier draft) called for RDS to sit in a private subnet,
+reachable only via a VPC-attached compute path. That turned out not to be buildable:
+**AWS Amplify Hosting's SSR compute has no VPC integration** — no subnet/security-group
+attachment point exists anywhere in the Amplify API (confirmed by exhausting every `aws amplify`
+CLI command's parameters, and independently corroborated by the complete absence of any current
+documentation describing one — the only related source found is a 2022 APN blog post working
+around the same gap, not a real integration). Amplify's compute simply cannot reach a database
+sitting in a private subnet.
+
+Given that, and given the alternatives (moving staging's compute off Amplify Hosting onto a
+VPC-attachable service like App Runner/Fargate — defeats the point of staging as a same-stack
+rehearsal environment; or migrating to Aurora Serverless + the HTTP-based Data API — a real
+engine change and app-layer rewrite of the raw-`pg` data layer, far beyond what "stand up
+staging" calls for), the pragmatic call for staging specifically is: **RDS is publicly
+accessible**, gated by its Secrets-Manager-managed master password (rotated at setup) rather
+than network isolation. The security group (`drawing-club-staging-rds-sg`) allows inbound `5432`
+from `0.0.0.0/0` — AWS doesn't publish a scoped IP range for Amplify's compute, so there's no
+narrower CIDR to restrict this to.
+
+**This is a real, deliberate trade-off, not an oversight** — worth revisiting if staging ever
+holds data more sensitive than disposable rehearsal data, or if AWS ships real Amplify↔VPC
+integration later. It does not change anything about production's own architecture — this gap is
+specific to how *this staging environment* was provisioned, not a statement that production
+should also expose its database.
+
 ## How deploys work
 
 Amplify Hosting tracks the `staging` branch. Every push to it triggers a build using
@@ -64,18 +91,20 @@ in-progress migration rehearsal or manual test setup the moment anyone merges an
 
 ## Reaching the database
 
-The RDS instance is not publicly accessible — there's no public IP, no security group opened to
-your workstation's address. For any ad-hoc admin work (running `pnpm seed`, a migration
-rehearsal, or just `psql`), use **AWS Systems Manager Session Manager port forwarding** through a
-bastion (or an EC2 instance with the SSM agent, or Session Manager's own instance-less tunneling
-if the account has it enabled) to forward a local port to the RDS instance's `5432`. Once the
-tunnel is up, point `DATABASE_URL` at `postgres://<user>:<password>@localhost:<forwarded-port>/<db>`
-for whichever script you're running — the scripts themselves (`pnpm seed`,
-`pnpm migrate-legacy-data`, `pnpm migrate`) don't care whether `DATABASE_URL` points at Docker
-Compose or a tunneled RDS instance.
+Per the network-exposure trade-off above, RDS is directly reachable at its endpoint — no tunnel
+needed. For any ad-hoc admin work (running `pnpm seed`, a migration rehearsal, or just `psql`),
+point `DATABASE_URL` straight at
+`postgres://<user>:<password>@<rds-endpoint>:5432/postgres` (pull the current password from
+Secrets Manager — the secret named `rds!db-...` under the RDS instance's own console page, or
+`aws secretsmanager get-secret-value`) for whichever script you're running.
 
-This deliberately avoids ever making the database publicly reachable, even temporarily, to run a
-one-off script.
+**Treat that connection string with real care** — it's a live credential to a publicly reachable
+database. Don't paste it into a chat/AI tool transcript, a shared doc, or a log that isn't
+access-controlled; if it's ever exposed, rotate it immediately (RDS console → the instance →
+Secrets Manager → the secret → "Rotate secret immediately", or
+`aws rds modify-db-instance --rotate-master-user-password`) and every existing session using the
+old password will need reconnecting with the new one, Amplify's own `DATABASE_URL` env var
+included.
 
 ## Reset flows
 

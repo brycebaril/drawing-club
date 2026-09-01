@@ -23,6 +23,14 @@ if (!process.env.GIT_SHA) {
 }
 
 const nextConfig: NextConfig = {
+  // Amplify Hosting's SSR compute bundling tries to replicate pnpm's
+  // symlinked node_modules/.pnpm virtual-store structure into the Lambda
+  // deployment package and fails ("ln: ... Read-only file system", then
+  // "Cannot find module .../@swc/helpers/..." at runtime). `standalone`
+  // sidesteps this: Next's own output-file-tracer copies (not symlinks)
+  // only the files each route actually needs into .next/standalone, which
+  // Amplify can package directly without touching pnpm's store layout.
+  output: "standalone",
   experimental: {
     // Server Actions default to a 1MB request body limit — far under
     // MAX_UPLOAD_SIZE_BYTES (src/app/ops/cms/uploads/actions.ts's own cap),
