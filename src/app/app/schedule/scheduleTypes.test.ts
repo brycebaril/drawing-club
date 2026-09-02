@@ -10,6 +10,7 @@ const BASE: GridCellData = {
   startTime: new Date("2026-08-25T17:00:00.000Z"), // 10:00 AM PT in most test envs isn't guaranteed —
   endTime: new Date("2026-08-25T20:00:00.000Z"), //   assertions below only check the parts that don't depend on TZ.
   hostUsername: null,
+  hostDisplayName: null,
   modelRequired: true,
   modelNames: null,
   bookedCount: 3,
@@ -44,6 +45,12 @@ describe("describeCellTooltip", () => {
   it("shows the host username, or an 'Open' fallback", () => {
     expect(describeCellTooltip({ ...BASE, hostUsername: "alex" })).toContain("Host: alex");
     expect(describeCellTooltip(BASE)).toContain("Host: Open — needs a host");
+  });
+
+  it("prefers the host's display name over their username when both are known", () => {
+    expect(
+      describeCellTooltip({ ...BASE, hostUsername: "alex.smith47", hostDisplayName: "Alex Smith" }),
+    ).toContain("Host: Alex Smith");
   });
 
   it("shows booked/capacity", () => {

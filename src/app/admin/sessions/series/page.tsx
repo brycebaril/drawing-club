@@ -3,12 +3,14 @@ import { pool } from "@/lib/db/pool";
 import { SiteNav } from "@/components/SiteNav";
 import { cancelSeriesFromListAction } from "./actions";
 import { ORG_TIMEZONE } from "@/lib/org";
+import { memberLabel } from "@/lib/users/memberLabel";
 
 interface SeriesRow {
   id: string;
   name: string;
   seat_count: number;
   host_username: string | null;
+  host_display_name: string | null;
   start_date: Date | null;
   end_date: Date | null;
   total_count: string;
@@ -22,6 +24,9 @@ export default async function SeriesListPage() {
             (SELECT u.username FROM sessions s2
              JOIN users u ON u.id = s2.host_user_id
              WHERE s2.series_id = sr.id ORDER BY s2.start_time ASC LIMIT 1) AS host_username,
+            (SELECT u.display_name FROM sessions s2
+             JOIN users u ON u.id = s2.host_user_id
+             WHERE s2.series_id = sr.id ORDER BY s2.start_time ASC LIMIT 1) AS host_display_name,
             min(s.start_time) AS start_date, max(s.start_time) AS end_date,
             count(s.id) AS total_count,
             count(s.id) FILTER (WHERE s.status = 'Scheduled' AND s.start_time > now()) AS upcoming_count,
@@ -66,7 +71,7 @@ export default async function SeriesListPage() {
                   )}
                 </td>
                 <td>{series.seat_count}</td>
-                <td>{series.host_username ?? "Open — needs a host"}</td>
+                <td>{series.host_username ? memberLabel(series.host_display_name, series.host_username) : "Open — needs a host"}</td>
                 <td>
                   {series.start_date ? new Date(series.start_date).toLocaleDateString("en-US", { timeZone: ORG_TIMEZONE }) : "—"}
                   {" – "}

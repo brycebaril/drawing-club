@@ -1,6 +1,7 @@
 import type { SessionStatus } from "@/lib/booking/sessionStatus";
 import { ORG_TIMEZONE } from "@/lib/org";
 import { orgDateParts } from "@/lib/timezone";
+import { memberLabel } from "@/lib/users/memberLabel";
 
 export interface SessionTypeInfo {
   label: string;
@@ -39,6 +40,7 @@ export interface GridCellData {
   startTime: Date;
   endTime: Date;
   hostUsername: string | null;
+  hostDisplayName: string | null;
   modelRequired: boolean;
   modelNames: string | null;
   bookedCount: number;
@@ -95,7 +97,7 @@ export function describeCellTooltip(cell: GridCellData): string {
   return [
     `${name} · ${timeRange}`,
     `Model: ${describeModel(cell)}`,
-    `Host: ${cell.hostUsername ?? "Open — needs a host"}`,
+    `Host: ${cell.hostUsername ? memberLabel(cell.hostDisplayName, cell.hostUsername) : "Open — needs a host"}`,
     `${cell.bookedCount}/${cell.maxCapacity} booked`,
   ].join("\n");
 }

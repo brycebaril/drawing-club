@@ -9,6 +9,8 @@ import { resolvePrice, isPurchasableItem, type PurchasableItem } from "@/lib/pay
 import { pool } from "@/lib/db/pool";
 import { writeAuditLog } from "@/lib/audit/log";
 import { sendEmail } from "@/lib/email/sender";
+import { isValidEmail } from "@/lib/validation/email";
+import { isInviteRateLimited, recordInviteAttempt } from "@/lib/auth/rateLimit";
 
 export interface CreateCheckoutSessionState {
   error?: string;
@@ -120,19 +122,19 @@ export async function sharePassAction(
   }
 
   const passId = String(formData.get("passId") ?? "");
-  const recipientUsername = String(formData.get("recipientUsername") ?? "").trim();
+  const recipientUserId = String(formData.get("recipientUserId") ?? "").trim();
   const note = String(formData.get("note") ?? "").trim();
 
-  if (!recipientUsername) {
-    return { error: "Enter the username of who you want to share this ticket with." };
+  if (!recipientUserId) {
+    return { error: "Search for and select who you want to share this ticket with." };
   }
 
   const recipientRow = await pool.query<{ id: string; email: string }>(
-    `SELECT id, email FROM users WHERE username = $1`,
-    [recipientUsername],
+    `SELECT id, email FROM users WHERE id = $1`,
+    [recipientUserId],
   );
   if (recipientRow.rowCount === 0) {
-    return { error: "No member found with that username." };
+    return { error: "That member couldn't be found." };
   }
   const recipient = recipientRow.rows[0];
   if (recipient.id === ctx.id) {
@@ -181,7 +183,7 @@ export async function sharePassAction(
     actorId: ctx.id,
     actionType: "PASS_SHARE_SENT",
     targetUserId: recipient.id,
-    metadata: { passId, recipientUsername },
+    metadata: { passId, recipientUserId },
   });
 
   const baseUrl = process.env.NEXTAUTH_URL ?? "http://localhost:3000";
@@ -193,6 +195,67 @@ export async function sharePassAction(
 
   revalidatePath("/app/wallet");
   redirect("/app/wallet");
+}
+
+export interface InviteMemberState {
+  success?: boolean;
+  error?: string;
+}
+
+/**
+ * Invites an email address that doesn't match any existing member to
+ * register, so a ticket can be shared to them once they have — called
+ * imperatively from MemberPicker (not via <form action>), matching
+ * NewsPostForm.tsx's uploadFileAction precedent for a Server Action invoked
+ * directly from client code. Deliberately decoupled from any pass state: no
+ * token, nothing to redeem, no pending-ownerless-pass shape (see
+ * sharePassAction's own doc comment on why owner_id never goes null) — the
+ * sender just re-shares normally once the invitee has an account. The
+ * accepted cost: if they register under a different email than invited,
+ * the sender has to search for them again by name/username afterward.
+ */
+export async function inviteMemberByEmailAction(
+  _prevState: InviteMemberState,
+  formData: FormData,
+): Promise<InviteMemberState> {
+  const session = await auth();
+  if (!session?.user?.id) redirect("/auth/login?redirect=/app/wallet");
+
+  const ctx = await getUserAuthContext(session.user.id);
+  if (!ctx || ctx.status !== "Active") redirect("/auth/login");
+  if (!ctx.emailVerified) {
+    return { error: "Verify your email before inviting someone." };
+  }
+
+  const email = String(formData.get("email") ?? "").trim();
+  if (!isValidEmail(email)) {
+    return { error: "Enter a valid email address." };
+  }
+
+  const existing = await pool.query(`SELECT id FROM users WHERE lower(email) = lower($1)`, [email]);
+  if ((existing.rowCount ?? 0) > 0) {
+    return { error: "That email already belongs to a member — search for their name or username instead." };
+  }
+
+  if (await isInviteRateLimited(ctx.id)) {
+    return { error: "Too many invites sent recently — try again later." };
+  }
+  await recordInviteAttempt(ctx.id, email);
+
+  const baseUrl = process.env.NEXTAUTH_URL ?? "http://localhost:3000";
+  await sendEmail({
+    to: email,
+    subject: `${ctx.username} wants to share a session ticket with you`,
+    body: `Hi,\n\n${ctx.username} wants to share a session ticket with you, but you don't have an account yet.\n\nRegister here to get started:\n${baseUrl}/auth/register?email=${encodeURIComponent(email)}\n\nOnce you've registered, let ${ctx.username} know so they can share the ticket to your account.`,
+  });
+
+  await writeAuditLog({
+    actorId: ctx.id,
+    actionType: "PASS_SHARE_INVITE_SENT",
+    metadata: { invitedEmail: email },
+  });
+
+  return { success: true };
 }
 
 export interface TransferActionState {

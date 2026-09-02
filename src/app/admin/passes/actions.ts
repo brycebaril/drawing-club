@@ -29,15 +29,15 @@ export async function createBatchAction(
   if (!ctx) return { error: "Not authorized." };
 
   const organizationName = String(formData.get("organizationName") ?? "").trim();
-  const ownerUsername = String(formData.get("ownerUsername") ?? "").trim();
+  const ownerUserId = String(formData.get("ownerUserId") ?? "").trim();
   const quantity = Number(formData.get("quantity"));
   const effectivePrice = Number(formData.get("effectivePrice"));
 
   if (!organizationName) {
     return { error: "Organization name is required." };
   }
-  if (!ownerUsername) {
-    return { error: "Owner username is required." };
+  if (!ownerUserId) {
+    return { error: "Search for and select the batch owner." };
   }
   if (!Number.isInteger(quantity) || quantity < 1 || quantity > 100) {
     return { error: "Quantity must be a whole number between 1 and 100." };
@@ -46,13 +46,15 @@ export async function createBatchAction(
     return { error: "Effective price must be a non-negative number." };
   }
 
-  const ownerRow = await pool.query<{ id: string }>(`SELECT id FROM users WHERE username = $1`, [
-    ownerUsername,
-  ]);
+  const ownerRow = await pool.query<{ id: string; username: string }>(
+    `SELECT id, username FROM users WHERE id = $1`,
+    [ownerUserId],
+  );
   if (ownerRow.rowCount === 0) {
-    return { error: "No member found with that username." };
+    return { error: "That member couldn't be found." };
   }
   const ownerId = ownerRow.rows[0].id;
+  const ownerUsername = ownerRow.rows[0].username;
 
   const client = await pool.connect();
   let batchId: string;

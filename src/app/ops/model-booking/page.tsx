@@ -5,6 +5,7 @@ import { SiteNav } from "@/components/SiteNav";
 import { unassignModelAction, setModelRequiredAction } from "./actions";
 import { AssignModelForm } from "./AssignModelForm";
 import { ORG_TIMEZONE } from "@/lib/org";
+import { memberLabel } from "@/lib/users/memberLabel";
 
 interface AssignedModel {
   id: string;
@@ -16,6 +17,7 @@ interface SessionRow {
   session_type: string;
   start_time: Date;
   host_username: string | null;
+  host_display_name: string | null;
   model_required: boolean;
   assigned_models: AssignedModel[];
 }
@@ -37,7 +39,7 @@ export default async function ModelBookingPage({
   const showAll = filter === "all";
 
   const sessionsResult = await pool.query<SessionRow>(
-    `SELECT s.id, s.session_type, s.start_time, u.username AS host_username, s.model_required,
+    `SELECT s.id, s.session_type, s.start_time, u.username AS host_username, u.display_name AS host_display_name, s.model_required,
             COALESCE(json_agg(json_build_object('id', m.id, 'name', m.name))
                      FILTER (WHERE m.id IS NOT NULL), '[]') AS assigned_models
      FROM sessions s
@@ -87,7 +89,7 @@ export default async function ModelBookingPage({
             <tr key={session.id}>
               <td>{new Date(session.start_time).toLocaleString("en-US", { timeZone: ORG_TIMEZONE })}</td>
               <td>{session.session_type}</td>
-              <td>{session.host_username ?? "Open"}</td>
+              <td>{session.host_username ? memberLabel(session.host_display_name, session.host_username) : "Open"}</td>
               <td>
                 {!session.model_required ? (
                   "Not required"

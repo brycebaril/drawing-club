@@ -26,17 +26,20 @@ export interface SessionDetail {
   max_capacity: number;
   status: "Scheduled" | "Canceled";
   host_username: string | null;
+  host_display_name: string | null;
   recurrence_rule_id: string | null;
   series_id: string | null;
 }
 
 export interface AttendeeRow {
   username: string;
+  display_name: string | null;
 }
 
 export interface SeatRow {
   seat_number: number;
   username: string;
+  display_name: string | null;
 }
 
 export interface SessionDetailData {
@@ -62,7 +65,7 @@ export async function getSessionDetail(sessionId: string): Promise<SessionDetail
 
   const sessionResult = await pool.query<SessionDetail>(
     `SELECT s.id, s.session_type, s.description, s.start_time, s.end_time, s.max_capacity, s.status,
-            u.username AS host_username, s.recurrence_rule_id, s.series_id
+            u.username AS host_username, u.display_name AS host_display_name, s.recurrence_rule_id, s.series_id
      FROM sessions s
      LEFT JOIN users u ON u.id = s.host_user_id
      WHERE s.id = $1`,
@@ -75,7 +78,7 @@ export async function getSessionDetail(sessionId: string): Promise<SessionDetail
   const attendeesResult = isSeries
     ? { rows: [] as AttendeeRow[] }
     : await pool.query<AttendeeRow>(
-        `SELECT u.username
+        `SELECT u.username, u.display_name
          FROM passes p
          JOIN users u ON u.id = p.owner_id
          WHERE p.session_id = $1 AND p.status = 'Used'
@@ -85,7 +88,7 @@ export async function getSessionDetail(sessionId: string): Promise<SessionDetail
 
   const seatsResult = isSeries
     ? await pool.query<SeatRow>(
-        `SELECT sr.seat_number, u.username
+        `SELECT sr.seat_number, u.username, u.display_name
          FROM seat_reservations sr
          JOIN users u ON u.id = sr.user_id
          WHERE sr.session_id = $1

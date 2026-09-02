@@ -4,10 +4,12 @@ import { requireOpsRole } from "@/lib/auth/requireOpsRole";
 import { SiteNav } from "@/components/SiteNav";
 import { describeTransactionItemType } from "@/lib/payments/pricing";
 import { ORG_TIMEZONE } from "@/lib/org";
+import { memberLabelWithUsername } from "@/lib/users/memberLabel";
 
 interface BatchTransactionRow {
   id: string;
   username: string | null;
+  display_name: string | null;
   item_type: string;
   amount_paid: string;
   processing_fee: string | null;
@@ -33,7 +35,7 @@ export default async function PayoutBatchDetailPage({
   if (!ctx) notFound();
 
   const result = await pool.query<BatchTransactionRow>(
-    `SELECT t.id, u.username, t.item_type, t.amount_paid, t.processing_fee, t.net_amount,
+    `SELECT t.id, u.username, u.display_name, t.item_type, t.amount_paid, t.processing_fee, t.net_amount,
             t.gateway_ref_id, t.created_at
      FROM transactions t
      LEFT JOIN users u ON u.id = t.user_id
@@ -69,7 +71,7 @@ export default async function PayoutBatchDetailPage({
         <tbody>
           {result.rows.map((row) => (
             <tr key={row.id}>
-              <td>{row.username ?? "—"}</td>
+              <td>{row.username ? memberLabelWithUsername(row.display_name, row.username) : "—"}</td>
               <td>{describeTransactionItemType(row.item_type)}</td>
               <td>${row.amount_paid}</td>
               <td>{row.processing_fee ? `$${row.processing_fee}` : "—"}</td>

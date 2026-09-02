@@ -47,7 +47,8 @@ test("a member shares a pass with a named recipient, who accepts it and becomes 
 
   await loginAsUser(page, sender);
   await page.goto("/app/wallet");
-  await page.getByPlaceholder("Recipient username").fill(recipient.username);
+  await page.getByPlaceholder("Search by name or username").fill(recipient.username);
+  await page.getByRole("option", { name: new RegExp(recipient.username) }).click();
   await page.getByPlaceholder("Note (optional)").fill("Happy drawing!");
   await page.getByRole("button", { name: "Share" }).click();
   await page.waitForURL("**/app/wallet");
@@ -76,7 +77,8 @@ test("a recipient can decline a pending transfer, returning the pass to the send
 
   await loginAsUser(page, sender);
   await page.goto("/app/wallet");
-  await page.getByPlaceholder("Recipient username").fill(recipient.username);
+  await page.getByPlaceholder("Search by name or username").fill(recipient.username);
+  await page.getByRole("option", { name: new RegExp(recipient.username) }).click();
   await page.getByRole("button", { name: "Share" }).click();
   await page.waitForURL("**/app/wallet");
   await expectPassRow(passId, { pending_recipient_id: recipient.id, status: "Assigned" });
@@ -97,7 +99,7 @@ test("a recipient can decline a pending transfer, returning the pass to the send
   await loginAsUser(page, sender);
   await page.goto("/app/wallet");
   await expect(page.getByText("Transferable tickets")).toBeVisible();
-  await expect(page.getByPlaceholder("Recipient username")).toBeVisible();
+  await expect(page.getByPlaceholder("Search by name or username")).toBeVisible();
 });
 
 test("a sender can cancel a pending share before the recipient responds", async ({ page }) => {
@@ -107,7 +109,8 @@ test("a sender can cancel a pending share before the recipient responds", async 
 
   await loginAsUser(page, sender);
   await page.goto("/app/wallet");
-  await page.getByPlaceholder("Recipient username").fill(recipient.username);
+  await page.getByPlaceholder("Search by name or username").fill(recipient.username);
+  await page.getByRole("option", { name: new RegExp(recipient.username) }).click();
   await page.getByRole("button", { name: "Share" }).click();
   await page.waitForURL("**/app/wallet");
   await expectPassRow(passId, { pending_recipient_id: recipient.id, status: "Assigned" });
@@ -125,16 +128,35 @@ test("a sender can cancel a pending share before the recipient responds", async 
   });
 });
 
-test("sharing a pass with a nonexistent username is rejected with a clear error", async ({ page }) => {
+test("searching for a nonexistent non-email name shows no results and keeps Share disabled", async ({ page }) => {
   const sender = await createTestUser({ username: `e2eshareinvalid${Date.now()}` });
   await createTransferablePass(sender.id);
 
   await loginAsUser(page, sender);
   await page.goto("/app/wallet");
-  await page.getByPlaceholder("Recipient username").fill("no-such-member-anywhere");
-  await page.getByRole("button", { name: "Share" }).click();
+  await page.getByPlaceholder("Search by name or username").fill("no-such-member-anywhere");
 
-  await expect(page.getByText("No member found with that username.")).toBeVisible();
+  await expect(page.getByText("No members found.")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Share" })).toBeDisabled();
+});
+
+test("inviting an unregistered email sends an invite without touching the ticket", async ({ page }) => {
+  const sender = await createTestUser({ username: `e2eshareinvite${Date.now()}` });
+  await createTransferablePass(sender.id);
+  const invitedEmail = `e2e-invite-${Date.now()}@example.test`;
+
+  await loginAsUser(page, sender);
+  await page.goto("/app/wallet");
+  await page.getByPlaceholder("Search by name or username").fill(invitedEmail);
+
+  await expect(page.getByText(`No member found. Invite ${invitedEmail} to join?`)).toBeVisible();
+  await page.getByRole("button", { name: `Invite ${invitedEmail}` }).click();
+
+  await expect(page.getByText(`Invited ${invitedEmail}`)).toBeVisible();
+  // Nothing was submitted — the ticket itself never left the sender's
+  // "Transferable tickets" table (invite is deliberately decoupled from
+  // any pass state, see inviteMemberByEmailAction's own doc comment).
+  await expect(page.getByRole("button", { name: "Share" })).toBeDisabled();
 });
 
 test("the recipient sees the notification banner on an unrelated page before visiting the wallet, and it clears after responding", async ({
@@ -146,7 +168,8 @@ test("the recipient sees the notification banner on an unrelated page before vis
 
   await loginAsUser(page, sender);
   await page.goto("/app/wallet");
-  await page.getByPlaceholder("Recipient username").fill(recipient.username);
+  await page.getByPlaceholder("Search by name or username").fill(recipient.username);
+  await page.getByRole("option", { name: new RegExp(recipient.username) }).click();
   await page.getByRole("button", { name: "Share" }).click();
   await page.waitForURL("**/app/wallet");
   await expectPassRow(passId, { pending_recipient_id: recipient.id, status: "Assigned" });

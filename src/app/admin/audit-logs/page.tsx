@@ -3,6 +3,7 @@ import { SiteNav } from "@/components/SiteNav";
 import { SortableTh } from "@/components/SortableTh";
 import { resolveSort } from "@/lib/sort";
 import { ORG_TIMEZONE } from "@/lib/org";
+import { memberLabelWithUsername } from "@/lib/users/memberLabel";
 
 const SORT_COLUMNS = {
   when: "l.created_at",
@@ -14,8 +15,10 @@ const SORT_COLUMNS = {
 interface AuditLogRow {
   id: string;
   actor_username: string | null;
+  actor_display_name: string | null;
   action_type: string;
   target_username: string | null;
+  target_display_name: string | null;
   metadata: Record<string, unknown> | null;
   created_at: Date;
 }
@@ -34,8 +37,8 @@ export default async function AdminAuditLogsPage({
   });
 
   const result = await pool.query<AuditLogRow>(
-    `SELECT l.id, actor.username AS actor_username, l.action_type,
-            target.username AS target_username, l.metadata, l.created_at
+    `SELECT l.id, actor.username AS actor_username, actor.display_name AS actor_display_name, l.action_type,
+            target.username AS target_username, target.display_name AS target_display_name, l.metadata, l.created_at
      FROM system_audit_logs l
      LEFT JOIN users actor ON actor.id = l.actor_id
      LEFT JOIN users target ON target.id = l.target_user_id
@@ -70,9 +73,9 @@ export default async function AdminAuditLogsPage({
           {result.rows.map((row) => (
             <tr key={row.id}>
               <td>{new Date(row.created_at).toLocaleString("en-US", { timeZone: ORG_TIMEZONE })}</td>
-              <td>{row.actor_username ?? "—"}</td>
+              <td>{row.actor_username ? memberLabelWithUsername(row.actor_display_name, row.actor_username) : "—"}</td>
               <td>{row.action_type}</td>
-              <td>{row.target_username ?? "—"}</td>
+              <td>{row.target_username ? memberLabelWithUsername(row.target_display_name, row.target_username) : "—"}</td>
               <td>
                 <code>{row.metadata ? JSON.stringify(row.metadata) : ""}</code>
               </td>

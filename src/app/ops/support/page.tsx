@@ -4,6 +4,7 @@ import { pool } from "@/lib/db/pool";
 import { requireOpsRole } from "@/lib/auth/requireOpsRole";
 import { SiteNav } from "@/components/SiteNav";
 import { ORG_TIMEZONE } from "@/lib/org";
+import { memberLabelWithUsername } from "@/lib/users/memberLabel";
 
 interface TicketRow {
   id: string;
@@ -11,6 +12,7 @@ interface TicketRow {
   status: string;
   last_message_at: Date;
   requester_username: string;
+  requester_display_name: string | null;
   needs_staff_reply: boolean;
 }
 
@@ -31,7 +33,7 @@ export default async function SupportInboxPage({
   const statusFilter = filter === "resolved" ? "Resolved" : filter === "all" ? null : "Open";
 
   const ticketsResult = await pool.query<TicketRow>(
-    `SELECT t.id, t.subject, t.status, t.last_message_at, u.username AS requester_username,
+    `SELECT t.id, t.subject, t.status, t.last_message_at, u.username AS requester_username, u.display_name AS requester_display_name,
             (t.status = 'Open' AND t.last_message_by_user_id = t.requester_user_id) AS needs_staff_reply
      FROM support_tickets t
      JOIN users u ON u.id = t.requester_user_id
@@ -73,7 +75,7 @@ export default async function SupportInboxPage({
                 {ticketsResult.rows.map((ticket) => (
                   <tr key={ticket.id}>
                     <td>{ticket.subject}</td>
-                    <td>{ticket.requester_username}</td>
+                    <td>{memberLabelWithUsername(ticket.requester_display_name, ticket.requester_username)}</td>
                     <td>{ticket.status}</td>
                     <td>{new Date(ticket.last_message_at).toLocaleString("en-US", { timeZone: ORG_TIMEZONE })}</td>
                     <td>

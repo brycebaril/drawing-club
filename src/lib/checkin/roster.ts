@@ -13,6 +13,7 @@ export interface CheckInSessionSummary {
   status: string;
   maxCapacity: number;
   hostUsername: string | null;
+  hostDisplayName: string | null;
   isSeries: boolean;
 }
 
@@ -21,6 +22,7 @@ export interface RosterRow {
   rowType: "pass" | "seat";
   userId: string;
   username: string;
+  displayName: string | null;
   seatNumber: number | null;
   checkedIn: boolean;
   isMember: boolean;
@@ -32,6 +34,7 @@ export interface CheckInNote {
   content: string;
   createdAt: Date;
   authorUsername: string;
+  authorDisplayName: string | null;
   baseRole: string;
   volunteerRoles: string[];
 }
@@ -65,16 +68,30 @@ export async function getCheckInRoster(sessionId: string): Promise<CheckInRoster
       [sessionId],
     ),
     isSeries
-      ? pool.query<{ id: string; user_id: string; username: string; seat_number: number | null; checked_in: boolean }>(
-          `SELECT sr.id, sr.user_id, u.username, sr.seat_number, sr.checked_in
+      ? pool.query<{
+          id: string;
+          user_id: string;
+          username: string;
+          display_name: string | null;
+          seat_number: number | null;
+          checked_in: boolean;
+        }>(
+          `SELECT sr.id, sr.user_id, u.username, u.display_name, sr.seat_number, sr.checked_in
            FROM seat_reservations sr
            JOIN users u ON u.id = sr.user_id
            WHERE sr.session_id = $1
            ORDER BY sr.seat_number`,
           [sessionId],
         )
-      : pool.query<{ id: string; user_id: string; username: string; seat_number: number | null; checked_in: boolean }>(
-          `SELECT p.id, p.owner_id AS user_id, u.username, NULL::integer AS seat_number, p.checked_in
+      : pool.query<{
+          id: string;
+          user_id: string;
+          username: string;
+          display_name: string | null;
+          seat_number: number | null;
+          checked_in: boolean;
+        }>(
+          `SELECT p.id, p.owner_id AS user_id, u.username, u.display_name, NULL::integer AS seat_number, p.checked_in
            FROM passes p
            JOIN users u ON u.id = p.owner_id
            WHERE p.session_id = $1 AND p.status = 'Used'
@@ -86,16 +103,17 @@ export async function getCheckInRoster(sessionId: string): Promise<CheckInRoster
       content: string;
       created_at: Date;
       author_username: string;
+      author_display_name: string | null;
       base_role: string;
       volunteer_roles: string[];
     }>(
-      `SELECT sn.id, sn.content, sn.created_at, u.username AS author_username, u.base_role,
+      `SELECT sn.id, sn.content, sn.created_at, u.username AS author_username, u.display_name AS author_display_name, u.base_role,
               COALESCE(array_agg(vr.role::text) FILTER (WHERE vr.role IS NOT NULL), '{}') AS volunteer_roles
        FROM session_notes sn
        JOIN users u ON u.id = sn.author_user_id
        LEFT JOIN volunteer_roles vr ON vr.user_id = u.id
        WHERE sn.session_id = $1
-       GROUP BY sn.id, sn.content, sn.created_at, u.username, u.base_role
+       GROUP BY sn.id, sn.content, sn.created_at, u.username, u.display_name, u.base_role
        ORDER BY sn.created_at DESC`,
       [sessionId],
     ),
@@ -145,6 +163,7 @@ export async function getCheckInRoster(sessionId: string): Promise<CheckInRoster
     rowType: isSeries ? "seat" : "pass",
     userId: r.user_id,
     username: r.username,
+    displayName: r.display_name,
     seatNumber: r.seat_number,
     checkedIn: r.checked_in,
     isMember: memberIds.has(r.user_id),
@@ -161,6 +180,7 @@ export async function getCheckInRoster(sessionId: string): Promise<CheckInRoster
       status: sessionRow.status,
       maxCapacity: sessionRow.maxCapacity,
       hostUsername: sessionRow.hostUsername,
+      hostDisplayName: sessionRow.hostDisplayName,
       isSeries,
     },
     modelName: modelResult.rows[0]?.name ?? null,
@@ -170,6 +190,7 @@ export async function getCheckInRoster(sessionId: string): Promise<CheckInRoster
       content: n.content,
       createdAt: n.created_at,
       authorUsername: n.author_username,
+      authorDisplayName: n.author_display_name,
       baseRole: n.base_role,
       volunteerRoles: n.volunteer_roles,
     })),
@@ -199,10 +220,11 @@ export async function getUpcomingCheckInSessions(): Promise<UpcomingCheckInSessi
     status: string;
     max_capacity: number;
     host_username: string | null;
+    host_display_name: string | null;
     series_id: string | null;
   }>(
     `SELECT s.id, s.session_type, s.description, s.start_time, s.end_time, s.status, s.max_capacity,
-            u.username AS host_username, s.series_id
+            u.username AS host_username, u.display_name AS host_display_name, s.series_id
      FROM sessions s
      LEFT JOIN users u ON u.id = s.host_user_id
      WHERE s.status = 'Scheduled' AND s.start_time >= now() AND s.start_time < now() + interval '7 days'
@@ -220,6 +242,7 @@ export async function getUpcomingCheckInSessions(): Promise<UpcomingCheckInSessi
     status: row.status,
     maxCapacity: row.max_capacity,
     hostUsername: row.host_username,
+    hostDisplayName: row.host_display_name,
     isSeries: row.series_id !== null,
   }));
 }

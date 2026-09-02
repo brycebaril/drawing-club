@@ -10,6 +10,7 @@ export interface CheckInSessionRow {
   status: string;
   maxCapacity: number;
   hostUsername: string | null;
+  hostDisplayName: string | null;
   seriesId: string | null;
 }
 
@@ -47,10 +48,11 @@ export async function requireCheckInAccess(sessionId: string): Promise<CheckInAc
     status: string;
     max_capacity: number;
     host_username: string | null;
+    host_display_name: string | null;
     series_id: string | null;
   }>(
     `SELECT s.host_user_id, s.session_type, s.description, s.start_time, s.end_time, s.status, s.max_capacity,
-            u.username AS host_username, s.series_id
+            u.username AS host_username, u.display_name AS host_display_name, s.series_id
      FROM sessions s
      LEFT JOIN users u ON u.id = s.host_user_id
      WHERE s.id = $1`,
@@ -73,6 +75,7 @@ export async function requireCheckInAccess(sessionId: string): Promise<CheckInAc
       status: row.status,
       maxCapacity: row.max_capacity,
       hostUsername: row.host_username,
+      hostDisplayName: row.host_display_name,
       seriesId: row.series_id,
     },
   };

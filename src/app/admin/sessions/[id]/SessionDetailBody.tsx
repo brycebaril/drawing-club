@@ -11,6 +11,7 @@ import {
 import { SessionDetailsEditForm } from "./SessionDetailsEditForm";
 import type { HostCandidate } from "@/lib/sessions/host";
 import { ORG_TIMEZONE } from "@/lib/org";
+import { memberLabel } from "@/lib/users/memberLabel";
 
 /**
  * Everything below the page heading on /admin/sessions/[id] — extracted so
@@ -46,7 +47,7 @@ export function SessionDetailBody({
       <p>
         {new Date(session.start_time).toLocaleString("en-US", { timeZone: ORG_TIMEZONE })} – {new Date(session.end_time).toLocaleTimeString("en-US", { timeZone: ORG_TIMEZONE })} ·
         Capacity {isSeries ? seats.length : attendees.length}/{session.max_capacity} · Host:{" "}
-        {session.host_username ?? "Open — needs a host"} · Status: {session.status}
+        {session.host_username ? memberLabel(session.host_display_name, session.host_username) : "Open — needs a host"} · Status: {session.status}
         {isRecurring && " · Recurring occurrence"}
         {isSeries && " · Series occurrence"}
       </p>
@@ -61,7 +62,7 @@ export function SessionDetailBody({
             <ul>
               {seats.map((s) => (
                 <li key={s.seat_number}>
-                  Seat {s.seat_number}: {s.username}
+                  Seat {s.seat_number}: {memberLabel(s.display_name, s.username)}
                 </li>
               ))}
             </ul>
@@ -75,7 +76,7 @@ export function SessionDetailBody({
           ) : (
             <ul>
               {attendees.map((a) => (
-                <li key={a.username}>{a.username}</li>
+                <li key={a.username}>{memberLabel(a.display_name, a.username)}</li>
               ))}
             </ul>
           )}

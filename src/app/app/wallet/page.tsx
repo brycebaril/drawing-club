@@ -7,6 +7,7 @@ import { ShareForm } from "./ShareForm";
 import { CancelTransferButton } from "./CancelTransferButton";
 import { AcceptDeclineButtons } from "./AcceptDeclineButtons";
 import { SiteNav } from "@/components/SiteNav";
+import { memberLabelWithUsername } from "@/lib/users/memberLabel";
 
 interface PassRow {
   id: string;
@@ -19,12 +20,14 @@ interface OutgoingTransferRow {
   id: string;
   share_note: string | null;
   recipient_username: string;
+  recipient_display_name: string | null;
 }
 
 interface IncomingTransferRow {
   id: string;
   share_note: string | null;
   sender_username: string | null;
+  sender_display_name: string | null;
 }
 
 export default async function WalletPage({
@@ -49,7 +52,7 @@ export default async function WalletPage({
   const transferablePasses = passResult.rows.filter((p) => p.is_transferable);
 
   const outgoingResult = await pool.query<OutgoingTransferRow>(
-    `SELECT p.id, p.share_note, u.username AS recipient_username
+    `SELECT p.id, p.share_note, u.username AS recipient_username, u.display_name AS recipient_display_name
      FROM passes p
      JOIN users u ON u.id = p.pending_recipient_id
      WHERE p.owner_id = $1 AND p.pending_recipient_id IS NOT NULL
@@ -58,7 +61,7 @@ export default async function WalletPage({
   );
 
   const incomingResult = await pool.query<IncomingTransferRow>(
-    `SELECT p.id, p.share_note, u.username AS sender_username
+    `SELECT p.id, p.share_note, u.username AS sender_username, u.display_name AS sender_display_name
      FROM passes p
      LEFT JOIN users u ON u.id = p.sender_user_id
      WHERE p.pending_recipient_id = $1
@@ -97,7 +100,7 @@ export default async function WalletPage({
               <tbody>
                 {incomingResult.rows.map((transfer) => (
                   <tr key={transfer.id}>
-                    <td>{transfer.sender_username ?? "—"}</td>
+                    <td>{transfer.sender_username ? memberLabelWithUsername(transfer.sender_display_name, transfer.sender_username) : "—"}</td>
                     <td>{transfer.share_note ?? "—"}</td>
                     <td>
                       <AcceptDeclineButtons passId={transfer.id} />
@@ -149,7 +152,7 @@ export default async function WalletPage({
                 <tr key={pass.id}>
                   <td>${pass.effective_price}</td>
                   <td>
-                    <ShareForm passId={pass.id} disabled={!ctx.emailVerified} />
+                    <ShareForm passId={pass.id} disabled={!ctx.emailVerified} senderUserId={ctx.id} />
                   </td>
                 </tr>
               ))}
@@ -174,7 +177,7 @@ export default async function WalletPage({
               <tbody>
                 {outgoingResult.rows.map((transfer) => (
                   <tr key={transfer.id}>
-                    <td>{transfer.recipient_username}</td>
+                    <td>{memberLabelWithUsername(transfer.recipient_display_name, transfer.recipient_username)}</td>
                     <td>{transfer.share_note ?? "—"}</td>
                     <td>
                       <CancelTransferButton passId={transfer.id} />

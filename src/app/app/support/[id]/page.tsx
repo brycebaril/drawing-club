@@ -5,6 +5,7 @@ import { pool } from "@/lib/db/pool";
 import { SiteNav } from "@/components/SiteNav";
 import { ReplyForm } from "@/components/support/ReplyForm";
 import { ORG_TIMEZONE } from "@/lib/org";
+import { memberLabelWithUsername } from "@/lib/users/memberLabel";
 
 interface TicketRow {
   id: string;
@@ -18,6 +19,7 @@ interface MessageRow {
   content: string;
   created_at: Date;
   author_username: string;
+  author_display_name: string | null;
 }
 
 export default async function MemberTicketPage({ params }: { params: Promise<{ id: string }> }) {
@@ -36,7 +38,7 @@ export default async function MemberTicketPage({ params }: { params: Promise<{ i
   if (ticket.requester_user_id !== session.user.id) notFound();
 
   const messagesResult = await pool.query<MessageRow>(
-    `SELECT sm.id, sm.content, sm.created_at, u.username AS author_username
+    `SELECT sm.id, sm.content, sm.created_at, u.username AS author_username, u.display_name AS author_display_name
      FROM support_ticket_messages sm
      JOIN users u ON u.id = sm.author_user_id
      WHERE sm.ticket_id = $1
@@ -57,7 +59,7 @@ export default async function MemberTicketPage({ params }: { params: Promise<{ i
         <ul>
           {messagesResult.rows.map((message) => (
             <li key={message.id}>
-              <strong>{message.author_username}</strong> — {new Date(message.created_at).toLocaleString("en-US", { timeZone: ORG_TIMEZONE })}
+              <strong>{memberLabelWithUsername(message.author_display_name, message.author_username)}</strong> — {new Date(message.created_at).toLocaleString("en-US", { timeZone: ORG_TIMEZONE })}
               <br />
               {message.content}
             </li>

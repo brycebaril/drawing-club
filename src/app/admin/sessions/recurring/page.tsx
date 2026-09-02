@@ -4,6 +4,7 @@ import { SiteNav } from "@/components/SiteNav";
 import { DAYS_OF_WEEK } from "@/lib/sessions/shared";
 import { cancelSeriesFromListAction, generateMoreSessionsAction } from "./actions";
 import { ORG_TIMEZONE } from "@/lib/org";
+import { memberLabel } from "@/lib/users/memberLabel";
 
 interface RuleRow {
   id: string;
@@ -14,13 +15,14 @@ interface RuleRow {
   start_date: Date;
   end_date: Date | null;
   host_username: string | null;
+  host_display_name: string | null;
   upcoming_count: string;
 }
 
 export default async function RecurringRulesPage() {
   const result = await pool.query<RuleRow>(
     `SELECT r.id, r.session_type, r.day_of_week, r.start_time_of_day, r.end_time_of_day,
-            r.start_date, r.end_date, h.username AS host_username,
+            r.start_date, r.end_date, h.username AS host_username, h.display_name AS host_display_name,
             (SELECT count(*) FROM sessions s
              WHERE s.recurrence_rule_id = r.id AND s.status = 'Scheduled' AND s.start_time > now()
             ) AS upcoming_count
@@ -67,7 +69,7 @@ export default async function RecurringRulesPage() {
                 </td>
                 <td>{new Date(rule.start_date).toLocaleDateString("en-US", { timeZone: ORG_TIMEZONE })}</td>
                 <td>{rule.end_date ? new Date(rule.end_date).toLocaleDateString("en-US", { timeZone: ORG_TIMEZONE }) : "Perpetual"}</td>
-                <td>{rule.host_username ?? "Open — needs a host"}</td>
+                <td>{rule.host_username ? memberLabel(rule.host_display_name, rule.host_username) : "Open — needs a host"}</td>
                 <td>{rule.upcoming_count}</td>
                 <td>{isEnded ? "Ended" : "Active"}</td>
                 <td>

@@ -5,6 +5,7 @@ import { getCheckInRoster, type CheckInRoster, type RosterRow } from "@/lib/chec
 import { setCheckedInAction } from "@/lib/checkin/actions";
 import { NoteForm } from "./NoteForm";
 import { ORG_TIMEZONE } from "@/lib/org";
+import { memberLabel } from "@/lib/users/memberLabel";
 
 const POLL_INTERVAL_MS = 10_000;
 
@@ -108,7 +109,7 @@ export function SessionRosterCard({
         <p className="section-note">
           {start.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone: ORG_TIMEZONE })} –{" "}
           {new Date(session.endTime).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone: ORG_TIMEZONE })} · Host:{" "}
-          {session.hostUsername ?? "Open"}
+          {session.hostUsername ? memberLabel(session.hostDisplayName, session.hostUsername) : "Open"}
           {modelName && <> · Model: {modelName}</>} · Status: {session.status}
         </p>
         {session.description && <p>{session.description}</p>}
@@ -123,7 +124,7 @@ export function SessionRosterCard({
                   <input type="checkbox" checked={row.checkedIn} onChange={() => handleToggle(row)} />
                   <span className="roster-row-name">
                     {session.isSeries && <span className="roster-row-seat">Seat {row.seatNumber}</span>}
-                    {row.username}
+                    {memberLabel(row.displayName, row.username)}
                   </span>
                   {row.isMember && (
                     <span title="Member" aria-label="Member">
@@ -156,7 +157,7 @@ export function SessionRosterCard({
             {notes.map((note) => (
               <li key={note.id}>
                 <strong>
-                  {note.authorUsername} ({describeAuthorRole(note.baseRole, note.volunteerRoles)})
+                  {memberLabel(note.authorDisplayName, note.authorUsername)} ({describeAuthorRole(note.baseRole, note.volunteerRoles)})
                 </strong>{" "}
                 — {new Date(note.createdAt).toLocaleString("en-US", { timeZone: ORG_TIMEZONE })}
                 <br />

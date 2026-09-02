@@ -3,6 +3,7 @@ import { bookSessionAction, cancelBookingAction, joinWaitlistAction } from "./ac
 import { describeBookingErrorReason, sessionTypeInfo } from "./scheduleTypes";
 import type { SessionStatus } from "@/lib/booking/sessionStatus";
 import { ORG_TIMEZONE } from "@/lib/org";
+import { memberLabel } from "@/lib/users/memberLabel";
 
 interface SessionInfo {
   id: string;
@@ -12,6 +13,7 @@ interface SessionInfo {
   end_time: Date;
   max_capacity: number;
   host_username: string | null;
+  host_display_name: string | null;
   booked_count: number;
 }
 
@@ -98,7 +100,7 @@ export function SessionDetailsPanel({
         {session.description && <p className="text-sm leading-relaxed text-ink-soft">{session.description}</p>}
 
         <p className="text-sm text-ink-soft">
-          Host: {session.host_username ?? "Open — needs a host"} · Capacity: {session.booked_count}/
+          Host: {session.host_username ? memberLabel(session.host_display_name, session.host_username) : "Open — needs a host"} · Capacity: {session.booked_count}/
           {session.max_capacity}
         </p>
 

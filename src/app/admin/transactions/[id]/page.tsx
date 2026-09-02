@@ -5,11 +5,13 @@ import { SiteNav } from "@/components/SiteNav";
 import { RefundForm } from "./RefundForm";
 import { describeTransactionItemType } from "@/lib/payments/pricing";
 import { ORG_TIMEZONE } from "@/lib/org";
+import { memberLabelWithUsername } from "@/lib/users/memberLabel";
 
 interface TransactionDetail {
   id: string;
   user_id: string;
   username: string | null;
+  display_name: string | null;
   gateway_ref_id: string;
   amount_paid: string;
   processing_fee: string | null;
@@ -36,7 +38,7 @@ export default async function AdminTransactionDetailPage({
   const { id } = await params;
 
   const result = await pool.query<TransactionDetail>(
-    `SELECT t.id, t.user_id, u.username, t.gateway_ref_id, t.amount_paid, t.processing_fee,
+    `SELECT t.id, t.user_id, u.username, u.display_name, t.gateway_ref_id, t.amount_paid, t.processing_fee,
             t.net_amount, t.charge_status, t.refunded_amount, t.payout_batch_id, t.payout_status,
             t.item_type, t.created_at
      FROM transactions t
@@ -63,7 +65,9 @@ export default async function AdminTransactionDetailPage({
       <p>
         Buyer:{" "}
         {transaction.username ? (
-          <Link href={`/admin/users/${transaction.user_id}`}>{transaction.username}</Link>
+          <Link href={`/admin/users/${transaction.user_id}`}>
+            {memberLabelWithUsername(transaction.display_name, transaction.username)}
+          </Link>
         ) : (
           "—"
         )}

@@ -11,7 +11,8 @@ test("admin generates a batch with an owner, passes land directly in that owner'
   const orgName = `Acme Studios ${Date.now()}`;
   await page.goto("/admin/passes/new-batch");
   await page.getByLabel("Organization name").fill(orgName);
-  await page.getByLabel("Owner username").fill(owner.username);
+  await page.getByPlaceholder("Search by name or username").fill(owner.username);
+  await page.getByRole("option", { name: new RegExp(owner.username) }).click();
   await page.getByLabel("Quantity (1–100)").fill("2");
   await page.getByLabel("Effective price per ticket").fill("15.00");
   await page.getByRole("button", { name: "Generate batch" }).click();
@@ -36,7 +37,8 @@ test("admin generates a batch with an owner, passes land directly in that owner'
   await loginAsUser(page, owner);
   await page.goto("/app/wallet");
   // Batch quantity is 2, so two identical Share forms render — scope to one.
-  await page.getByPlaceholder("Recipient username").first().fill(recipient.username);
+  await page.getByPlaceholder("Search by name or username").first().fill(recipient.username);
+  await page.getByRole("option", { name: new RegExp(recipient.username) }).first().click();
   await page.getByRole("button", { name: "Share" }).first().click();
   await page.waitForURL("**/app/wallet");
 
@@ -49,18 +51,20 @@ test("admin generates a batch with an owner, passes land directly in that owner'
   }).toPass({ timeout: 5000 });
 });
 
-test("batch creation requires an existing owner username", async ({ page }) => {
+test("batch creation requires an existing owner — searching a nonexistent name keeps Generate disabled", async ({
+  page,
+}) => {
   const admin = await createTestUser({ username: `e2epassesnoowner${Date.now()}`, baseRole: "Admin" });
   await loginAsUser(page, admin);
 
   await page.goto("/admin/passes/new-batch");
   await page.getByLabel("Organization name").fill(`No Owner Org ${Date.now()}`);
-  await page.getByLabel("Owner username").fill("no-such-member-anywhere");
+  await page.getByPlaceholder("Search by name or username").fill("no-such-member-anywhere");
   await page.getByLabel("Quantity (1–100)").fill("1");
   await page.getByLabel("Effective price per ticket").fill("10.00");
-  await page.getByRole("button", { name: "Generate batch" }).click();
 
-  await expect(page.getByText("No member found with that username.")).toBeVisible();
+  await expect(page.getByText("No members found.")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Generate batch" })).toBeDisabled();
 });
 
 test("revoking an available transferable pass blocks it from being shared or used again", async ({
@@ -73,7 +77,8 @@ test("revoking an available transferable pass blocks it from being shared or use
   const orgName = `Revoke Test Org ${Date.now()}`;
   await page.goto("/admin/passes/new-batch");
   await page.getByLabel("Organization name").fill(orgName);
-  await page.getByLabel("Owner username").fill(owner.username);
+  await page.getByPlaceholder("Search by name or username").fill(owner.username);
+  await page.getByRole("option", { name: new RegExp(owner.username) }).click();
   await page.getByLabel("Quantity (1–100)").fill("1");
   await page.getByLabel("Effective price per ticket").fill("10.00");
   await page.getByRole("button", { name: "Generate batch" }).click();
@@ -103,7 +108,7 @@ test("revoking an available transferable pass blocks it from being shared or use
   await loginAsUser(page, owner);
   await page.goto("/app/wallet");
   await expect(page.getByText("Available: 0")).toBeVisible();
-  await expect(page.getByPlaceholder("Recipient username")).not.toBeVisible();
+  await expect(page.getByPlaceholder("Search by name or username")).not.toBeVisible();
 });
 
 test("the status and batch filters on /admin/passes narrow the list", async ({ page }) => {
@@ -114,7 +119,8 @@ test("the status and batch filters on /admin/passes narrow the list", async ({ p
   const orgName = `Filter Test Org ${Date.now()}`;
   await page.goto("/admin/passes/new-batch");
   await page.getByLabel("Organization name").fill(orgName);
-  await page.getByLabel("Owner username").fill(owner.username);
+  await page.getByPlaceholder("Search by name or username").fill(owner.username);
+  await page.getByRole("option", { name: new RegExp(owner.username) }).click();
   await page.getByLabel("Quantity (1–100)").fill("1");
   await page.getByLabel("Effective price per ticket").fill("10.00");
   await page.getByRole("button", { name: "Generate batch" }).click();

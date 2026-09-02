@@ -8,6 +8,7 @@ import { getSessionManagerCandidates } from "@/lib/sessions/host";
 import { slotFor, startOfDay, dayIndex, toDateOnly, parseDateOnly } from "@/lib/sessions/shared";
 import { SessionCalendarGrid, type OccupiedCell } from "./SessionCalendarGrid";
 import { ORG_TIMEZONE } from "@/lib/org";
+import { memberLabel } from "@/lib/users/memberLabel";
 
 interface SessionRow {
   id: string;
@@ -17,6 +18,7 @@ interface SessionRow {
   end_time: Date;
   max_capacity: number;
   host_username: string | null;
+  host_display_name: string | null;
   booked_count: string;
   recurrence_rule_id: string | null;
   series_id: string | null;
@@ -54,7 +56,7 @@ export default async function AdminSessionsPage({
   const [result, gridResult, defaultCapacity, hostCandidates] = await Promise.all([
     pool.query<SessionRow>(
       `SELECT s.id, s.session_type, s.description, s.start_time, s.end_time, s.max_capacity,
-              u.username AS host_username, s.recurrence_rule_id, s.series_id,
+              u.username AS host_username, u.display_name AS host_display_name, s.recurrence_rule_id, s.series_id,
               (SELECT count(*) FROM passes p WHERE p.session_id = s.id AND p.status = 'Used') AS booked_count
        FROM sessions s
        LEFT JOIN users u ON u.id = s.host_user_id
@@ -189,7 +191,7 @@ export default async function AdminSessionsPage({
               <td>
                 {row.booked_count} / {row.max_capacity}
               </td>
-              <td>{row.host_username ?? "Open — needs a host"}</td>
+              <td>{row.host_username ? memberLabel(row.host_display_name, row.host_username) : "Open — needs a host"}</td>
               <td>
                 {row.recurrence_rule_id && "Recurring · "}
                 {row.series_id && "Series · "}

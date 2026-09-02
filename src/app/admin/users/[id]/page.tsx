@@ -8,6 +8,7 @@ import { MembershipForm } from "./MembershipForm";
 import { VolunteerRoleForm } from "./VolunteerRoleForm";
 import { removeVolunteerRoleAction } from "./actions";
 import { ORG_TIMEZONE } from "@/lib/org";
+import { memberLabelWithUsername } from "@/lib/users/memberLabel";
 
 interface UserDetail {
   id: string;
@@ -23,6 +24,7 @@ interface MembershipHistoryRow {
   valid_from: Date;
   valid_until: Date;
   granted_by_username: string | null;
+  granted_by_display_name: string | null;
 }
 
 interface BookingRow {
@@ -38,8 +40,10 @@ interface LegacyActivityRow {
   comment: string | null;
   actor_user_id: string | null;
   actor_username: string | null;
+  actor_display_name: string | null;
   target_user_id: string | null;
   target_username: string | null;
+  target_display_name: string | null;
   session_start_time: Date | null;
   session_type: string | null;
   transaction_item_type: string | null;
@@ -81,7 +85,7 @@ export default async function AdminUserDetailPage({
       [id],
     ),
     pool.query<MembershipHistoryRow>(
-      `SELECT mh.valid_from, mh.valid_until, gb.username AS granted_by_username
+      `SELECT mh.valid_from, mh.valid_until, gb.username AS granted_by_username, gb.display_name AS granted_by_display_name
        FROM membership_history mh
        LEFT JOIN users gb ON gb.id = mh.granted_by
        WHERE mh.user_id = $1
@@ -105,8 +109,8 @@ export default async function AdminUserDetailPage({
       // original actor-only WHERE clause silently missed those on exactly
       // the profile they're about.
       `SELECT l.occurred_at, l.event_label, l.how_many, l.comment,
-              l.actor_user_id, actor.username AS actor_username,
-              l.target_user_id, target.username AS target_username,
+              l.actor_user_id, actor.username AS actor_username, actor.display_name AS actor_display_name,
+              l.target_user_id, target.username AS target_username, target.display_name AS target_display_name,
               s.start_time AS session_start_time, s.session_type,
               t.item_type::text AS transaction_item_type, t.amount_paid AS transaction_amount
        FROM legacy_registration_logs l
@@ -174,7 +178,7 @@ export default async function AdminUserDetailPage({
                 <tr key={i}>
                   <td>{new Date(row.valid_from).toLocaleDateString("en-US", { timeZone: ORG_TIMEZONE })}</td>
                   <td>{new Date(row.valid_until).toLocaleDateString("en-US", { timeZone: ORG_TIMEZONE })}</td>
-                  <td>{row.granted_by_username ?? "—"}</td>
+                  <td>{row.granted_by_username ? memberLabelWithUsername(row.granted_by_display_name, row.granted_by_username) : "—"}</td>
                 </tr>
               ))}
             </tbody>
@@ -239,9 +243,11 @@ export default async function AdminUserDetailPage({
                     <td>{new Date(row.occurred_at).toLocaleString("en-US", { timeZone: ORG_TIMEZONE })}</td>
                     <td>{row.event_label}</td>
                     <td>
-                      {row.actor_user_id !== user.id && row.actor_username && <>By {row.actor_username}. </>}
+                      {row.actor_user_id !== user.id && row.actor_username && (
+                        <>By {memberLabelWithUsername(row.actor_display_name, row.actor_username)}. </>
+                      )}
                       {row.target_user_id !== user.id && row.target_username && (
-                        <>Involving {row.target_username}. </>
+                        <>Involving {memberLabelWithUsername(row.target_display_name, row.target_username)}. </>
                       )}
                       {row.session_type && row.session_start_time && (
                         <>

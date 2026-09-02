@@ -6,6 +6,7 @@ import { describeTransactionItemType } from "@/lib/payments/pricing";
 
 interface TransactionRow {
   username: string | null;
+  display_name: string | null;
   item_type: string;
   amount_paid: string;
   processing_fee: string | null;
@@ -48,7 +49,7 @@ export async function GET(request: Request): Promise<NextResponse> {
   }
 
   const result = await pool.query<TransactionRow>(
-    `SELECT u.username, t.item_type, t.amount_paid, t.processing_fee, t.net_amount,
+    `SELECT u.username, u.display_name, t.item_type, t.amount_paid, t.processing_fee, t.net_amount,
             t.charge_status, t.payout_batch_id, t.payout_status, t.gateway_ref_id, t.created_at
      FROM transactions t
      LEFT JOIN users u ON u.id = t.user_id
@@ -58,12 +59,13 @@ export async function GET(request: Request): Promise<NextResponse> {
   );
 
   const lines = [
-    "Buyer,Item Type,Amount Paid,Fee,Net,Charge Status,Payout Batch,Payout Status,Gateway Reference,Date",
+    "Buyer,Buyer Display Name,Item Type,Amount Paid,Fee,Net,Charge Status,Payout Batch,Payout Status,Gateway Reference,Date",
   ];
   for (const row of result.rows) {
     lines.push(
       [
         csvEscape(row.username ?? ""),
+        csvEscape(row.display_name ?? ""),
         csvEscape(describeTransactionItemType(row.item_type)),
         row.amount_paid,
         row.processing_fee ?? "",

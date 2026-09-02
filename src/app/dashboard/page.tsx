@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { getUserAuthContext } from "@/lib/auth/roles";
 import { SiteNav } from "@/components/SiteNav";
+import { memberLabel } from "@/lib/users/memberLabel";
 
 /**
  * Placeholder only — proves the auth/RBAC chain works end to end
@@ -20,7 +21,7 @@ export default async function DashboardPage() {
       <SiteNav />
       <main>
         <h1>Dashboard</h1>
-        <p>Logged in as {ctx.username}</p>
+        <p>Logged in as {memberLabel(ctx.displayName, ctx.username)}</p>
         <p>Roles: {ctx.roles.join(", ")}</p>
         <p>Email verified: {ctx.emailVerified ? "yes" : "no"}</p>
       </main>

@@ -5,6 +5,7 @@ import { SortableTh } from "@/components/SortableTh";
 import { resolveSort } from "@/lib/sort";
 import { describeTransactionItemType } from "@/lib/payments/pricing";
 import { ORG_TIMEZONE } from "@/lib/org";
+import { memberLabelWithUsername } from "@/lib/users/memberLabel";
 
 const SORT_COLUMNS = {
   when: "t.created_at",
@@ -19,6 +20,7 @@ const SORT_COLUMNS = {
 interface TransactionRow {
   id: string;
   username: string | null;
+  display_name: string | null;
   item_type: string;
   amount_paid: string;
   charge_status: string;
@@ -41,7 +43,7 @@ export default async function AdminTransactionsPage({
   });
 
   const result = await pool.query<TransactionRow>(
-    `SELECT t.id, u.username, t.item_type, t.amount_paid, t.charge_status,
+    `SELECT t.id, u.username, u.display_name, t.item_type, t.amount_paid, t.charge_status,
             t.refunded_amount, t.payout_status, t.created_at
      FROM transactions t
      LEFT JOIN users u ON u.id = t.user_id
@@ -109,7 +111,7 @@ export default async function AdminTransactionsPage({
           {result.rows.map((row) => (
             <tr key={row.id}>
               <td>{new Date(row.created_at).toLocaleString("en-US", { timeZone: ORG_TIMEZONE })}</td>
-              <td>{row.username ?? "—"}</td>
+              <td>{row.username ? memberLabelWithUsername(row.display_name, row.username) : "—"}</td>
               <td>{describeTransactionItemType(row.item_type)}</td>
               <td>${row.amount_paid}</td>
               <td>{row.charge_status}</td>

@@ -13,6 +13,7 @@ import { Legend } from "./Legend";
 import { Modal } from "./Modal";
 import { SiteNav } from "@/components/SiteNav";
 import { formatOpensDate, formatWeekRange, type GridCellData } from "./scheduleTypes";
+import { memberLabel } from "@/lib/users/memberLabel";
 
 const WEEK_LENGTH_DAYS = 7;
 
@@ -24,6 +25,7 @@ interface SessionRow {
   end_time: Date;
   max_capacity: number;
   host_username: string | null;
+  host_display_name: string | null;
   booked_count: number;
   series_id: string | null;
   model_required: boolean;
@@ -76,7 +78,7 @@ export default async function SchedulePage({
 
   const sessionsResult = await pool.query<SessionRow>(
     `SELECT s.id, s.session_type, s.description, s.start_time, s.end_time, s.max_capacity,
-            u.username AS host_username, s.series_id, s.model_required,
+            u.username AS host_username, u.display_name AS host_display_name, s.series_id, s.model_required,
             EXISTS(SELECT 1 FROM session_model_mapping smm WHERE smm.session_id = s.id) AS has_model,
             mn.model_names,
             COALESCE(bc.booked_count, 0)::int AS booked_count
@@ -109,7 +111,7 @@ export default async function SchedulePage({
   if (selectedId && !selectedSession) {
     const singleResult = await pool.query<SessionRow>(
       `SELECT s.id, s.session_type, s.description, s.start_time, s.end_time, s.max_capacity,
-              u.username AS host_username, s.series_id, s.model_required,
+              u.username AS host_username, u.display_name AS host_display_name, s.series_id, s.model_required,
               EXISTS(SELECT 1 FROM session_model_mapping smm WHERE smm.session_id = s.id) AS has_model,
               mn.model_names,
               COALESCE(bc.booked_count, 0)::int AS booked_count
@@ -187,6 +189,7 @@ export default async function SchedulePage({
         startTime: new Date(s.start_time),
         endTime: new Date(s.end_time),
         hostUsername: s.host_username,
+        hostDisplayName: s.host_display_name,
         modelRequired: s.model_required,
         modelNames: s.model_names,
         bookedCount: s.booked_count,
@@ -223,7 +226,7 @@ export default async function SchedulePage({
             <p style={{ margin: 0 }}>
               {ctx ? (
                 <>
-                  Viewing as {ctx.username} ({ctx.roles.join(", ")})
+                  Viewing as {memberLabel(ctx.displayName, ctx.username)} ({ctx.roles.join(", ")})
                   {bookingOpenThrough && <> · booking open through {bookingOpenThrough}</>}
                 </>
               ) : (

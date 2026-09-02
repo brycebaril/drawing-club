@@ -24,6 +24,7 @@ const VOLUNTEER_ROLE_MAP: Record<string, Role> = {
 export interface UserAuthContext {
   id: string;
   username: string;
+  displayName: string | null;
   status: "Active" | "Suspended" | "Banned";
   emailVerified: boolean;
   mfaEnabled: boolean;
@@ -46,7 +47,7 @@ export const getUserAuthContext = cache(async (userId: string): Promise<UserAuth
   // fresh on every non-API request).
   const [userResult, volunteerResult] = await Promise.all([
     pool.query(
-      `SELECT id, username, status, email_verified_at, mfa_enabled, base_role, membership_expires_at
+      `SELECT id, username, display_name, status, email_verified_at, mfa_enabled, base_role, membership_expires_at
        FROM users WHERE id = $1`,
       [userId],
     ),
@@ -72,6 +73,7 @@ export const getUserAuthContext = cache(async (userId: string): Promise<UserAuth
   return {
     id: user.id,
     username: user.username,
+    displayName: user.display_name,
     status: user.status,
     emailVerified: user.email_verified_at !== null,
     mfaEnabled: user.mfa_enabled,

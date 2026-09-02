@@ -6,6 +6,7 @@ import { getRevenueTrend } from "@/lib/reporting/revenue";
 import { getRecentAuditLogs } from "@/lib/reporting/auditLogs";
 import { getOpenFlags } from "@/lib/reporting/flags";
 import { ORG_TIMEZONE } from "@/lib/org";
+import { memberLabelWithUsername } from "@/lib/users/memberLabel";
 
 const FLAG_LABELS = { needs_model: "Needs a model", full: "Full" } as const;
 
@@ -166,9 +167,9 @@ export default async function AdminDashboardPage() {
           {recentAuditLogs.map((entry) => (
             <tr key={entry.id}>
               <td>{new Date(entry.created_at).toLocaleString("en-US", { timeZone: ORG_TIMEZONE })}</td>
-              <td>{entry.actor_username ?? "—"}</td>
+              <td>{entry.actor_username ? memberLabelWithUsername(entry.actor_display_name, entry.actor_username) : "—"}</td>
               <td>{entry.action_type}</td>
-              <td>{entry.target_username ?? "—"}</td>
+              <td>{entry.target_username ? memberLabelWithUsername(entry.target_display_name, entry.target_username) : "—"}</td>
             </tr>
           ))}
         </tbody>

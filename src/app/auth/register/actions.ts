@@ -5,13 +5,13 @@ import { pool } from "@/lib/db/pool";
 import { hashPassword } from "@/lib/auth/password";
 import { sendVerificationEmail } from "@/lib/email/verification";
 import { signIn } from "@/auth";
+import { isValidEmail } from "@/lib/validation/email";
 
 export interface RegisterState {
   error?: string;
 }
 
 const USERNAME_RE = /^[a-zA-Z0-9_]{3,32}$/;
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 interface PgError {
   code?: string;
@@ -32,7 +32,7 @@ export async function registerAction(
   if (!USERNAME_RE.test(username)) {
     return { error: "Username must be 3-32 characters: letters, numbers, underscores only." };
   }
-  if (!EMAIL_RE.test(email)) {
+  if (!isValidEmail(email)) {
     return { error: "Enter a valid email address." };
   }
   if (password.length < 8) {
