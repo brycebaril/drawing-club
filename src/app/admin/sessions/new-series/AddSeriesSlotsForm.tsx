@@ -5,6 +5,7 @@ import { addSeriesSlotsAction, type AddSeriesSlotsState } from "@/app/admin/sess
 import { SESSION_TYPES, SLOTS, toDateOnly } from "@/lib/sessions/shared";
 import { HostSelect } from "@/components/HostSelect";
 import type { HostCandidate } from "@/lib/sessions/host";
+import { ORG_TIMEZONE } from "@/lib/org";
 
 const initialState: AddSeriesSlotsState = {};
 
@@ -47,7 +48,7 @@ export function AddSeriesSlotsForm({ seriesId, days, occupied, hostCandidates }:
               <th>Slot</th>
               {days.map((d) => (
                 <th key={d.toISOString()}>
-                  {d.toLocaleDateString(undefined, { month: "short", day: "numeric" })}
+                  {d.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: ORG_TIMEZONE })}
                 </th>
               ))}
             </tr>

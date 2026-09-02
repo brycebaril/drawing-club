@@ -4,6 +4,7 @@ import { SiteNav } from "@/components/SiteNav";
 import { SortableTh } from "@/components/SortableTh";
 import { resolveSort } from "@/lib/sort";
 import { PassRowActions } from "./PassRowActions";
+import { ORG_TIMEZONE } from "@/lib/org";
 
 const SORT_COLUMNS = {
   owner: "owner.username",
@@ -103,7 +104,7 @@ export default async function AdminPassesPage({
           <option value="">All</option>
           {batchesResult.rows.map((batch) => (
             <option key={batch.id} value={batch.id}>
-              {batch.organization_name} ({new Date(batch.created_at).toLocaleDateString()})
+              {batch.organization_name} ({new Date(batch.created_at).toLocaleDateString("en-US", { timeZone: ORG_TIMEZONE })})
             </option>
           ))}
         </select>
@@ -170,7 +171,7 @@ export default async function AdminPassesPage({
                 <td>{pass.organization_name ?? "—"}</td>
                 <td>${pass.effective_price}</td>
                 <td>{pass.cost_basis_source}</td>
-                <td>{new Date(pass.created_at).toLocaleDateString()}</td>
+                <td>{new Date(pass.created_at).toLocaleDateString("en-US", { timeZone: ORG_TIMEZONE })}</td>
                 <td>{isRevocable(pass) ? <PassRowActions passId={pass.id} /> : "—"}</td>
               </tr>
             ))}

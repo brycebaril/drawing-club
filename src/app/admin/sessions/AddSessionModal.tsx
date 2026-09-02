@@ -12,6 +12,7 @@ import {
 import { SESSION_TYPES, SLOTS, SLOT_TIMES, DAYS_OF_WEEK, toDateOnly, parseDateOnly, type Slot } from "@/lib/sessions/shared";
 import { HostSelect } from "@/components/HostSelect";
 import type { HostCandidate } from "@/lib/sessions/host";
+import { ORG_TIMEZONE } from "@/lib/org";
 
 type AddType = "one-off" | "recurring" | "series";
 
@@ -42,7 +43,7 @@ export function AddSessionModal({
   const [type, setType] = useState<AddType>("one-off");
   const dateStr = toDateOnly(date);
   const times = SLOT_TIMES[slot];
-  const dayLabel = date.toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" });
+  const dayLabel = date.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", timeZone: ORG_TIMEZONE });
 
   const [sessionState, sessionFormAction, sessionPending] = useActionState(createSessionAction, initialSessionState);
   const [ruleState, ruleFormAction, rulePending] = useActionState(createRecurrenceRuleAction, initialRuleState);
@@ -243,7 +244,7 @@ export function AddSessionModal({
                 {seriesSlots.map((s, idx) => (
                   <li key={`${s.date}|${s.slot}`} className="chip">
                     <input type="hidden" name="slots" value={`${s.date}|${s.slot}`} />
-                    {parseDateOnly(s.date).toLocaleDateString(undefined, { month: "short", day: "numeric" })} · {s.slot}
+                    {parseDateOnly(s.date).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: ORG_TIMEZONE })} · {s.slot}
                     {seriesSlots.length > 1 && (
                       <button type="button" className="chip-remove" aria-label="Remove date" onClick={() => removeSeriesSlot(idx)}>
                         ×

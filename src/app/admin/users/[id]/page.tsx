@@ -7,6 +7,7 @@ import { GrantPassForm } from "./GrantPassForm";
 import { MembershipForm } from "./MembershipForm";
 import { VolunteerRoleForm } from "./VolunteerRoleForm";
 import { removeVolunteerRoleAction } from "./actions";
+import { ORG_TIMEZONE } from "@/lib/org";
 
 interface UserDetail {
   id: string;
@@ -152,7 +153,7 @@ export default async function AdminUserDetailPage({
       <section>
         <h2>Membership</h2>
         <p>
-          Current expiration: {user.membership_expires_at ? new Date(user.membership_expires_at).toLocaleDateString() : "none"}
+          Current expiration: {user.membership_expires_at ? new Date(user.membership_expires_at).toLocaleDateString("en-US", { timeZone: ORG_TIMEZONE }) : "none"}
         </p>
         <MembershipForm userId={user.id} />
         <h3>History</h3>
@@ -171,8 +172,8 @@ export default async function AdminUserDetailPage({
             <tbody>
               {historyResult.rows.map((row, i) => (
                 <tr key={i}>
-                  <td>{new Date(row.valid_from).toLocaleDateString()}</td>
-                  <td>{new Date(row.valid_until).toLocaleDateString()}</td>
+                  <td>{new Date(row.valid_from).toLocaleDateString("en-US", { timeZone: ORG_TIMEZONE })}</td>
+                  <td>{new Date(row.valid_until).toLocaleDateString("en-US", { timeZone: ORG_TIMEZONE })}</td>
                   <td>{row.granted_by_username ?? "—"}</td>
                 </tr>
               ))}
@@ -209,7 +210,7 @@ export default async function AdminUserDetailPage({
           <ul>
             {bookingsResult.rows.map((b) => (
               <li key={b.session_id}>
-                {b.session_type} — {new Date(b.start_time).toLocaleString()}
+                {b.session_type} — {new Date(b.start_time).toLocaleString("en-US", { timeZone: ORG_TIMEZONE })}
               </li>
             ))}
           </ul>
@@ -235,7 +236,7 @@ export default async function AdminUserDetailPage({
               <tbody>
                 {legacyActivityResult.rows.map((row, i) => (
                   <tr key={i}>
-                    <td>{new Date(row.occurred_at).toLocaleString()}</td>
+                    <td>{new Date(row.occurred_at).toLocaleString("en-US", { timeZone: ORG_TIMEZONE })}</td>
                     <td>{row.event_label}</td>
                     <td>
                       {row.actor_user_id !== user.id && row.actor_username && <>By {row.actor_username}. </>}
@@ -244,7 +245,7 @@ export default async function AdminUserDetailPage({
                       )}
                       {row.session_type && row.session_start_time && (
                         <>
-                          Session: {row.session_type} on {new Date(row.session_start_time).toLocaleString()}.{" "}
+                          Session: {row.session_type} on {new Date(row.session_start_time).toLocaleString("en-US", { timeZone: ORG_TIMEZONE })}.{" "}
                         </>
                       )}
                       {row.transaction_item_type && (

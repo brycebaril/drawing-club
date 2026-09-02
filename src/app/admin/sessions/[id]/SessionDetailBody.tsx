@@ -10,6 +10,7 @@ import {
 } from "./actions";
 import { SessionDetailsEditForm } from "./SessionDetailsEditForm";
 import type { HostCandidate } from "@/lib/sessions/host";
+import { ORG_TIMEZONE } from "@/lib/org";
 
 /**
  * Everything below the page heading on /admin/sessions/[id] — extracted so
@@ -40,10 +41,10 @@ export function SessionDetailBody({
   return (
     <>
       <h1>
-        {session.session_type} — {new Date(session.start_time).toLocaleString()}
+        {session.session_type} — {new Date(session.start_time).toLocaleString("en-US", { timeZone: ORG_TIMEZONE })}
       </h1>
       <p>
-        {new Date(session.start_time).toLocaleString()} – {new Date(session.end_time).toLocaleTimeString()} ·
+        {new Date(session.start_time).toLocaleString("en-US", { timeZone: ORG_TIMEZONE })} – {new Date(session.end_time).toLocaleTimeString("en-US", { timeZone: ORG_TIMEZONE })} ·
         Capacity {isSeries ? seats.length : attendees.length}/{session.max_capacity} · Host:{" "}
         {session.host_username ?? "Open — needs a host"} · Status: {session.status}
         {isRecurring && " · Recurring occurrence"}

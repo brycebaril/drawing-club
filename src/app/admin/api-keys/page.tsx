@@ -2,6 +2,7 @@ import { pool } from "@/lib/db/pool";
 import { SiteNav } from "@/components/SiteNav";
 import { createApiKeyAction, revokeApiKeyAction } from "./actions";
 import { REPORT_SCOPES } from "@/lib/reporting/scopes";
+import { ORG_TIMEZONE } from "@/lib/org";
 
 interface ApiKeyRow {
   id: string;
@@ -84,8 +85,8 @@ export default async function ApiKeysPage({
                   <code>{key.key_prefix}…</code>
                 </td>
                 <td>{key.scopes.join(", ") || "(none)"}</td>
-                <td>{new Date(key.created_at).toLocaleDateString()}</td>
-                <td>{key.last_used_at ? new Date(key.last_used_at).toLocaleString() : "Never"}</td>
+                <td>{new Date(key.created_at).toLocaleDateString("en-US", { timeZone: ORG_TIMEZONE })}</td>
+                <td>{key.last_used_at ? new Date(key.last_used_at).toLocaleString("en-US", { timeZone: ORG_TIMEZONE }) : "Never"}</td>
                 <td>{key.revoked_at ? "Revoked" : "Active"}</td>
                 <td>
                   {!key.revoked_at && (

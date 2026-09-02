@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { getCheckInRoster, type CheckInRoster, type RosterRow } from "@/lib/checkin/roster";
 import { setCheckedInAction } from "@/lib/checkin/actions";
 import { NoteForm } from "./NoteForm";
+import { ORG_TIMEZONE } from "@/lib/org";
 
 const POLL_INTERVAL_MS = 10_000;
 
@@ -94,9 +95,9 @@ export function SessionRosterCard({
     <details className="roster-card" open={defaultOpen}>
       <summary className="roster-card-summary">
         <span className="roster-card-title">
-          {session.sessionType} — {start.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" })}
+          {session.sessionType} — {start.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", timeZone: ORG_TIMEZONE })}
           {", "}
-          {start.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}
+          {start.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone: ORG_TIMEZONE })}
         </span>
         <span className="roster-card-meta">
           {attending}/{registered} checked in
@@ -105,8 +106,8 @@ export function SessionRosterCard({
 
       <div className="roster-card-body">
         <p className="section-note">
-          {start.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })} –{" "}
-          {new Date(session.endTime).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })} · Host:{" "}
+          {start.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone: ORG_TIMEZONE })} –{" "}
+          {new Date(session.endTime).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone: ORG_TIMEZONE })} · Host:{" "}
           {session.hostUsername ?? "Open"}
           {modelName && <> · Model: {modelName}</>} · Status: {session.status}
         </p>
@@ -157,7 +158,7 @@ export function SessionRosterCard({
                 <strong>
                   {note.authorUsername} ({describeAuthorRole(note.baseRole, note.volunteerRoles)})
                 </strong>{" "}
-                — {new Date(note.createdAt).toLocaleString()}
+                — {new Date(note.createdAt).toLocaleString("en-US", { timeZone: ORG_TIMEZONE })}
                 <br />
                 {note.content}
               </li>

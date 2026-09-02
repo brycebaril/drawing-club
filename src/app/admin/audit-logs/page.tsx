@@ -2,6 +2,7 @@ import { pool } from "@/lib/db/pool";
 import { SiteNav } from "@/components/SiteNav";
 import { SortableTh } from "@/components/SortableTh";
 import { resolveSort } from "@/lib/sort";
+import { ORG_TIMEZONE } from "@/lib/org";
 
 const SORT_COLUMNS = {
   when: "l.created_at",
@@ -68,7 +69,7 @@ export default async function AdminAuditLogsPage({
         <tbody>
           {result.rows.map((row) => (
             <tr key={row.id}>
-              <td>{new Date(row.created_at).toLocaleString()}</td>
+              <td>{new Date(row.created_at).toLocaleString("en-US", { timeZone: ORG_TIMEZONE })}</td>
               <td>{row.actor_username ?? "—"}</td>
               <td>{row.action_type}</td>
               <td>{row.target_username ?? "—"}</td>

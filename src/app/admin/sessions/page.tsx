@@ -7,6 +7,7 @@ import { getSettingNumber } from "@/lib/settings";
 import { getSessionManagerCandidates } from "@/lib/sessions/host";
 import { slotFor, startOfDay, dayIndex, toDateOnly, parseDateOnly } from "@/lib/sessions/shared";
 import { SessionCalendarGrid, type OccupiedCell } from "./SessionCalendarGrid";
+import { ORG_TIMEZONE } from "@/lib/org";
 
 interface SessionRow {
   id: string;
@@ -183,8 +184,8 @@ export default async function AdminSessionsPage({
           {result.rows.map((row) => (
             <tr key={row.id}>
               <td>{row.session_type}</td>
-              <td>{new Date(row.start_time).toLocaleString()}</td>
-              <td>{new Date(row.end_time).toLocaleString()}</td>
+              <td>{new Date(row.start_time).toLocaleString("en-US", { timeZone: ORG_TIMEZONE })}</td>
+              <td>{new Date(row.end_time).toLocaleString("en-US", { timeZone: ORG_TIMEZONE })}</td>
               <td>
                 {row.booked_count} / {row.max_capacity}
               </td>

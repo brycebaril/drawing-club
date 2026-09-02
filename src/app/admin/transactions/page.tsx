@@ -4,6 +4,7 @@ import { SiteNav } from "@/components/SiteNav";
 import { SortableTh } from "@/components/SortableTh";
 import { resolveSort } from "@/lib/sort";
 import { describeTransactionItemType } from "@/lib/payments/pricing";
+import { ORG_TIMEZONE } from "@/lib/org";
 
 const SORT_COLUMNS = {
   when: "t.created_at",
@@ -107,7 +108,7 @@ export default async function AdminTransactionsPage({
         <tbody>
           {result.rows.map((row) => (
             <tr key={row.id}>
-              <td>{new Date(row.created_at).toLocaleString()}</td>
+              <td>{new Date(row.created_at).toLocaleString("en-US", { timeZone: ORG_TIMEZONE })}</td>
               <td>{row.username ?? "—"}</td>
               <td>{describeTransactionItemType(row.item_type)}</td>
               <td>${row.amount_paid}</td>

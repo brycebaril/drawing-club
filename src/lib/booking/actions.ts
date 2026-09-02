@@ -5,6 +5,7 @@ import { getSettingNumber } from "@/lib/settings";
 import { isCancellable } from "@/lib/cancellation";
 import { sendEmail } from "@/lib/email/sender";
 import { viewerBookingWindowDays } from "./sessionStatus";
+import { ORG_TIMEZONE } from "@/lib/org";
 
 export type ViewerEligibilityResult =
   | { ok: true; ctx: UserAuthContext }
@@ -361,7 +362,7 @@ export async function releaseAllBookingsForSession(sessionId: string): Promise<v
       await sendEmail({
         to: booker.email,
         subject: "Your booking was canceled",
-        body: `Hi ${booker.username},\n\nAn admin canceled ${sessionType} — ${sessionStartTime?.toLocaleString() ?? "a session"} you were booked into. Your ticket has been returned to your balance.`,
+        body: `Hi ${booker.username},\n\nAn admin canceled ${sessionType} — ${sessionStartTime?.toLocaleString("en-US", { timeZone: ORG_TIMEZONE }) ?? "a session"} you were booked into. Your ticket has been returned to your balance.`,
       });
     } catch (error) {
       console.error(`Failed to email canceled-booking notice to ${booker.email}:`, error);

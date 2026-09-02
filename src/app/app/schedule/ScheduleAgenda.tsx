@@ -12,9 +12,10 @@ import {
   variantFor,
   type GridCellData,
 } from "./scheduleTypes";
+import { ORG_TIMEZONE } from "@/lib/org";
 
-const DAY_LABEL_FORMAT = new Intl.DateTimeFormat("en-US", { weekday: "short" });
-const DATE_LABEL_FORMAT = new Intl.DateTimeFormat("en-US", { day: "numeric", month: "short" });
+const DAY_LABEL_FORMAT = new Intl.DateTimeFormat("en-US", { weekday: "short", timeZone: ORG_TIMEZONE });
+const DATE_LABEL_FORMAT = new Intl.DateTimeFormat("en-US", { day: "numeric", month: "short", timeZone: ORG_TIMEZONE });
 
 function AgendaRow({ cell, href, windowDays }: { cell: GridCellData; href: string; windowDays: number }) {
   const info = sessionTypeInfo(cell.sessionType);

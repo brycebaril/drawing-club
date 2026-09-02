@@ -3,6 +3,7 @@ import Link from "next/link";
 import { pool } from "@/lib/db/pool";
 import { requireOpsRole } from "@/lib/auth/requireOpsRole";
 import { SiteNav } from "@/components/SiteNav";
+import { ORG_TIMEZONE } from "@/lib/org";
 
 interface TicketRow {
   id: string;
@@ -74,7 +75,7 @@ export default async function SupportInboxPage({
                     <td>{ticket.subject}</td>
                     <td>{ticket.requester_username}</td>
                     <td>{ticket.status}</td>
-                    <td>{new Date(ticket.last_message_at).toLocaleString()}</td>
+                    <td>{new Date(ticket.last_message_at).toLocaleString("en-US", { timeZone: ORG_TIMEZONE })}</td>
                     <td>
                       <Link href={`/ops/support/${ticket.id}`}>
                         {ticket.needs_staff_reply ? "Needs reply" : "Open"}

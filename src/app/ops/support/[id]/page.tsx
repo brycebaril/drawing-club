@@ -5,6 +5,7 @@ import { requireOpsRole } from "@/lib/auth/requireOpsRole";
 import { SiteNav } from "@/components/SiteNav";
 import { ReplyForm } from "@/components/support/ReplyForm";
 import { resolveTicketAction, reopenTicketAction } from "@/lib/support/actions";
+import { ORG_TIMEZONE } from "@/lib/org";
 
 interface TicketRow {
   id: string;
@@ -71,7 +72,7 @@ export default async function OpsTicketPage({ params }: { params: Promise<{ id: 
         <ul>
           {messagesResult.rows.map((message) => (
             <li key={message.id}>
-              <strong>{message.author_username}</strong> — {new Date(message.created_at).toLocaleString()}
+              <strong>{message.author_username}</strong> — {new Date(message.created_at).toLocaleString("en-US", { timeZone: ORG_TIMEZONE })}
               <br />
               {message.content}
             </li>

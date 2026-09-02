@@ -4,6 +4,7 @@ import { auth } from "@/auth";
 import { pool } from "@/lib/db/pool";
 import { SiteNav } from "@/components/SiteNav";
 import { NewTicketForm } from "./NewTicketForm";
+import { ORG_TIMEZONE } from "@/lib/org";
 
 interface TicketRow {
   id: string;
@@ -49,7 +50,7 @@ export default async function SupportPage() {
                 <Link href={`/app/support/${ticket.id}`}>{ticket.subject}</Link>{" "}
                 {ticket.needs_reply && <strong className="support-needs-reply">Staff replied — your turn</strong>}
                 {" — "}
-                {ticket.status} · {new Date(ticket.last_message_at).toLocaleString()}
+                {ticket.status} · {new Date(ticket.last_message_at).toLocaleString("en-US", { timeZone: ORG_TIMEZONE })}
               </li>
             ))}
           </ul>

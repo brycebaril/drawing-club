@@ -3,6 +3,7 @@ import { pool } from "@/lib/db/pool";
 import { SiteNav } from "@/components/SiteNav";
 import { DAYS_OF_WEEK } from "@/lib/sessions/shared";
 import { cancelSeriesFromListAction, generateMoreSessionsAction } from "./actions";
+import { ORG_TIMEZONE } from "@/lib/org";
 
 interface RuleRow {
   id: string;
@@ -64,8 +65,8 @@ export default async function RecurringRulesPage() {
                 <td>
                   {dayLabel} {rule.start_time_of_day}–{rule.end_time_of_day}
                 </td>
-                <td>{new Date(rule.start_date).toLocaleDateString()}</td>
-                <td>{rule.end_date ? new Date(rule.end_date).toLocaleDateString() : "Perpetual"}</td>
+                <td>{new Date(rule.start_date).toLocaleDateString("en-US", { timeZone: ORG_TIMEZONE })}</td>
+                <td>{rule.end_date ? new Date(rule.end_date).toLocaleDateString("en-US", { timeZone: ORG_TIMEZONE }) : "Perpetual"}</td>
                 <td>{rule.host_username ?? "Open — needs a host"}</td>
                 <td>{rule.upcoming_count}</td>
                 <td>{isEnded ? "Ended" : "Active"}</td>

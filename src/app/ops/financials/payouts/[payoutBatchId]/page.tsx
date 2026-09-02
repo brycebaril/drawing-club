@@ -3,6 +3,7 @@ import { pool } from "@/lib/db/pool";
 import { requireOpsRole } from "@/lib/auth/requireOpsRole";
 import { SiteNav } from "@/components/SiteNav";
 import { describeTransactionItemType } from "@/lib/payments/pricing";
+import { ORG_TIMEZONE } from "@/lib/org";
 
 interface BatchTransactionRow {
   id: string;
@@ -74,7 +75,7 @@ export default async function PayoutBatchDetailPage({
               <td>{row.processing_fee ? `$${row.processing_fee}` : "—"}</td>
               <td>{row.net_amount ? `$${row.net_amount}` : "—"}</td>
               <td>{row.gateway_ref_id}</td>
-              <td>{new Date(row.created_at).toLocaleString()}</td>
+              <td>{new Date(row.created_at).toLocaleString("en-US", { timeZone: ORG_TIMEZONE })}</td>
             </tr>
           ))}
         </tbody>

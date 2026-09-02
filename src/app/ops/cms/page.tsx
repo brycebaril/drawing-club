@@ -4,6 +4,7 @@ import { pool } from "@/lib/db/pool";
 import { requireOpsRole } from "@/lib/auth/requireOpsRole";
 import { SiteNav } from "@/components/SiteNav";
 import { publicPathForStaticPage } from "@/lib/cms/slugify";
+import { ORG_TIMEZONE } from "@/lib/org";
 
 interface StaticPageRow {
   slug: string;
@@ -59,7 +60,7 @@ export default async function CmsDashboardPage() {
             <tr key={page.slug}>
               <td>{page.slug}</td>
               <td>{page.title}</td>
-              <td>{new Date(page.updated_at).toLocaleString()}</td>
+              <td>{new Date(page.updated_at).toLocaleString("en-US", { timeZone: ORG_TIMEZONE })}</td>
               <td>
                 <Link href={`/ops/cms/pages/${page.slug}`}>Edit</Link>
               </td>
@@ -93,7 +94,7 @@ export default async function CmsDashboardPage() {
               <tr key={post.id}>
                 <td>{post.title}</td>
                 <td>{post.status}</td>
-                <td>{new Date(post.publish_date).toLocaleDateString()}</td>
+                <td>{new Date(post.publish_date).toLocaleDateString("en-US", { timeZone: ORG_TIMEZONE })}</td>
                 <td>
                   <Link href={`/ops/cms/news/${post.id}`}>Edit</Link>
                 </td>

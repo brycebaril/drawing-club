@@ -1,6 +1,7 @@
 import type { PoolClient } from "pg";
 import { combineDateAndTime } from "@/lib/recurrence/dates";
 import { SLOTS, SLOT_TIMES, slotFor, parseDateOnly, type Slot } from "./shared";
+import { ORG_TIMEZONE } from "@/lib/org";
 
 export interface ParsedSlot {
   date: Date;
@@ -62,7 +63,7 @@ export async function checkSlotConflicts(client: PoolClient, slots: ParsedSlot[]
     );
     const conflict = existing.rows.find((row) => slotFor(new Date(row.start_time)) === slot.slot);
     if (conflict) {
-      return `${slot.date.toLocaleDateString()} (${slot.slot}) was just booked by something else (${conflict.session_type}) — reload and try again.`;
+      return `${slot.date.toLocaleDateString("en-US", { timeZone: ORG_TIMEZONE })} (${slot.slot}) was just booked by something else (${conflict.session_type}) — reload and try again.`;
     }
   }
   return null;

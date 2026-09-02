@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { pool } from "@/lib/db/pool";
 import { Markdown } from "@/components/Markdown";
 import { SiteNav } from "@/components/SiteNav";
+import { ORG_TIMEZONE } from "@/lib/org";
 
 interface NewsPostRow {
   title: string;
@@ -25,7 +26,7 @@ export default async function NewsPostPage({ params }: { params: Promise<{ slug:
       <SiteNav />
       <main>
         <h1>{post.title}</h1>
-        <p>{new Date(post.publish_date).toLocaleDateString()}</p>
+        <p>{new Date(post.publish_date).toLocaleDateString("en-US", { timeZone: ORG_TIMEZONE })}</p>
         {/* eslint-disable-next-line @next/next/no-img-element -- arbitrary external URL (CMS images decision: URL field only, no next/image remotePatterns to configure) */}
         {post.image_url && <img src={post.image_url} alt="" />}
         <Markdown content={post.content} />

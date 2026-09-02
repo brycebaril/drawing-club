@@ -1,4 +1,6 @@
 import type { SessionStatus } from "@/lib/booking/sessionStatus";
+import { ORG_TIMEZONE } from "@/lib/org";
+import { orgDateParts } from "@/lib/timezone";
 
 export interface SessionTypeInfo {
   label: string;
@@ -43,8 +45,8 @@ export interface GridCellData {
   maxCapacity: number;
 }
 
-const TOOLTIP_TIME_FORMAT = new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit" });
-const OPENS_DATE_FORMAT = new Intl.DateTimeFormat("en-US", { day: "numeric", month: "short" });
+const TOOLTIP_TIME_FORMAT = new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit", timeZone: ORG_TIMEZONE });
+const OPENS_DATE_FORMAT = new Intl.DateTimeFormat("en-US", { day: "numeric", month: "short", timeZone: ORG_TIMEZONE });
 
 /** "6:00 PM" -> "6:00" — the cell's own bottom line has no room for AM/PM,
  * and the Morning/Afternoon/Evening slot row it sits in already disambiguates. */
@@ -58,14 +60,16 @@ export function formatOpensDate(date: Date): string {
   return OPENS_DATE_FORMAT.format(date);
 }
 
-const WEEK_RANGE_DAY_FORMAT = new Intl.DateTimeFormat("en-US", { day: "numeric" });
-const WEEK_RANGE_MONTH_DAY_FORMAT = new Intl.DateTimeFormat("en-US", { day: "numeric", month: "long" });
+const WEEK_RANGE_DAY_FORMAT = new Intl.DateTimeFormat("en-US", { day: "numeric", timeZone: ORG_TIMEZONE });
+const WEEK_RANGE_MONTH_DAY_FORMAT = new Intl.DateTimeFormat("en-US", { day: "numeric", month: "long", timeZone: ORG_TIMEZONE });
 
 /** "1 – 7 September" / "28 August – 3 September" — the page header for a
  * displayed 7-day week. `end` is exclusive (viewStart + 7 days). */
 export function formatWeekRange(start: Date, end: Date): string {
   const last = new Date(end.getTime() - 24 * 60 * 60 * 1000);
-  const sameMonth = start.getMonth() === last.getMonth() && start.getFullYear() === last.getFullYear();
+  const startParts = orgDateParts(start);
+  const lastParts = orgDateParts(last);
+  const sameMonth = startParts.month === lastParts.month && startParts.year === lastParts.year;
   return sameMonth
     ? `${WEEK_RANGE_DAY_FORMAT.format(start)} – ${WEEK_RANGE_MONTH_DAY_FORMAT.format(last)}`
     : `${WEEK_RANGE_MONTH_DAY_FORMAT.format(start)} – ${WEEK_RANGE_MONTH_DAY_FORMAT.format(last)}`;

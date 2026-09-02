@@ -4,6 +4,7 @@ import { pool } from "@/lib/db/pool";
 import { SiteNav } from "@/components/SiteNav";
 import { RefundForm } from "./RefundForm";
 import { describeTransactionItemType } from "@/lib/payments/pricing";
+import { ORG_TIMEZONE } from "@/lib/org";
 
 interface TransactionDetail {
   id: string;
@@ -76,7 +77,7 @@ export default async function AdminTransactionDetailPage({
       <p>Payout status: {transaction.payout_status}</p>
       <p>Payout batch: {transaction.payout_batch_id ?? "—"}</p>
       <p>Gateway reference: {transaction.gateway_ref_id}</p>
-      <p>Created: {new Date(transaction.created_at).toLocaleString()}</p>
+      <p>Created: {new Date(transaction.created_at).toLocaleString("en-US", { timeZone: ORG_TIMEZONE })}</p>
 
       {passResult.rowCount! > 0 && (
         <>

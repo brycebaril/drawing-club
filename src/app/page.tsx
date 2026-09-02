@@ -2,7 +2,7 @@ import Link from "next/link";
 import { pool } from "@/lib/db/pool";
 import { Markdown } from "@/components/Markdown";
 import { SiteNav } from "@/components/SiteNav";
-import { ORG_DBA_NAME, ORG_LEGAL_NAME } from "@/lib/org";
+import { ORG_DBA_NAME, ORG_LEGAL_NAME, ORG_TIMEZONE } from "@/lib/org";
 
 interface UpcomingSessionRow {
   id: string;
@@ -41,7 +41,7 @@ export default async function Home() {
           <ul>
             {upcomingResult.rows.map((session) => (
               <li key={session.id}>
-                {new Date(session.start_time).toLocaleString()} — {session.session_type}
+                {new Date(session.start_time).toLocaleString("en-US", { timeZone: ORG_TIMEZONE })} — {session.session_type}
                 {session.description ? `: ${session.description}` : ""}
               </li>
             ))}

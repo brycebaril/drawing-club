@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { pool } from "@/lib/db/pool";
 import { SiteNav } from "@/components/SiteNav";
+import { ORG_TIMEZONE } from "@/lib/org";
 
 interface NewsListRow {
   slug: string;
@@ -39,7 +40,7 @@ export default async function NewsListPage() {
                 <h2>
                   <Link href={`/news/${post.slug}`}>{post.title}</Link>
                 </h2>
-                <p>{new Date(post.publish_date).toLocaleDateString()}</p>
+                <p>{new Date(post.publish_date).toLocaleDateString("en-US", { timeZone: ORG_TIMEZONE })}</p>
                 <p>{teaser(post)}</p>
               </li>
             ))}

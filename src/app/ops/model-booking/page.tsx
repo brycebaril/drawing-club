@@ -4,6 +4,7 @@ import { requireOpsRole } from "@/lib/auth/requireOpsRole";
 import { SiteNav } from "@/components/SiteNav";
 import { unassignModelAction, setModelRequiredAction } from "./actions";
 import { AssignModelForm } from "./AssignModelForm";
+import { ORG_TIMEZONE } from "@/lib/org";
 
 interface AssignedModel {
   id: string;
@@ -84,7 +85,7 @@ export default async function ModelBookingPage({
         <tbody>
           {rows.map((session) => (
             <tr key={session.id}>
-              <td>{new Date(session.start_time).toLocaleString()}</td>
+              <td>{new Date(session.start_time).toLocaleString("en-US", { timeZone: ORG_TIMEZONE })}</td>
               <td>{session.session_type}</td>
               <td>{session.host_username ?? "Open"}</td>
               <td>

@@ -5,6 +5,7 @@ import { getAttendanceTrend } from "@/lib/reporting/attendance";
 import { getRevenueTrend } from "@/lib/reporting/revenue";
 import { getRecentAuditLogs } from "@/lib/reporting/auditLogs";
 import { getOpenFlags } from "@/lib/reporting/flags";
+import { ORG_TIMEZONE } from "@/lib/org";
 
 const FLAG_LABELS = { needs_model: "Needs a model", full: "Full" } as const;
 
@@ -77,7 +78,7 @@ export default async function AdminDashboardPage() {
           <tbody>
             {openFlags.map((flag) => (
               <tr key={`${flag.id}-${flag.reason}`}>
-                <td>{new Date(flag.start_time).toLocaleString()}</td>
+                <td>{new Date(flag.start_time).toLocaleString("en-US", { timeZone: ORG_TIMEZONE })}</td>
                 <td>{flag.session_type}</td>
                 <td>{FLAG_LABELS[flag.reason]}</td>
               </tr>
@@ -105,7 +106,7 @@ export default async function AdminDashboardPage() {
           <tbody>
             {attendanceTrend.map((week) => (
               <tr key={week.weekStart.toISOString()}>
-                <td>{new Date(week.weekStart).toLocaleDateString()}</td>
+                <td>{new Date(week.weekStart).toLocaleDateString("en-US", { timeZone: ORG_TIMEZONE })}</td>
                 <td>{week.sessionsRun}</td>
                 <td>{week.totalBookings}</td>
                 <td>{week.checkedInBookings}</td>
@@ -133,7 +134,7 @@ export default async function AdminDashboardPage() {
           <tbody>
             {revenueTrend.map((week) => (
               <tr key={week.weekStart.toISOString()}>
-                <td>{new Date(week.weekStart).toLocaleDateString()}</td>
+                <td>{new Date(week.weekStart).toLocaleDateString("en-US", { timeZone: ORG_TIMEZONE })}</td>
                 <td>
                   {Object.entries(week.byItemType)
                     .map(([itemType, { count, total }]) => `${itemType}: ${count} ($${total.toFixed(2)})`)
@@ -164,7 +165,7 @@ export default async function AdminDashboardPage() {
         <tbody>
           {recentAuditLogs.map((entry) => (
             <tr key={entry.id}>
-              <td>{new Date(entry.created_at).toLocaleString()}</td>
+              <td>{new Date(entry.created_at).toLocaleString("en-US", { timeZone: ORG_TIMEZONE })}</td>
               <td>{entry.actor_username ?? "—"}</td>
               <td>{entry.action_type}</td>
               <td>{entry.target_username ?? "—"}</td>

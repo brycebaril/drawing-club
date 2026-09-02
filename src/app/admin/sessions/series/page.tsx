@@ -2,6 +2,7 @@ import Link from "next/link";
 import { pool } from "@/lib/db/pool";
 import { SiteNav } from "@/components/SiteNav";
 import { cancelSeriesFromListAction } from "./actions";
+import { ORG_TIMEZONE } from "@/lib/org";
 
 interface SeriesRow {
   id: string;
@@ -67,9 +68,9 @@ export default async function SeriesListPage() {
                 <td>{series.seat_count}</td>
                 <td>{series.host_username ?? "Open — needs a host"}</td>
                 <td>
-                  {series.start_date ? new Date(series.start_date).toLocaleDateString() : "—"}
+                  {series.start_date ? new Date(series.start_date).toLocaleDateString("en-US", { timeZone: ORG_TIMEZONE }) : "—"}
                   {" – "}
-                  {series.end_date ? new Date(series.end_date).toLocaleDateString() : "—"}
+                  {series.end_date ? new Date(series.end_date).toLocaleDateString("en-US", { timeZone: ORG_TIMEZONE }) : "—"}
                 </td>
                 <td>
                   {series.upcoming_count} / {series.total_count}

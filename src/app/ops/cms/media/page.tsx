@@ -5,6 +5,7 @@ import { UploadForm } from "../uploads/UploadForm";
 import { listUploadedFiles } from "./actions";
 import { DeleteFileButton } from "./DeleteFileButton";
 import { formatFileSize } from "@/lib/uploads/format";
+import { ORG_TIMEZONE } from "@/lib/org";
 
 export default async function CmsMediaLibraryPage() {
   const ctx = await requireOpsRole(["VOL_MKT"]);
@@ -57,7 +58,7 @@ export default async function CmsMediaLibraryPage() {
                     <td>{formatFileSize(file.sizeBytes)}</td>
                     <td>{file.width && file.height ? `${file.width}×${file.height}` : "—"}</td>
                     <td>{file.uploadedByUsername}</td>
-                    <td>{new Date(file.createdAt).toLocaleString()}</td>
+                    <td>{new Date(file.createdAt).toLocaleString("en-US", { timeZone: ORG_TIMEZONE })}</td>
                     <td>
                       <DeleteFileButton fileId={file.id} />
                     </td>

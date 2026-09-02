@@ -1,3 +1,5 @@
+import { orgDateParts, orgStartOfDay, orgDayIndex, orgDateOnly, parseOrgDateOnly } from "@/lib/timezone";
+
 // Design Doc §3.2.
 export const SESSION_TYPES = ["L", "R", "G", "P", "S", "X", "Gallery", "Party"] as const;
 
@@ -26,37 +28,39 @@ export const SLOT_TIMES: Record<Slot, { start: string; end: string }> = {
   Evening: { start: "18:00", end: "21:00" },
 };
 
+// All four of these delegate to src/lib/timezone.ts's ORG_TIMEZONE-aware
+// helpers rather than reasoning in the *process's own* local timezone
+// (native Date getters/setters) — a real bug found once this app ran
+// anywhere but a developer's own Pacific-timezone machine (see
+// src/lib/timezone.ts's own doc comment). Signatures are unchanged so every
+// existing caller (the schedule grid, the admin calendar grid, the series
+// slot picker) picks up the fix automatically.
+
 export function slotFor(date: Date): Slot {
-  const hour = date.getHours();
+  const hour = orgDateParts(date).hour;
   if (hour < 14) return "Morning";
   if (hour < 18) return "Afternoon";
   return "Evening";
 }
 
 export function startOfDay(date: Date): Date {
-  const copy = new Date(date);
-  copy.setHours(0, 0, 0, 0);
-  return copy;
+  return orgStartOfDay(date);
 }
 
 export function dayIndex(gridStart: Date, date: Date): number {
-  const msPerDay = 24 * 60 * 60 * 1000;
-  return Math.floor((startOfDay(date).getTime() - gridStart.getTime()) / msPerDay);
+  return orgDayIndex(gridStart, date);
 }
 
 /**
- * Formats a Date as its LOCAL "YYYY-MM-DD" calendar day — deliberately not
- * `toISOString().slice(0, 10)`, which reads the UTC calendar day and would
- * silently shift by one for any server running in a positive UTC-offset
- * timezone (e.g. local midnight in UTC+10 is still the previous day in UTC).
+ * Formats a Date as its ORG_TIMEZONE "YYYY-MM-DD" calendar day —
+ * deliberately not `toISOString().slice(0, 10)` (UTC calendar day) or any
+ * ambient-process-local-timezone getter (see src/lib/timezone.ts).
  */
 export function toDateOnly(date: Date): string {
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+  return orgDateOnly(date);
 }
 
-/** Parses a "YYYY-MM-DD" string as LOCAL midnight — the inverse of toDateOnly, avoiding the UTC-parsing behavior of `new Date("YYYY-MM-DD")`. */
+/** Parses a "YYYY-MM-DD" string as ORG_TIMEZONE midnight — the inverse of toDateOnly. */
 export function parseDateOnly(dateStr: string): Date {
-  const [year, month, day] = dateStr.split("-").map(Number);
-  return new Date(year, month - 1, day);
+  return parseOrgDateOnly(dateStr);
 }

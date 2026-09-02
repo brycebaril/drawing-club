@@ -3,6 +3,7 @@ import { isCancellable } from "@/lib/cancellation";
 import { computeSeatGrid } from "@/lib/series/seatStatus";
 import { bookSeriesSeatAction, cancelSeriesSeatDateAction } from "./actions";
 import { describeBookingErrorReason } from "./scheduleTypes";
+import { ORG_TIMEZONE } from "@/lib/org";
 
 interface SeriesInfo {
   id: string;
@@ -127,7 +128,7 @@ export async function SeriesPanel({
                 <tbody>
                   {chosenRow.cells.map((cell) => (
                     <tr key={cell.sessionId}>
-                      <td>{new Date(cell.startTime).toLocaleString()}</td>
+                      <td>{new Date(cell.startTime).toLocaleString("en-US", { timeZone: ORG_TIMEZONE })}</td>
                       <td>
                         {cell.state === "Open" && (
                           <label>
@@ -156,7 +157,7 @@ export async function SeriesPanel({
                 <tbody>
                   {chosenRow.cells.map((cell) => (
                     <tr key={cell.sessionId}>
-                      <td>{new Date(cell.startTime).toLocaleString()}</td>
+                      <td>{new Date(cell.startTime).toLocaleString("en-US", { timeZone: ORG_TIMEZONE })}</td>
                       <td>{cell.state === "Open" ? "Open" : "Taken"}</td>
                     </tr>
                   ))}
@@ -189,7 +190,7 @@ export async function SeriesPanel({
                             <input type="checkbox" required className="mt-1" />
                             <span>
                               I understand I won&rsquo;t get my ticket back for{" "}
-                              {new Date(cell.startTime).toLocaleDateString()} if I cancel now.
+                              {new Date(cell.startTime).toLocaleDateString("en-US", { timeZone: ORG_TIMEZONE })} if I cancel now.
                             </span>
                           </label>
                         )}
@@ -198,8 +199,8 @@ export async function SeriesPanel({
                           className="w-full rounded-lg bg-brand py-2.5 text-sm font-semibold text-white transition-colors hover:bg-brand-strong"
                         >
                           {refundable
-                            ? `Cancel ${new Date(cell.startTime).toLocaleDateString()}`
-                            : `Cancel ${new Date(cell.startTime).toLocaleDateString()} without refund`}
+                            ? `Cancel ${new Date(cell.startTime).toLocaleDateString("en-US", { timeZone: ORG_TIMEZONE })}`
+                            : `Cancel ${new Date(cell.startTime).toLocaleDateString("en-US", { timeZone: ORG_TIMEZONE })} without refund`}
                         </button>
                       </form>
                     );

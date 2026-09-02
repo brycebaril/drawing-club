@@ -1,9 +1,10 @@
 import { SLOTS } from "@/lib/sessions/shared";
 import { EmptyCell, SessionCell } from "./SessionCell";
 import { cellHref, type GridCellData } from "./scheduleTypes";
+import { ORG_TIMEZONE } from "@/lib/org";
 
-const WEEKDAY_FORMAT = new Intl.DateTimeFormat("en-US", { weekday: "short" });
-const DAY_NUMBER_FORMAT = new Intl.DateTimeFormat("en-US", { day: "numeric" });
+const WEEKDAY_FORMAT = new Intl.DateTimeFormat("en-US", { weekday: "short", timeZone: ORG_TIMEZONE });
+const DAY_NUMBER_FORMAT = new Intl.DateTimeFormat("en-US", { day: "numeric", timeZone: ORG_TIMEZONE });
 
 export function ScheduleGrid({
   days,

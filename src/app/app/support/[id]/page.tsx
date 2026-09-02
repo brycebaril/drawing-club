@@ -4,6 +4,7 @@ import { auth } from "@/auth";
 import { pool } from "@/lib/db/pool";
 import { SiteNav } from "@/components/SiteNav";
 import { ReplyForm } from "@/components/support/ReplyForm";
+import { ORG_TIMEZONE } from "@/lib/org";
 
 interface TicketRow {
   id: string;
@@ -56,7 +57,7 @@ export default async function MemberTicketPage({ params }: { params: Promise<{ i
         <ul>
           {messagesResult.rows.map((message) => (
             <li key={message.id}>
-              <strong>{message.author_username}</strong> — {new Date(message.created_at).toLocaleString()}
+              <strong>{message.author_username}</strong> — {new Date(message.created_at).toLocaleString("en-US", { timeZone: ORG_TIMEZONE })}
               <br />
               {message.content}
             </li>

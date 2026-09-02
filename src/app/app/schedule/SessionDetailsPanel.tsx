@@ -2,6 +2,7 @@ import { Info, Lock, UserX } from "lucide-react";
 import { bookSessionAction, cancelBookingAction, joinWaitlistAction } from "./actions";
 import { describeBookingErrorReason, sessionTypeInfo } from "./scheduleTypes";
 import type { SessionStatus } from "@/lib/booking/sessionStatus";
+import { ORG_TIMEZONE } from "@/lib/org";
 
 interface SessionInfo {
   id: string;
@@ -38,12 +39,13 @@ export function SessionDetailsPanel({
   // value, not a second query-string boundary).
   const loginHref = `/auth/login?redirect=/app/schedule?session_id=${session.id}`;
   const info = sessionTypeInfo(session.session_type);
-  const dateStr = new Date(session.start_time).toLocaleDateString(undefined, {
+  const dateStr = new Date(session.start_time).toLocaleDateString("en-US", {
     weekday: "short",
     month: "short",
     day: "numeric",
+    timeZone: ORG_TIMEZONE,
   });
-  const timeStr = `${new Date(session.start_time).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}–${new Date(session.end_time).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}`;
+  const timeStr = `${new Date(session.start_time).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone: ORG_TIMEZONE })}–${new Date(session.end_time).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone: ORG_TIMEZONE })}`;
 
   return (
     <>
