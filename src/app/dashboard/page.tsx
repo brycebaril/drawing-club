@@ -1,13 +1,35 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
+import { pool } from "@/lib/db/pool";
 import { getUserAuthContext } from "@/lib/auth/roles";
+import { getSettingNumber } from "@/lib/settings";
 import { SiteNav } from "@/components/SiteNav";
+import { RenewMembershipButton } from "./RenewMembershipButton";
 import { memberLabel } from "@/lib/users/memberLabel";
+import { ORG_TIMEZONE } from "@/lib/org";
+
+// A membership expiring within this many days (or already lapsed) surfaces
+// the renew CTA prominently — comfortably active memberships just show the
+// expiry date, since renewing early only extends from the *later* of now()
+// or the current expiry (src/app/api/webhooks/stripe/route.ts), so there's
+// no urgency to act sooner than this.
+const RENEWAL_REMINDER_DAYS = 30;
+
+function formatDate(date: Date): string {
+  return date.toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric", timeZone: ORG_TIMEZONE });
+}
+
+function daysUntil(date: Date): number {
+  return Math.ceil((date.getTime() - Date.now()) / (24 * 60 * 60 * 1000));
+}
 
 /**
- * Placeholder only — proves the auth/RBAC chain works end to end
- * (docs/SiteOutline.md §3.2 will replace this with the real member dashboard
- * in a later phase).
+ * Design Doc §5.2's Account Holder vs. Paid Member split is the one thing a
+ * new member most needs oriented on — this page surfaces membership status,
+ * what membership actually buys them, and a renew/join action when it's
+ * actually relevant (not a permanent fixture, per explicit design call: an
+ * already-comfortably-active member doesn't need a nagging renew button).
  */
 export default async function DashboardPage() {
   const session = await auth();
@@ -16,12 +38,77 @@ export default async function DashboardPage() {
   const ctx = await getUserAuthContext(session.user.id);
   if (!ctx) redirect("/auth/login");
 
+  const isMember = ctx.roles.includes("MBR");
+
+  const [membershipRow, accountDays, memberDays, membershipFee, bonusPasses] = await Promise.all([
+    pool.query<{ membership_expires_at: Date | null }>(
+      `SELECT membership_expires_at FROM users WHERE id = $1`,
+      [ctx.id],
+    ),
+    getSettingNumber("BOOKING_WINDOW_ACCOUNT_DAYS"),
+    getSettingNumber("BOOKING_WINDOW_MEMBER_DAYS"),
+    getSettingNumber("MEMBERSHIP_ANNUAL_FEE"),
+    getSettingNumber("MEMBERSHIP_BONUS_PASSES"),
+  ]);
+
+  const expiresAt = membershipRow.rows[0].membership_expires_at;
+  const expiresIn = expiresAt ? daysUntil(expiresAt) : null;
+  // isMember (derived from membership_expires_at > now()) already rules out
+  // a lapsed-but-still-set expiry date counting as "active" here — a
+  // non-member with expiresIn <= 0 has genuinely lapsed, not just be mid-way
+  // through a still-valid term.
+  const showRenewalCta = !isMember || (expiresIn !== null && expiresIn <= RENEWAL_REMINDER_DAYS);
+  // A lapsed member has real membership history (expiresAt is set, just in
+  // the past) and should see "renew," not "become" — isMember alone can't
+  // distinguish that from someone who's never been a member at all.
+  const hasHadMembership = expiresAt !== null;
+
   return (
     <>
       <SiteNav />
       <main>
         <h1>Dashboard</h1>
         <p>Logged in as {memberLabel(ctx.displayName, ctx.username)}</p>
+
+        <h2>Membership</h2>
+        {isMember ? (
+          <p>
+            You&rsquo;re a Paid Member{expiresAt && <> through {formatDate(expiresAt)}</>}
+            {expiresIn !== null && expiresIn <= RENEWAL_REMINDER_DAYS && (
+              <> — renews in {expiresIn} day{expiresIn === 1 ? "" : "s"}.</>
+            )}
+          </p>
+        ) : expiresAt ? (
+          <p role="alert">Your membership lapsed on {formatDate(expiresAt)}. Renew to get member pricing and booking window back.</p>
+        ) : (
+          <p>You&rsquo;re an Account Holder — you don&rsquo;t have an active membership yet.</p>
+        )}
+
+        <h2>Member benefits</h2>
+        <ul>
+          <li>
+            Book up to {memberDays} days ahead, vs. {accountDays} days for Account Holders.
+          </li>
+          <li>Lower per-ticket prices on single tickets and 5-packs, plus access to 10-packs.</li>
+          <li>
+            {bonusPasses} free transferable ticket{bonusPasses === 1 ? "" : "s"} every time you join or renew.
+          </li>
+        </ul>
+        <p>
+          Annual membership is ${membershipFee.toFixed(2)}. See the full <Link href="/pricing">price comparison</Link>.
+        </p>
+
+        {showRenewalCta && (
+          <>
+            <h2>{hasHadMembership ? "Renew your membership" : "Become a Member"}</h2>
+            <RenewMembershipButton
+              label={hasHadMembership ? "Renew membership" : "Become a Member"}
+              disabled={!ctx.emailVerified}
+            />
+          </>
+        )}
+
+        <h2>Account</h2>
         <p>Roles: {ctx.roles.join(", ")}</p>
         <p>Email verified: {ctx.emailVerified ? "yes" : "no"}</p>
       </main>
