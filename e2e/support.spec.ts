@@ -27,7 +27,16 @@ test("a member creates a support ticket, a support agent sees and replies to it,
   expect(ticketRow.rows[0].requester_user_id).toBe(member.id);
 
   await loginAsUser(page, agent);
-  await page.goto("/ops/support");
+  // The staff-facing urgent banner (getPendingNotifications.ts) should
+  // appear on an unrelated page too, not just the support inbox itself —
+  // matching the member-facing banner's own "visible before visiting the
+  // page it links to" precedent. Global "needs reply" count, so match the
+  // message shape rather than an exact number (see the badge assertion
+  // below for the same reasoning).
+  await page.goto("/dashboard");
+  await expect(page.getByText(/support tickets? needs? a reply\./)).toBeVisible();
+  await page.getByRole("link", { name: "Open support inbox" }).click();
+  await page.waitForURL("**/ops/support");
   // The badge link lives inside the closed <details> disclosure — open it
   // first. The count itself is a global "needs staff reply across every
   // ticket" number (a deliberately shared, unassigned inbox), so other

@@ -1,4 +1,5 @@
 import { pool } from "@/lib/db/pool";
+import { getUserAuthContext } from "@/lib/auth/roles";
 
 export interface PendingNotification {
   message: string;
@@ -54,6 +55,33 @@ export async function getPendingNotifications(userId: string): Promise<PendingNo
       ctaHref: "/app/support",
       urgent: true,
     });
+  }
+
+  // Staff-facing: the shared support inbox's own "needs reply" count
+  // (SiteNav's "Support (N)" nav badge computes this identically), surfaced
+  // here too since that badge lives behind the collapsed "☰ Staff"
+  // disclosure and can go unnoticed. getUserAuthContext is cache()-wrapped,
+  // so this reuses SiteNav's own same-request call rather than paying for a
+  // second query on top of it.
+  const ctx = await getUserAuthContext(userId);
+  const canSeeSupportInbox = ctx ? ctx.roles.includes("ADMIN") || ctx.roles.includes("VOL_SUPPORT") : false;
+  if (canSeeSupportInbox) {
+    const staffNeedsReplyResult = await pool.query<{ count: number }>(
+      `SELECT count(*)::int AS count FROM support_tickets
+       WHERE status = 'Open' AND last_message_by_user_id = requester_user_id`,
+    );
+    const staffNeedsReply = staffNeedsReplyResult.rows[0].count;
+    if (staffNeedsReply > 0) {
+      notifications.push({
+        message:
+          staffNeedsReply === 1
+            ? "1 support ticket needs a reply."
+            : `${staffNeedsReply} support tickets need a reply.`,
+        ctaLabel: "Open support inbox",
+        ctaHref: "/ops/support",
+        urgent: true,
+      });
+    }
   }
 
   return notifications;
