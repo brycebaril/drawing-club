@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 
-export type BadgeTone = "admin" | "volunteer" | "member" | "neutral" | "active" | "suspended" | "banned";
+export type BadgeTone = "admin" | "volunteer" | "member" | "neutral" | "active" | "suspended" | "banned" | "deleted";
 
 export function Badge({ tone, children }: { tone: BadgeTone; children: ReactNode }) {
   return <span className={`badge badge--${tone}`}>{children}</span>;
@@ -10,6 +10,7 @@ export function Badge({ tone, children }: { tone: BadgeTone; children: ReactNode
 export function statusTone(status: string): BadgeTone {
   if (status === "Suspended") return "suspended";
   if (status === "Banned") return "banned";
+  if (status === "Deleted") return "deleted";
   return "active";
 }
 

@@ -28,9 +28,11 @@ export async function GET(request: Request): Promise<NextResponse> {
   const tier = params.get("tier") ?? undefined;
   const role = params.get("role") ?? undefined;
   const q = params.get("q") ?? undefined;
+  const filter = params.get("filter") ?? undefined;
 
   const result = await pool.query<UserRow>(
     `SELECT u.id, u.username, u.display_name, u.email, u.status, u.base_role, u.membership_expires_at,
+            u.cancellation_requested_at,
             COALESCE(array_agg(vr.role::text) FILTER (WHERE vr.role IS NOT NULL), '{}') AS volunteer_roles
      FROM users u
      LEFT JOIN volunteer_roles vr ON vr.user_id = u.id
@@ -39,7 +41,7 @@ export async function GET(request: Request): Promise<NextResponse> {
   );
 
   const now = new Date();
-  const rows = filterUserRows(result.rows, { status, tier, role, q }, now);
+  const rows = filterUserRows(result.rows, { status, tier, role, q, filter }, now);
 
   const lines = ["Username,Display Name,Email,Status,Tier,Roles"];
   for (const row of rows) {

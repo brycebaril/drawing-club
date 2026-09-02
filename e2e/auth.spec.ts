@@ -12,7 +12,12 @@ test("registering creates an account and signs the user in", async ({ page }) =>
   await page.getByRole("button", { name: "Create account" }).click();
 
   await page.waitForURL("**/dashboard");
-  await expect(page.getByText(`Logged in as ${username}`)).toBeVisible();
+  // The dashboard shows memberLabel(displayName, username) — display name
+  // when set, not the raw username (src/lib/users/memberLabel.ts). This
+  // assertion was checking the username, a stale leftover from before that
+  // change (a real, previously undiscovered break — found while separately
+  // debugging an account-management e2e run).
+  await expect(page.getByText("Logged in as E2E User")).toBeVisible();
 });
 
 test("unauthenticated visit to /dashboard redirects to login", async ({ page }) => {

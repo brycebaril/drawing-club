@@ -3,10 +3,11 @@ export interface UserRow {
   username: string;
   display_name: string | null;
   email: string;
-  status: "Active" | "Suspended" | "Banned";
+  status: "Active" | "Suspended" | "Banned" | "Deleted";
   base_role: "AccountHolder" | "Admin";
   membership_expires_at: Date | null;
   volunteer_roles: string[];
+  cancellation_requested_at: Date | null;
 }
 
 export const VOLUNTEER_ROLE_MAP: Record<string, string> = {
@@ -35,13 +36,15 @@ export function mappedRolesFor(row: UserRow): string[] {
  */
 export function filterUserRows(
   rows: UserRow[],
-  filters: { status?: string; tier?: string; role?: string; q?: string },
+  filters: { status?: string; tier?: string; role?: string; q?: string; filter?: string },
   now: Date,
 ): UserRow[] {
   const q = filters.q?.trim().toLowerCase();
 
   return rows.filter((row) => {
     if (filters.status && row.status !== filters.status) return false;
+
+    if (filters.filter === "cancellation-requested" && !row.cancellation_requested_at) return false;
 
     const isMember = isMemberTier(row, now);
     if (filters.tier === "MBR" && !isMember) return false;

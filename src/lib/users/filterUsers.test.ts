@@ -11,6 +11,7 @@ function makeRow(overrides: Partial<UserRow> = {}): UserRow {
     base_role: "AccountHolder",
     membership_expires_at: null,
     volunteer_roles: [],
+    cancellation_requested_at: null,
     ...overrides,
   };
 }
@@ -78,5 +79,22 @@ describe("filterUserRows — q (display name or email search)", () => {
     const result = filterUserRows(rows, { q: "jane", status: "Active", tier: "MBR" }, NOW);
     expect(result).toHaveLength(1);
     expect(result[0].id).toBe("1");
+  });
+});
+
+describe("filterUserRows — filter=cancellation-requested", () => {
+  it("keeps only rows with a pending cancellation request", () => {
+    const rows = [
+      makeRow({ id: "1", cancellation_requested_at: new Date("2026-01-01T00:00:00Z") }),
+      makeRow({ id: "2", cancellation_requested_at: null }),
+    ];
+    const result = filterUserRows(rows, { filter: "cancellation-requested" }, NOW);
+    expect(result).toHaveLength(1);
+    expect(result[0].id).toBe("1");
+  });
+
+  it("returns every row when the filter isn't set", () => {
+    const rows = [makeRow({ id: "1" }), makeRow({ id: "2", cancellation_requested_at: new Date() })];
+    expect(filterUserRows(rows, {}, NOW)).toHaveLength(2);
   });
 });

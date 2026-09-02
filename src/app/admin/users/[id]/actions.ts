@@ -1,11 +1,13 @@
 "use server";
 
+import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { pool } from "@/lib/db/pool";
 import { requireAdmin } from "@/lib/auth/requireAdmin";
 import { writeAuditLog } from "@/lib/audit/log";
 import { releaseAllFutureBookingsForUser } from "@/lib/booking/actions";
+import { hashPassword } from "@/lib/auth/password";
 
 export interface ActionState {
   error?: string;
@@ -64,6 +66,82 @@ export async function setAccountStatusAction(
     actionType: "ACCOUNT_STATUS_CHANGED",
     targetUserId: userId,
     metadata: { previousStatus, newStatus, reason },
+  });
+
+  revalidateUserPages(userId);
+  redirect(`/admin/users/${userId}`);
+}
+
+/**
+ * GDPR-style erasure — anonymizes PII in place rather than a real row
+ * delete, which isn't viable regardless: transactions.user_id,
+ * waitlist_entries.user_id, session_notes.author_user_id, and
+ * recurrence_rules.created_by are all ON DELETE RESTRICT. Matches
+ * docs/SecurityDocument.md §6's own stated approach ("a policy for
+ * anonymizing — rather than deleting — personal identifiers... so
+ * accounting integrity is preserved"). Everything FK-linked to this user
+ * (transactions, passes, membership_history, audit logs, session notes)
+ * is deliberately left untouched — anonymized-but-linked.
+ */
+export async function anonymizeAccountAction(
+  _prevState: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const ctx = await requireAdmin();
+  if (!ctx) return { error: "Not authorized." };
+
+  const userId = String(formData.get("userId") ?? "");
+  const reason = String(formData.get("reason") ?? "").trim();
+  if (!reason) return { error: "A reason is required." };
+  if (formData.get("confirm") !== "on") {
+    return { error: "Check the confirmation box to proceed — this can't be undone." };
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+
+    const userRow = await client.query<{ status: string }>(
+      `SELECT status FROM users WHERE id = $1 FOR UPDATE`,
+      [userId],
+    );
+    if (userRow.rowCount === 0) {
+      await client.query("ROLLBACK");
+      return { error: "User not found." };
+    }
+    if (userRow.rows[0].status === "Deleted") {
+      await client.query("ROLLBACK");
+      return { error: "This account has already been anonymized." };
+    }
+
+    const unusablePasswordHash = await hashPassword(randomUUID());
+    await client.query(
+      `UPDATE users
+       SET email = $1, username = $2, display_name = NULL, password_hash = $3,
+           mfa_secret = NULL, mfa_enabled = false,
+           cancellation_requested_at = NULL, cancellation_reason = NULL,
+           status = 'Deleted'
+       WHERE id = $4`,
+      [`deleted-${userId}@deleted.invalid`, `deleted-${userId}`, unusablePasswordHash, userId],
+    );
+
+    await client.query("COMMIT");
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
+
+  // Outside the transaction, same as setAccountStatusAction above — this
+  // touches sessions/passes tables of its own via its own connection.
+  await releaseAllFutureBookingsForUser(userId);
+
+  await writeAuditLog({
+    actorId: ctx.id,
+    actionType: "ACCOUNT_ANONYMIZED",
+    targetUserId: userId,
+    metadata: { reason },
   });
 
   revalidateUserPages(userId);

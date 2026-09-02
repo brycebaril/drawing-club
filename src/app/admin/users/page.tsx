@@ -5,7 +5,7 @@ import { Badge, roleTone, statusTone, tierTone } from "@/components/Badge";
 import { resolveSort } from "@/lib/sort";
 import { filterUserRows, isMemberTier, mappedRolesFor, type UserRow } from "@/lib/users/filterUsers";
 
-const STATUS_OPTIONS = ["Active", "Suspended", "Banned"] as const;
+const STATUS_OPTIONS = ["Active", "Suspended", "Banned", "Deleted"] as const;
 const TIER_OPTIONS = ["ACCT", "MBR"] as const;
 // VOL_SUPPORT was missing here (and from filterUsers.ts's own VOLUNTEER_ROLE_MAP,
 // fixed alongside this) even though src/lib/auth/roles.ts's copy of the map
@@ -26,13 +26,22 @@ const SORT_COLUMNS = {
 export default async function AdminUsersPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string; tier?: string; role?: string; q?: string; sort?: string; dir?: string }>;
+  searchParams: Promise<{
+    status?: string;
+    tier?: string;
+    role?: string;
+    q?: string;
+    filter?: string;
+    sort?: string;
+    dir?: string;
+  }>;
 }) {
-  const { status, tier, role, q, sort, dir } = await searchParams;
+  const { status, tier, role, q, filter, sort, dir } = await searchParams;
   const { state, orderBy } = resolveSort(sort, dir, SORT_COLUMNS, "username");
 
   const result = await pool.query<UserRow>(
     `SELECT u.id, u.username, u.display_name, u.email, u.status, u.base_role, u.membership_expires_at,
+            u.cancellation_requested_at,
             COALESCE(array_agg(vr.role::text) FILTER (WHERE vr.role IS NOT NULL), '{}') AS volunteer_roles
      FROM users u
      LEFT JOIN volunteer_roles vr ON vr.user_id = u.id
@@ -41,13 +50,14 @@ export default async function AdminUsersPage({
   );
 
   const now = new Date();
-  const rows = filterUserRows(result.rows, { status, tier, role, q }, now);
+  const rows = filterUserRows(result.rows, { status, tier, role, q, filter }, now);
 
   const csvParams = new URLSearchParams();
   if (status) csvParams.set("status", status);
   if (tier) csvParams.set("tier", tier);
   if (role) csvParams.set("role", role);
   if (q) csvParams.set("q", q);
+  if (filter) csvParams.set("filter", filter);
   const csvHref = `/admin/users/csv${csvParams.size > 0 ? `?${csvParams}` : ""}`;
 
   const currentParams = new URLSearchParams({
@@ -55,6 +65,7 @@ export default async function AdminUsersPage({
     ...(tier ? { tier } : {}),
     ...(role ? { role } : {}),
     ...(q ? { q } : {}),
+    ...(filter ? { filter } : {}),
     sort: state.key,
     dir: state.dir,
   });
@@ -103,6 +114,10 @@ export default async function AdminUsersPage({
             ))}
           </select>
         </label>
+        <label>
+          <input type="checkbox" name="filter" value="cancellation-requested" defaultChecked={filter === "cancellation-requested"} />{" "}
+          Cancellation requested
+        </label>
         <button type="submit">Filter</button>
       </form>
 
@@ -141,7 +156,8 @@ export default async function AdminUsersPage({
                 <td data-label="Display name">{row.display_name ?? "—"}</td>
                 <td data-label="Email">{row.email}</td>
                 <td data-label="Status">
-                  <Badge tone={statusTone(row.status)}>{row.status}</Badge>
+                  <Badge tone={statusTone(row.status)}>{row.status}</Badge>{" "}
+                  {row.cancellation_requested_at && <Badge tone="suspended">Cancellation requested</Badge>}
                 </td>
                 <td data-label="Tier">
                   <Badge tone={tierTone(isMember)}>{isMember ? "MBR" : "ACCT"}</Badge>

@@ -6,6 +6,7 @@ import { StatusForm } from "./StatusForm";
 import { GrantPassForm } from "./GrantPassForm";
 import { MembershipForm } from "./MembershipForm";
 import { VolunteerRoleForm } from "./VolunteerRoleForm";
+import { AnonymizeAccountForm } from "./AnonymizeAccountForm";
 import { removeVolunteerRoleAction } from "./actions";
 import { ORG_TIMEZONE } from "@/lib/org";
 import { memberLabelWithUsername } from "@/lib/users/memberLabel";
@@ -15,9 +16,11 @@ interface UserDetail {
   username: string;
   display_name: string | null;
   email: string;
-  status: "Active" | "Suspended" | "Banned";
+  status: "Active" | "Suspended" | "Banned" | "Deleted";
   base_role: "AccountHolder" | "Admin";
   membership_expires_at: Date | null;
+  cancellation_requested_at: Date | null;
+  cancellation_reason: string | null;
 }
 
 interface MembershipHistoryRow {
@@ -73,7 +76,9 @@ export default async function AdminUserDetailPage({
   const { id } = await params;
 
   const userResult = await pool.query<UserDetail>(
-    `SELECT id, username, display_name, email, status, base_role, membership_expires_at FROM users WHERE id = $1`,
+    `SELECT id, username, display_name, email, status, base_role, membership_expires_at,
+            cancellation_requested_at, cancellation_reason
+     FROM users WHERE id = $1`,
     [id],
   );
   if (userResult.rowCount === 0) notFound();
@@ -143,6 +148,14 @@ export default async function AdminUserDetailPage({
         <Badge tone={tierTone(isMember)}>{isMember ? "MBR" : "ACCT"}</Badge> · Available tickets:{" "}
         {passCountResult.rows[0].count}
       </p>
+
+      {user.cancellation_requested_at && (
+        <p role="alert">
+          Cancellation requested on{" "}
+          {new Date(user.cancellation_requested_at).toLocaleDateString("en-US", { timeZone: ORG_TIMEZONE })}
+          {user.cancellation_reason && <>: &ldquo;{user.cancellation_reason}&rdquo;</>}
+        </p>
+      )}
 
       <section>
         <h2>Account status</h2>
@@ -267,6 +280,19 @@ export default async function AdminUserDetailPage({
               </tbody>
             </table>
           </div>
+        </section>
+      )}
+
+      {user.status !== "Deleted" && (
+        <section>
+          <h2>Danger zone</h2>
+          <p className="section-note">
+            GDPR-style erasure — scrubs this account&rsquo;s email/username/display name in place
+            (real deletion isn&rsquo;t possible while it has purchase/booking history). Their
+            transactions, tickets, and audit trail are left untouched. This is irreversible, unlike
+            the status change above.
+          </p>
+          <AnonymizeAccountForm userId={user.id} />
         </section>
       )}
     </main>

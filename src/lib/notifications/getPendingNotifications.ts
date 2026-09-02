@@ -84,5 +84,28 @@ export async function getPendingNotifications(userId: string): Promise<PendingNo
     }
   }
 
+  // Staff-facing: pending member-initiated cancellation requests
+  // (requestCancellationAction, dashboard/actions.ts) — ADMIN-only, since
+  // only an admin can act on one (anonymizeAccountAction). Same
+  // extensibility this function's own doc comment already calls out.
+  const canSeeCancellationRequests = ctx ? ctx.roles.includes("ADMIN") : false;
+  if (canSeeCancellationRequests) {
+    const cancellationRequestsResult = await pool.query<{ count: number }>(
+      `SELECT count(*)::int AS count FROM users WHERE cancellation_requested_at IS NOT NULL`,
+    );
+    const cancellationRequests = cancellationRequestsResult.rows[0].count;
+    if (cancellationRequests > 0) {
+      notifications.push({
+        message:
+          cancellationRequests === 1
+            ? "1 account cancellation request is pending review."
+            : `${cancellationRequests} account cancellation requests are pending review.`,
+        ctaLabel: "Review requests",
+        ctaHref: "/admin/users?filter=cancellation-requested",
+        urgent: true,
+      });
+    }
+  }
+
   return notifications;
 }

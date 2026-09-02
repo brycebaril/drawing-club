@@ -759,7 +759,8 @@ button:disabled {
   color: var(--color-danger-text);
 }
 
-.badge--neutral {
+.badge--neutral,
+.badge--deleted {
   background: var(--color-bg);
   border: 1px solid var(--color-border);
   color: var(--color-text-muted);

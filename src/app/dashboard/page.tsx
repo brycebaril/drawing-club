@@ -7,6 +7,10 @@ import { getSettingNumber } from "@/lib/settings";
 import { getAvailableTicketCount } from "@/lib/payments/passes";
 import { SiteNav } from "@/components/SiteNav";
 import { RenewMembershipButton } from "./RenewMembershipButton";
+import { ChangePasswordForm } from "./ChangePasswordForm";
+import { MfaSettingsSection } from "./MfaSettingsSection";
+import { UpdateProfileForm, UpdateEmailForm } from "./UpdateProfileForm";
+import { CancelAccountForm } from "./CancelAccountForm";
 import { memberLabel } from "@/lib/users/memberLabel";
 import { ORG_TIMEZONE } from "@/lib/org";
 
@@ -42,8 +46,13 @@ export default async function DashboardPage() {
   const isMember = ctx.roles.includes("MBR");
 
   const [membershipRow, accountDays, memberDays, membershipFee, bonusPasses, ticketCount] = await Promise.all([
-    pool.query<{ membership_expires_at: Date | null }>(
-      `SELECT membership_expires_at FROM users WHERE id = $1`,
+    pool.query<{
+      membership_expires_at: Date | null;
+      email: string;
+      cancellation_requested_at: Date | null;
+      cancellation_reason: string | null;
+    }>(
+      `SELECT membership_expires_at, email, cancellation_requested_at, cancellation_reason FROM users WHERE id = $1`,
       [ctx.id],
     ),
     getSettingNumber("BOOKING_WINDOW_ACCOUNT_DAYS"),
@@ -53,6 +62,8 @@ export default async function DashboardPage() {
     getAvailableTicketCount(ctx.id),
   ]);
 
+  const { email, cancellation_requested_at: cancellationRequestedAt, cancellation_reason: cancellationReason } =
+    membershipRow.rows[0];
   const expiresAt = membershipRow.rows[0].membership_expires_at;
   const expiresIn = expiresAt ? daysUntil(expiresAt) : null;
   // isMember (derived from membership_expires_at > now()) already rules out
@@ -127,6 +138,26 @@ export default async function DashboardPage() {
         <h2>Account</h2>
         <p>Roles: {ctx.roles.join(", ")}</p>
         <p>Email verified: {ctx.emailVerified ? "yes" : "no"}</p>
+
+        <h2>Account settings</h2>
+
+        <h3>Password</h3>
+        <ChangePasswordForm />
+
+        <h3>Two-factor authentication</h3>
+        <MfaSettingsSection mfaEnabled={ctx.mfaEnabled} mfaRequired={ctx.mfaRequired} />
+
+        <h3>Profile</h3>
+        <UpdateProfileForm displayName={ctx.displayName ?? ""} username={ctx.username} />
+
+        <h3>Email</h3>
+        <UpdateEmailForm email={email} emailVerified={ctx.emailVerified} />
+
+        <h3>Cancel account</h3>
+        <CancelAccountForm
+          requestedAt={cancellationRequestedAt ? cancellationRequestedAt.toISOString() : null}
+          reason={cancellationReason}
+        />
       </main>
     </>
   );
