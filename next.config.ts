@@ -9,16 +9,32 @@ import { MAX_UPLOAD_SIZE_BYTES } from "./src/lib/uploads/constants";
 // and field-metadata overhead, per Next's docs on serverActions.bodySizeLimit.
 const REQUEST_BODY_SIZE_LIMIT = MAX_UPLOAD_SIZE_BYTES + 2 * 1024 * 1024;
 
-// src/lib/envStatus.ts's build-info source. A real deploy (Amplify once
-// provisioned, or any CI artifact) may set GIT_SHA directly; local dev
-// derives it from the checked-out commit instead. Wrapped in try/catch since
-// a stripped deploy artifact without .git shouldn't fail the build over a
+// src/lib/envStatus.ts's build-info source. Prefers Amplify's own
+// build-provided commit id (AWS_COMMIT_ID — set on every Amplify Hosting
+// build, confirmed against AWS's own environment-variables reference) over
+// running git ourselves: Amplify's CodeBuild environment showed "build
+// unknown" on staging even though `git rev-parse` works fine locally,
+// most likely the well-known "detected dubious ownership in repository"
+// safety check newer git versions apply when the checkout's owning UID
+// differs from the build user's — AWS_COMMIT_ID sidesteps needing git to
+// work in the build container at all. AWS_COMMIT_ID is literally the
+// string "HEAD" on a rebuild of an already-deployed commit (not a real
+// SHA), so that specific value falls through to the git-based derivation
+// instead of being trusted as-is. Sliced to 7 chars either way, matching
+// `git rev-parse --short`'s own convention, regardless of whichever source
+// provided the full-length id. Wrapped in try/catch since a stripped
+// deploy artifact without .git shouldn't fail the build over a
 // status-banner nicety.
 if (!process.env.GIT_SHA) {
-  try {
-    process.env.GIT_SHA = execSync("git rev-parse --short HEAD").toString().trim();
-  } catch {
-    process.env.GIT_SHA = "unknown";
+  const amplifyCommitId = process.env.AWS_COMMIT_ID;
+  if (amplifyCommitId && amplifyCommitId !== "HEAD") {
+    process.env.GIT_SHA = amplifyCommitId.slice(0, 7);
+  } else {
+    try {
+      process.env.GIT_SHA = execSync("git rev-parse --short HEAD").toString().trim();
+    } catch {
+      process.env.GIT_SHA = "unknown";
+    }
   }
 }
 
