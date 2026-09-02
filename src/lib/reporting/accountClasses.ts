@@ -58,7 +58,16 @@ export async function getAccountClassStats(): Promise<AccountClassStats> {
        SELECT u.id,
          (u.base_role = 'Admin') AS is_admin,
          EXISTS (SELECT 1 FROM volunteer_roles vr WHERE vr.user_id = u.id) AS is_volunteer,
-         (u.membership_expires_at > now()) AS is_member
+         -- COALESCE(..., false) is load-bearing, not defensive styling: for
+         -- a user who's never had a membership, membership_expires_at IS
+         -- NULL, so "> now()" evaluates to SQL NULL rather than false. Both
+         -- "WHERE is_member" and "WHERE NOT is_member" exclude a NULL row
+         -- (three-valued logic) -- without this, that user vanishes from
+         -- BOTH the Member and Account Holder buckets below, silently
+         -- undercounting the real population by however many users have
+         -- never held a membership (confirmed: undercounted by 3,686 of
+         -- 4,234 real local-dev users before this fix).
+         COALESCE(u.membership_expires_at > now(), false) AS is_member
        FROM users u
      ),
      active_this_week AS (
