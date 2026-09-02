@@ -91,7 +91,7 @@ export default async function DashboardPage() {
           <p>
             You&rsquo;re a Paid Member{expiresAt && <> through {formatDate(expiresAt)}</>}
             {expiresIn !== null && expiresIn <= RENEWAL_REMINDER_DAYS && (
-              <> — renews in {expiresIn} day{expiresIn === 1 ? "" : "s"}.</>
+              <> — expires in {expiresIn} day{expiresIn === 1 ? "" : "s"}.</>
             )}
           </p>
         ) : expiresAt ? (
