@@ -116,8 +116,15 @@ export async function migrateUsers(client: PoolClient): Promise<MigrationReport>
     }
 
     const result = await client.query<{ id: string }>(
-      `INSERT INTO users (legacy_id, username, display_name, email, password_hash, base_role, status, email_verified_at)
-       VALUES ($1, $2, $3, $4, $5, 'AccountHolder', $6, $7)
+      // created_at reuses the same migratedAt timestamp as email_verified_at
+      // (not the column's own now() default) — this INSERT can run again on
+      // a --reset staging rehearsal, and a real, previously-found bug of
+      // this exact shape (undiscovered email_verified_at gap, CLAUDE.md's
+      // Legacy Migration Scope memory) is exactly why: without this, every
+      // rehearsal run would make thousands of years-old accounts look
+      // "new this week" on the admin dashboard.
+      `INSERT INTO users (legacy_id, username, display_name, email, password_hash, base_role, status, email_verified_at, created_at)
+       VALUES ($1, $2, $3, $4, $5, 'AccountHolder', $6, $7, $7)
        RETURNING id`,
       [String(row.id), username, displayName, row.email, passwordHash, status, migratedAt],
     );

@@ -81,8 +81,14 @@ export async function migrateRolesAndMembership(client: PoolClient, cutoverDate:
     if (entitlements.includes("member_status")) {
       const transactionId = legacyPassIdToTransactionId.get(row.id) ?? null;
       await client.query(
-        `INSERT INTO membership_history (user_id, transaction_id, valid_from, valid_until)
-         VALUES ($1, $2, $3, $4)`,
+        // created_at uses the linked transaction's real created_at when
+        // there is one, else falls back to this membership's own
+        // validFrom — never the column's own now() default, which would
+        // make every migrated membership row look like a brand new
+        // signup/renewal on a --reset staging rehearsal (same reasoning as
+        // migrateUsers' created_at fix directly above it).
+        `INSERT INTO membership_history (user_id, transaction_id, valid_from, valid_until, created_at)
+         VALUES ($1, $2, $3, $4, COALESCE((SELECT created_at FROM transactions WHERE id = $2), $3))`,
         [userId, transactionId, row.validFrom, row.validThru],
       );
       report.migrated += 1;

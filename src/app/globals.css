@@ -661,6 +661,39 @@ button:disabled {
   color: var(--color-text-muted);
 }
 
+/* A grid of small metric cards — the admin dashboard's account-class,
+   new-this-week, and ticket-circulation sections. Distinct from
+   .stat-callout, which is shaped for one big count + CTA, not several
+   small numbers side by side. */
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr));
+  gap: var(--space-4);
+  margin-bottom: var(--space-5);
+}
+
+.stat-card {
+  padding: var(--space-4);
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+}
+
+.stat-card-value {
+  margin: 0;
+  font-family: var(--font-heading);
+  font-weight: var(--font-heading-weight);
+  font-size: 1.75rem;
+  line-height: 1;
+}
+
+.stat-card-label,
+.stat-card-sub {
+  margin-top: var(--space-1);
+  font-size: 0.8125rem;
+  color: var(--color-text-muted);
+}
+
 /* ---- Alerts & status messages ---- */
 /* role="alert" is used for validation errors; role="status" for
    success/confirmation messages (e.g. "your message has been sent") — both
