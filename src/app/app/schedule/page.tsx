@@ -13,6 +13,7 @@ import { Legend } from "./Legend";
 import { Modal } from "./Modal";
 import { SiteNav } from "@/components/SiteNav";
 import { formatOpensDate, formatWeekRange, type GridCellData } from "./scheduleTypes";
+import { displayModelNames } from "@/lib/models/modelName";
 import { memberLabel } from "@/lib/users/memberLabel";
 
 const WEEK_LENGTH_DAYS = 7;
@@ -191,7 +192,7 @@ export default async function SchedulePage({
         hostUsername: s.host_username,
         hostDisplayName: s.host_display_name,
         modelRequired: s.model_required,
-        modelNames: s.model_names,
+        modelNames: displayModelNames(s.model_names, viewerRoles),
         bookedCount: s.booked_count,
         maxCapacity: s.max_capacity,
       }); // one session per cell for this phase (no overlap handling yet)

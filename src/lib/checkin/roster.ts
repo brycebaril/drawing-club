@@ -3,6 +3,7 @@
 import { pool } from "@/lib/db/pool";
 import { requireOpsRole } from "@/lib/auth/requireOpsRole";
 import { requireCheckInAccess } from "./access";
+import { canSeeFullModelName, truncateModelName } from "@/lib/models/modelName";
 
 export interface CheckInSessionSummary {
   id: string;
@@ -183,7 +184,11 @@ export async function getCheckInRoster(sessionId: string): Promise<CheckInRoster
       hostDisplayName: sessionRow.hostDisplayName,
       isSeries,
     },
-    modelName: modelResult.rows[0]?.name ?? null,
+    modelName: modelResult.rows[0]
+      ? canSeeFullModelName(ctx.roles)
+        ? modelResult.rows[0].name
+        : truncateModelName(modelResult.rows[0].name)
+      : null,
     roster,
     notes: notesResult.rows.map((n) => ({
       id: n.id,
