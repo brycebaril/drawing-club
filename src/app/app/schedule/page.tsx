@@ -15,6 +15,7 @@ import { SiteNav } from "@/components/SiteNav";
 import { formatOpensDate, formatWeekRange, type GridCellData } from "./scheduleTypes";
 import { displayModelNames } from "@/lib/models/modelName";
 import { memberLabel } from "@/lib/users/memberLabel";
+import { getAvailableTicketCount } from "@/lib/payments/passes";
 
 const WEEK_LENGTH_DAYS = 7;
 
@@ -46,6 +47,9 @@ export default async function SchedulePage({
   // computation that depends on a viewer identity accounts for that.
   const session = await auth();
   const ctx = session?.user?.id ? await getUserAuthContext(session.user.id) : null;
+  // Only queried for a logged-in viewer — a guest already sees the
+  // "Log in to book a session" prompt below and has no wallet to check.
+  const ticketCount = ctx ? await getAvailableTicketCount(ctx.id) : null;
 
   const {
     session_id: selectedId,
@@ -221,6 +225,16 @@ export default async function SchedulePage({
       <SiteNav />
       <main className="main--wide">
         <h1>Schedule</h1>
+        {ticketCount === 0 && (
+          <div className="stat-callout">
+            <p className="stat-callout-count">
+              0<span>tickets available</span>
+            </p>
+            <a href="/app/wallet" className="button-link">
+              Buy your first ticket
+            </a>
+          </div>
+        )}
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
             <h2 style={{ marginTop: 0, marginBottom: 0 }}>{formatWeekRange(viewStart, viewEnd)}</h2>

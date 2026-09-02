@@ -607,6 +607,60 @@ button:disabled {
   cursor: not-allowed;
 }
 
+/* A <Link>/<a> styled to match the plain <button> above — for a primary
+   navigational CTA (e.g. the dashboard/schedule "Buy tickets" prompt) that
+   needs button-level visual weight without being a form submit itself. */
+.button-link {
+  display: inline-block;
+  padding: var(--space-2) var(--space-4);
+  margin-top: var(--space-3);
+  border: 1px solid var(--color-accent);
+  border-radius: var(--radius);
+  background: var(--color-accent);
+  color: #fff;
+  font-family: var(--font-heading);
+  font-weight: var(--font-heading-weight);
+  font-size: 0.9375rem;
+  text-decoration: none;
+  transition: background 0.15s ease;
+}
+
+.button-link:hover {
+  background: var(--color-accent-hover);
+  border-color: var(--color-accent-hover);
+}
+
+/* A prominent count + CTA card — the dashboard's top-matter "you have N
+   tickets" prompt, and the schedule page's "you have none yet" nudge. */
+.stat-callout {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+  padding: var(--space-4) var(--space-5);
+  margin-bottom: var(--space-5);
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+}
+
+.stat-callout-count {
+  margin: 0;
+  font-family: var(--font-heading);
+  font-size: 2rem;
+  line-height: 1;
+}
+
+.stat-callout-count span {
+  display: block;
+  margin-top: var(--space-1);
+  font-family: var(--font-body);
+  font-size: 0.8125rem;
+  font-weight: 400;
+  color: var(--color-text-muted);
+}
+
 /* ---- Alerts & status messages ---- */
 /* role="alert" is used for validation errors; role="status" for
    success/confirmation messages (e.g. "your message has been sent") — both

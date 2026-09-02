@@ -4,6 +4,7 @@ import { auth } from "@/auth";
 import { pool } from "@/lib/db/pool";
 import { getUserAuthContext } from "@/lib/auth/roles";
 import { getSettingNumber } from "@/lib/settings";
+import { getAvailableTicketCount } from "@/lib/payments/passes";
 import { SiteNav } from "@/components/SiteNav";
 import { RenewMembershipButton } from "./RenewMembershipButton";
 import { memberLabel } from "@/lib/users/memberLabel";
@@ -40,7 +41,7 @@ export default async function DashboardPage() {
 
   const isMember = ctx.roles.includes("MBR");
 
-  const [membershipRow, accountDays, memberDays, membershipFee, bonusPasses] = await Promise.all([
+  const [membershipRow, accountDays, memberDays, membershipFee, bonusPasses, ticketCount] = await Promise.all([
     pool.query<{ membership_expires_at: Date | null }>(
       `SELECT membership_expires_at FROM users WHERE id = $1`,
       [ctx.id],
@@ -49,6 +50,7 @@ export default async function DashboardPage() {
     getSettingNumber("BOOKING_WINDOW_MEMBER_DAYS"),
     getSettingNumber("MEMBERSHIP_ANNUAL_FEE"),
     getSettingNumber("MEMBERSHIP_BONUS_PASSES"),
+    getAvailableTicketCount(ctx.id),
   ]);
 
   const expiresAt = membershipRow.rows[0].membership_expires_at;
@@ -69,6 +71,20 @@ export default async function DashboardPage() {
       <main>
         <h1>Dashboard</h1>
         <p>Logged in as {memberLabel(ctx.displayName, ctx.username)}</p>
+
+        {/* Top matter: buying a first ticket is the very first thing a new
+            member needs to do before they can book a session — this is the
+            single most prominent thing on the page, ahead of membership
+            status. */}
+        <div className="stat-callout">
+          <p className="stat-callout-count">
+            {ticketCount}
+            <span>ticket{ticketCount === 1 ? "" : "s"} available</span>
+          </p>
+          <Link href="/app/wallet" className="button-link">
+            {ticketCount === 0 ? "Buy your first ticket" : "Buy tickets"}
+          </Link>
+        </div>
 
         <h2>Membership</h2>
         {isMember ? (
