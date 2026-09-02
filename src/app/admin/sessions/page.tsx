@@ -22,6 +22,7 @@ interface SessionRow {
   booked_count: string;
   recurrence_rule_id: string | null;
   series_id: string | null;
+  total_count: string;
 }
 
 const SORT_COLUMNS = {
@@ -39,14 +40,29 @@ const SORT_COLUMNS = {
 const GRID_WINDOW_DAYS = 28;
 const ONE_DAY_MS = 24 * 60 * 60 * 1000;
 
+// "All sessions" is for reporting/lookup across the whole history, so it
+// needs real pagination rather than a flat display cap — this is the first
+// page in the app to have one; the page-param convention here (1-indexed,
+// preserved alongside sort/dir the same way SortableTh already preserves
+// currentParams) is worth reusing if another list page needs it later.
+const PAGE_SIZE = 50;
+
 export default async function AdminSessionsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ sort?: string; dir?: string; start?: string }>;
+  searchParams: Promise<{ sort?: string; dir?: string; start?: string; page?: string }>;
 }) {
-  const { sort, dir, start } = await searchParams;
-  const { state, orderBy } = resolveSort(sort, dir, SORT_COLUMNS, "start");
+  const { sort, dir, start, page: pageParam } = await searchParams;
+  // Defaults to descending ("current to old") — the most recent/soonest
+  // sessions first, oldest last — rather than resolveSort's own ascending
+  // default, since the natural reading order for "all sessions" is
+  // recent-first, not "start of history first."
+  const { state, orderBy } = resolveSort(sort, dir, SORT_COLUMNS, "start", "desc");
   const currentParams = new URLSearchParams({ sort: state.key, dir: state.dir });
+
+  const requestedPage = Number(pageParam);
+  const page = Number.isInteger(requestedPage) && requestedPage > 0 ? requestedPage : 1;
+  const offset = (page - 1) * PAGE_SIZE;
 
   const parsedStart = start ? parseDateOnly(start) : new Date();
   const gridStart = startOfDay(Number.isNaN(parsedStart.getTime()) ? new Date() : parsedStart);
@@ -57,11 +73,14 @@ export default async function AdminSessionsPage({
     pool.query<SessionRow>(
       `SELECT s.id, s.session_type, s.description, s.start_time, s.end_time, s.max_capacity,
               u.username AS host_username, u.display_name AS host_display_name, s.recurrence_rule_id, s.series_id,
-              (SELECT count(*) FROM passes p WHERE p.session_id = s.id AND p.status = 'Used') AS booked_count
+              (SELECT count(*) FROM passes p WHERE p.session_id = s.id AND p.status = 'Used') AS booked_count,
+              count(*) OVER() AS total_count
        FROM sessions s
        LEFT JOIN users u ON u.id = s.host_user_id
        WHERE s.status = 'Scheduled'
-       ORDER BY ${orderBy}, s.id ASC`,
+       ORDER BY ${orderBy}, s.id ASC
+       LIMIT $1 OFFSET $2`,
+      [PAGE_SIZE, offset],
     ),
     pool.query<{
       id: string;
@@ -129,6 +148,14 @@ export default async function AdminSessionsPage({
   gridNavParams.set("start", nextStart);
   const nextHref = `/admin/sessions?${gridNavParams}`;
 
+  const totalCount = result.rows[0] ? Number(result.rows[0].total_count) : 0;
+  const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
+  const tablePageHref = (p: number) => {
+    const params = new URLSearchParams({ sort: state.key, dir: state.dir, page: String(p) });
+    return `/admin/sessions?${params}`;
+  };
+  const now = new Date();
+
   return (
     <>
       <SiteNav />
@@ -164,6 +191,13 @@ export default async function AdminSessionsPage({
 
       <h2>All sessions</h2>
       <p className="section-note">Every scheduled session, past and future — for reporting/lookup, not day-to-day scheduling.</p>
+      <p>
+        Page {page} of {totalPages} ({totalCount} session{totalCount === 1 ? "" : "s"})
+        {" · "}
+        {page > 1 ? <Link href={tablePageHref(page - 1)}>&larr; Previous page</Link> : <span>&larr; Previous page</span>}
+        {" · "}
+        {page < totalPages ? <Link href={tablePageHref(page + 1)}>Next page &rarr;</Link> : <span>Next page &rarr;</span>}
+      </p>
       <div className="table-scroll">
         <table>
         <thead>
@@ -195,7 +229,13 @@ export default async function AdminSessionsPage({
               <td>
                 {row.recurrence_rule_id && "Recurring · "}
                 {row.series_id && "Series · "}
-                <Link href={`/admin/sessions/${row.id}`}>Manage</Link>
+                {new Date(row.start_time) < now ? (
+                  <Link href={`/admin/sessions/${row.id}`} title="This session already happened — editing it is a retroactive correction to historical records.">
+                    Edit (past)
+                  </Link>
+                ) : (
+                  <Link href={`/admin/sessions/${row.id}`}>Manage</Link>
+                )}
               </td>
             </tr>
           ))}

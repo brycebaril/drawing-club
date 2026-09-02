@@ -77,3 +77,51 @@ test("two sessions landing in the same day+slot cell show a collision indicator 
   await expect(cell).toContainText("+1");
   await expect(cell).toHaveAccessibleName(/1 more session\(s\) also scheduled in this slot/);
 });
+
+test("the All sessions table defaults to current-to-old order and flags a past session's edit link as retroactive", async ({
+  page,
+}) => {
+  // Local/CI dev DBs can carry a lot of real historical + generated future
+  // session data (thousands of rows) — a session dated merely "10 days out"
+  // isn't guaranteed to land on page 1, so this uses a date far enough in
+  // the future that nothing else could plausibly rank ahead of it (no
+  // rollforward horizon in this app reaches anywhere near this far), making
+  // the "default sort is descending" check robust regardless of how much
+  // other data exists.
+  const future = `all-sessions-future-${Date.now()}`;
+  const futureRow = await pool.query<{ id: string }>(
+    `INSERT INTO sessions (session_type, description, start_time, end_time, max_capacity, is_ticketed)
+     VALUES ('R', $1, now() + interval '5 years', now() + interval '5 years' + interval '3 hours', 5, true)
+     RETURNING id`,
+    [future],
+  );
+
+  const admin = await createTestUser({ username: `e2eallsessions${Date.now()}`, baseRole: "Admin" });
+  await loginAsUser(page, admin);
+  await page.goto("/admin/sessions?sort=start");
+
+  // Descending default: the single most-future session in the whole table
+  // (this one) must be the very first data row. Scoped to the "All
+  // sessions" table specifically (identified by its "Booked / Capacity"
+  // header) — the admin calendar grid above it on the same page is *also*
+  // laid out as a <table>, so a bare "table tbody tr" locator matches that
+  // one instead. Checked via the row's own "Manage" link target (its
+  // description text isn't part of the table's visible output at all).
+  const allSessionsTable = page.locator("table").filter({ has: page.getByText("Booked / Capacity") });
+  const firstRowManageLink = allSessionsTable.locator("tbody tr").first().getByRole("link", { name: "Manage" });
+  await expect(firstRowManageLink).toHaveAttribute("href", `/admin/sessions/${futureRow.rows[0].id}`);
+
+  // Past-session labeling/warning: use real existing historical data
+  // (this dev DB already has plenty from the legacy migration) rather than
+  // inserting + hunting for a specific page — go straight to its detail
+  // page by id.
+  const pastSession = await pool.query<{ id: string }>(
+    `SELECT id FROM sessions WHERE status = 'Scheduled' AND start_time < now() ORDER BY start_time DESC LIMIT 1`,
+  );
+  expect(pastSession.rowCount).toBe(1);
+  await page.goto(`/admin/sessions/${pastSession.rows[0].id}`);
+  await expect(page.getByText("This session already happened")).toBeVisible();
+
+  await page.goto(`/admin/sessions/${futureRow.rows[0].id}`);
+  await expect(page.getByText("This session already happened")).toHaveCount(0);
+});
