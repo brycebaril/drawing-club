@@ -28,7 +28,7 @@ function AccountClassCard({ label, summary }: { label: string; summary: AccountC
 }
 
 export default async function AdminDashboardPage() {
-  const [userStats, attendanceTrend, revenueTrend, recentAuditLogs, openFlags, accountClasses, accountActivity, ticketCirculation] =
+  const [userStats, attendanceStats, revenueTrend, recentAuditLogs, openFlags, accountClasses, accountActivity, ticketCirculation] =
     await Promise.all([
       getUserStats(),
       getAttendanceTrend(),
@@ -129,7 +129,17 @@ export default async function AdminDashboardPage() {
       )}
 
       <h2>Attendance — trailing 12 weeks</h2>
-      {attendanceTrend.length === 0 ? (
+      <div className="stat-grid">
+        <div className="stat-card">
+          <p className="stat-card-value">{attendanceStats.totalNoShows}</p>
+          <p className="stat-card-label">No-shows (12 weeks)</p>
+        </div>
+        <div className="stat-card">
+          <p className="stat-card-value">{formatPct(attendanceStats.noShowRate)}</p>
+          <p className="stat-card-label">No-show rate</p>
+        </div>
+      </div>
+      {attendanceStats.trend.length === 0 ? (
         <p>No completed sessions in this window.</p>
       ) : (
         <div className="table-scroll">
@@ -140,16 +150,18 @@ export default async function AdminDashboardPage() {
               <th>Sessions run</th>
               <th>Bookings</th>
               <th>Checked in</th>
+              <th>No-shows</th>
               <th>Attendance rate</th>
             </tr>
           </thead>
           <tbody>
-            {attendanceTrend.map((week) => (
+            {attendanceStats.trend.map((week) => (
               <tr key={week.weekStart.toISOString()}>
                 <td>{new Date(week.weekStart).toLocaleDateString("en-US", { timeZone: ORG_TIMEZONE })}</td>
                 <td>{week.sessionsRun}</td>
                 <td>{week.totalBookings}</td>
                 <td>{week.checkedInBookings}</td>
+                <td>{week.noShows}</td>
                 <td>{week.attendanceRate === null ? "—" : `${Math.round(week.attendanceRate * 100)}%`}</td>
               </tr>
             ))}

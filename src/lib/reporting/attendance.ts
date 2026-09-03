@@ -12,8 +12,20 @@ export interface WeeklyAttendanceSummary {
   sessionsRun: number;
   totalBookings: number;
   checkedInBookings: number;
+  /** A booking that was never cancelled but never checked in either — the
+   * ticket was still spent (booking already flips passes.status to 'Used'
+   * up front; check-in never touches it), so this counts real lost
+   * capacity, not just an administrative gap. */
+  noShows: number;
   /** null rather than 0 when a week had no bookings at all — 0% and "no data" are different things. */
   attendanceRate: number | null;
+}
+
+export interface AttendanceStats {
+  trend: WeeklyAttendanceSummary[];
+  totalNoShows: number;
+  /** null when the whole trailing window had no bookings at all. */
+  noShowRate: number | null;
 }
 
 /** Pure rollup, split out for unit testing separate from the DB round-trip. */
@@ -23,8 +35,20 @@ export function summarizeAttendance(rows: WeeklyAttendanceRow[]): WeeklyAttendan
     sessionsRun: row.sessions_run,
     totalBookings: row.total_bookings,
     checkedInBookings: row.checked_in_bookings,
+    noShows: row.total_bookings - row.checked_in_bookings,
     attendanceRate: row.total_bookings > 0 ? row.checked_in_bookings / row.total_bookings : null,
   }));
+}
+
+/** Top-level rollup across the whole trend — the "top-level stat" a
+ * dashboard card or an API consumer wants without summing weeks itself. */
+export function summarizeNoShows(trend: WeeklyAttendanceSummary[]): Pick<AttendanceStats, "totalNoShows" | "noShowRate"> {
+  const totalNoShows = trend.reduce((sum, week) => sum + week.noShows, 0);
+  const totalBookings = trend.reduce((sum, week) => sum + week.totalBookings, 0);
+  return {
+    totalNoShows,
+    noShowRate: totalBookings > 0 ? totalNoShows / totalBookings : null,
+  };
 }
 
 /**
@@ -32,7 +56,7 @@ export function summarizeAttendance(rows: WeeklyAttendanceRow[]): WeeklyAttendan
  * (series sessions) — same union check-in's roster query already does per
  * session, applied here across all sessions in the trailing window.
  */
-export async function getAttendanceTrend(): Promise<WeeklyAttendanceSummary[]> {
+export async function getAttendanceTrend(): Promise<AttendanceStats> {
   const result = await pool.query<WeeklyAttendanceRow>(
     // p.status = 'Used' matches every other consumer of this same concept
     // (check-in's roster query, reporting/flags.ts's capacity check) — a
@@ -58,5 +82,6 @@ export async function getAttendanceTrend(): Promise<WeeklyAttendanceSummary[]> {
      GROUP BY week_start
      ORDER BY week_start`,
   );
-  return summarizeAttendance(result.rows);
+  const trend = summarizeAttendance(result.rows);
+  return { trend, ...summarizeNoShows(trend) };
 }
