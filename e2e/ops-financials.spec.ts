@@ -79,3 +79,17 @@ test("Controller generates a payout report, downloads its CSV, and regenerating 
     expect(Number(reports.rows[0].count)).toBe(1);
   }).toPass({ timeout: 5000 });
 });
+
+test("a non-Controller hitting /ops/financials itself (not just the payout drill-down) is bounced to the dashboard", async ({
+  page,
+}) => {
+  // The drill-down subpage (/ops/financials/payouts/[id]) already has its
+  // own denial test (ops-financials-reconciliation.spec.ts) — the top-level
+  // /ops/financials page never had one.
+  const host = await createTestUser({ username: `e2efinancialsdenied${Date.now()}` });
+  await pool.query(`INSERT INTO volunteer_roles (user_id, role) VALUES ($1, 'SessionManager')`, [host.id]);
+
+  await loginAsUser(page, host);
+  await page.goto("/ops/financials");
+  await expect(page).toHaveURL(/\/dashboard$/);
+});
