@@ -6,7 +6,7 @@ import { pool } from "@/lib/db/pool";
 import { requireAdmin } from "@/lib/auth/requireAdmin";
 import { writeAuditLog } from "@/lib/audit/log";
 import { grantWeeklyVolunteerPasses } from "@/lib/ops/volunteerPasses";
-import { toDateOnly } from "@/lib/sessions/shared";
+import { currentWeekStart, toDateOnly } from "@/lib/sessions/shared";
 
 export interface CreateBatchState {
   error?: string;
@@ -102,15 +102,6 @@ export interface GrantVolunteerPassesState {
   skippedAtCap?: number;
   alreadyGranted?: number;
   weekStart?: string;
-}
-
-function currentWeekStart(now: Date): Date {
-  const d = new Date(now);
-  d.setHours(0, 0, 0, 0);
-  const day = d.getDay(); // 0 = Sunday, 1 = Monday, ...
-  const daysSinceMonday = day === 0 ? 6 : day - 1;
-  d.setDate(d.getDate() - daysSinceMonday);
-  return d;
 }
 
 /**

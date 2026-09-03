@@ -13,16 +13,7 @@
  */
 import { pool } from "../src/lib/db/pool";
 import { grantWeeklyVolunteerPasses } from "../src/lib/ops/volunteerPasses";
-import { toDateOnly } from "../src/lib/sessions/shared";
-
-function currentWeekStart(now: Date): Date {
-  const d = new Date(now);
-  d.setHours(0, 0, 0, 0);
-  const day = d.getDay(); // 0 = Sunday, 1 = Monday, ...
-  const daysSinceMonday = day === 0 ? 6 : day - 1;
-  d.setDate(d.getDate() - daysSinceMonday);
-  return d;
-}
+import { currentWeekStart, toDateOnly } from "../src/lib/sessions/shared";
 
 async function main() {
   const weekStart = currentWeekStart(new Date());

@@ -58,6 +58,25 @@ export function startOfDay(date: Date): Date {
   return orgStartOfDay(date);
 }
 
+/**
+ * ORG_TIMEZONE midnight of the most recent Monday on or before `now` — the
+ * Monday-through-Sunday week convention this app's weekly reports/grants
+ * already use (model payout reports, volunteer pass grants). Was
+ * previously duplicated in src/app/admin/passes/actions.ts and
+ * scripts/grant-volunteer-passes.ts using native Date getters/setters,
+ * which reason in the *process's own* local timezone rather than
+ * ORG_TIMEZONE — the exact bug class src/lib/timezone.ts's own doc comment
+ * says already broke this app once on a UTC-default runtime. Fixed by
+ * building on orgStartOfDay/orgDateParts instead, same as every other date
+ * helper here.
+ */
+export function currentWeekStart(now: Date): Date {
+  const startOfToday = orgStartOfDay(now);
+  const day = orgDateParts(now).weekday; // 0=Sunday..6=Saturday
+  const daysSinceMonday = day === 0 ? 6 : day - 1;
+  return new Date(startOfToday.getTime() - daysSinceMonday * 24 * 60 * 60 * 1000);
+}
+
 export function dayIndex(gridStart: Date, date: Date): number {
   return orgDayIndex(gridStart, date);
 }
