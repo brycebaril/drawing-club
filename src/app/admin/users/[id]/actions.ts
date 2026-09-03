@@ -64,6 +64,14 @@ export async function setAccountStatusAction(
   if (userRow.rowCount === 0) return { error: "User not found." };
   const previousStatus = userRow.rows[0].status;
 
+  // Anonymization is irreversible (docs/SecurityDocument.md §6) — the UI
+  // already hides this form on a Deleted account, but a direct POST
+  // bypassing it must be rejected server-side too, not just silently
+  // reactivate an erased account.
+  if (previousStatus === "Deleted") {
+    return { error: "This account has been anonymized and can't be reactivated." };
+  }
+
   await pool.query(`UPDATE users SET status = $1 WHERE id = $2`, [newStatus, userId]);
 
   // Suspended and Banned both block all app access already (src/proxy.ts) —

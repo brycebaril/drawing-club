@@ -143,6 +143,12 @@ test("a member requests account cancellation, an admin sees and anonymizes it, a
   await page.waitForURL(`**/admin/users/${member.id}`);
   await expect(page.getByText("Deleted", { exact: true }).first()).toBeVisible();
 
+  // Regression check: the status form has no "Deleted" option, so it used
+  // to silently default to "Active" and let a plain submit reverse the
+  // anonymization. It's replaced entirely by a plain notice now.
+  await expect(page.getByText("This account has been anonymized and can't be reactivated.")).toBeVisible();
+  await expect(page.getByLabel("Status")).toHaveCount(0);
+
   await expect(async () => {
     const row = await pool.query<{ status: string; email: string }>(`SELECT status, email FROM users WHERE id = $1`, [
       member.id,

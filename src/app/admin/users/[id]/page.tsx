@@ -181,7 +181,17 @@ export default async function AdminUserDetailPage({
 
       <section>
         <h2>Account status</h2>
-        <StatusForm userId={user.id} currentStatus={user.status} />
+        {/* StatusForm's own status list (Active/Suspended/Banned) has no
+            Deleted option — rendering it on an anonymized account would
+            silently default the <select> to Active and let a plain submit
+            reverse the anonymization. Show a plain notice instead, matching
+            the "can't be edited" pattern already used elsewhere (e.g. a
+            canceled session's own instance editor). */}
+        {user.status === "Deleted" ? (
+          <p>This account has been anonymized and can&apos;t be reactivated.</p>
+        ) : (
+          <StatusForm userId={user.id} currentStatus={user.status} />
+        )}
       </section>
 
       <section>
