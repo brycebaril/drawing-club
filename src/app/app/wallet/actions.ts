@@ -65,41 +65,49 @@ export async function createCheckoutSessionAction(
   }
 
   const baseUrl = process.env.NEXTAUTH_URL ?? "http://localhost:3000";
-  const checkoutSession = await stripe.checkout.sessions.create(
-    {
-      mode: "payment",
-      line_items: [
-        {
-          price_data: {
-            currency: "usd",
-            product_data: { name: describeItem(item) },
-            unit_amount: Math.round(resolved.totalPrice * 100),
+  let checkoutSession: Awaited<ReturnType<typeof stripe.checkout.sessions.create>>;
+  try {
+    checkoutSession = await stripe.checkout.sessions.create(
+      {
+        mode: "payment",
+        line_items: [
+          {
+            price_data: {
+              currency: "usd",
+              product_data: { name: describeItem(item) },
+              unit_amount: Math.round(resolved.totalPrice * 100),
+            },
+            quantity: 1,
           },
-          quantity: 1,
+        ],
+        client_reference_id: ctx.id,
+        metadata: {
+          userId: ctx.id,
+          item,
+          passCount: String(resolved.passCount),
+          effectivePricePerPass:
+            resolved.effectivePricePerPass !== null ? String(resolved.effectivePricePerPass) : "",
         },
-      ],
-      client_reference_id: ctx.id,
-      metadata: {
-        userId: ctx.id,
-        item,
-        passCount: String(resolved.passCount),
-        effectivePricePerPass:
-          resolved.effectivePricePerPass !== null ? String(resolved.effectivePricePerPass) : "",
+        success_url: `${baseUrl}/app/wallet?checkout=success`,
+        cancel_url: `${baseUrl}/app/wallet?checkout=cancelled`,
       },
-      success_url: `${baseUrl}/app/wallet?checkout=success`,
-      cancel_url: `${baseUrl}/app/wallet?checkout=cancelled`,
-    },
-    // Unlike the refund key above, this can't be deterministic from
-    // business parameters (userId+item) — buying two 5-packs same day is
-    // normal, and a deterministic key would wrongly dedupe the second real
-    // purchase against the first. A fresh random key per action invocation
-    // instead protects the narrower case this actually needs to cover: the
-    // Stripe SDK internally retrying this exact call under the hood
-    // (relevant if maxNetworkRetries is ever enabled on the client) reuses
-    // this same key across its own retry attempts, so a network-level retry
-    // can't create two Checkout Sessions for one click.
-    { idempotencyKey: randomUUID() },
-  );
+      // Unlike the refund key above, this can't be deterministic from
+      // business parameters (userId+item) — buying two 5-packs same day is
+      // normal, and a deterministic key would wrongly dedupe the second real
+      // purchase against the first. A fresh random key per action invocation
+      // instead protects the narrower case this actually needs to cover: the
+      // Stripe client's maxNetworkRetries (src/lib/stripe/client.ts) reuses
+      // this same key across its own internal retries, so a network-level
+      // retry can't create two Checkout Sessions for one click.
+      { idempotencyKey: randomUUID() },
+    );
+  } catch {
+    return { error: "Could not reach Stripe to start checkout. Try again." };
+  }
+  // redirect() below is deliberately outside the try block above — it
+  // throws its own internal Next.js signal to abort rendering, which this
+  // catch would otherwise swallow and misreport as "Stripe rejected the
+  // checkout."
 
   if (!checkoutSession.url) {
     return { error: "Could not start checkout. Try again." };
