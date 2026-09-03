@@ -224,6 +224,17 @@ export default async function SchedulePage({
     <>
       <SiteNav />
       <main className="main--wide">
+        {/* Every section below (heading, ticket callout, week nav, the grid,
+            the legend) used to manage its own width independently — the
+            grid centered itself narrowly while the heading and legend
+            stretched to main--wide's full bleed, leaving the page looking
+            like three unrelated widths stacked on top of each other. One
+            shared, centered max-width for the whole content column fixes
+            that — 900px comfortably fits the grid's own ~838px natural
+            width (7×92px cells + the 100px rail + gaps) with a little
+            breathing room, and everything else now shares its exact
+            left/right edges instead of each picking its own. */}
+        <div className="mx-auto max-w-[900px]">
         <h1>Schedule</h1>
         {ticketCount === 0 && (
           <div className="stat-callout">
@@ -316,6 +327,7 @@ export default async function SchedulePage({
           <ScheduleAgenda days={days} grid={grid} windowDays={viewerWindowDays} weekOffset={weekOffset} />
         </div>
         <Legend />
+        </div>
 
         {selectedSession && (
           <Modal>
