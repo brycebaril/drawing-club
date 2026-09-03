@@ -209,6 +209,51 @@ export async function grantPassAction(
   redirect(`/admin/users/${userId}`);
 }
 
+/**
+ * The one place a standard (non-transferable) ticket can be manually
+ * removed from a specific member's own wallet — src/app/admin/passes'
+ * revokePassAction only ever touches is_transferable = true passes and is
+ * only reachable from the global batch-management table, so most members'
+ * actual tickets were never revocable anywhere. Reuses the existing
+ * 'Revoked' status (already means "org reclaims value," exactly what a
+ * manual admin removal is) rather than inventing a new concept — scoped by
+ * owner_id here since this acts on one member's own wallet, not batch
+ * inventory, so unlike the global action there's no is_transferable
+ * restriction.
+ */
+export async function revokeUserPassAction(
+  _prevState: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const ctx = await requireAdmin();
+  if (!ctx) return { error: "Not authorized." };
+
+  const userId = String(formData.get("userId") ?? "");
+  const passId = String(formData.get("passId") ?? "");
+  const reason = String(formData.get("reason") ?? "").trim();
+  if (!reason) {
+    return { error: "A reason is required." };
+  }
+
+  const updated = await pool.query(
+    `UPDATE passes SET status = 'Revoked' WHERE id = $1 AND owner_id = $2 AND status IN ('Available', 'Assigned')`,
+    [passId, userId],
+  );
+  if (updated.rowCount === 0) {
+    return { error: "That ticket isn't eligible for revocation." };
+  }
+
+  await writeAuditLog({
+    actorId: ctx.id,
+    actionType: "PASS_REVOKED",
+    targetUserId: userId,
+    metadata: { passId, reason },
+  });
+
+  revalidateUserPages(userId);
+  redirect(`/admin/users/${userId}`);
+}
+
 export async function adjustMembershipAction(
   _prevState: ActionState,
   formData: FormData,
