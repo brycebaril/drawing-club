@@ -3,7 +3,7 @@ import type Stripe from "stripe";
 import type { PoolClient } from "pg";
 import { pool } from "@/lib/db/pool";
 import { stripe } from "@/lib/stripe/client";
-import { writeAuditLog, type AuditLogEntry } from "@/lib/audit/log";
+import { writeAuditLog } from "@/lib/audit/log";
 import { isPurchasableItem } from "@/lib/payments/pricing";
 import { getSettingNumber } from "@/lib/settings";
 
@@ -40,7 +40,6 @@ export async function POST(request: Request): Promise<NextResponse> {
   }
 
   const client = await pool.connect();
-  let result: FulfillmentResult;
   try {
     await client.query("BEGIN");
 
@@ -54,7 +53,13 @@ export async function POST(request: Request): Promise<NextResponse> {
       return NextResponse.json({ received: true, duplicate: true });
     }
 
-    result = await fulfill(client);
+    // Any audit-log entry a fulfiller writes goes through this same
+    // `client`, inside this same transaction — so a failure partway through
+    // (including the audit-log write itself) rolls back the idempotency
+    // marker along with everything else, leaving the event genuinely
+    // unprocessed for Stripe's next retry, rather than committing the
+    // fulfillment but silently losing the audit trail for it.
+    await fulfill(client);
     await client.query("COMMIT");
   } catch (error) {
     await client.query("ROLLBACK");
@@ -63,15 +68,10 @@ export async function POST(request: Request): Promise<NextResponse> {
     client.release();
   }
 
-  if (result?.auditLog) {
-    await writeAuditLog(result.auditLog);
-  }
-
   return NextResponse.json({ received: true });
 }
 
-type FulfillmentResult = { auditLog?: AuditLogEntry } | null;
-type Fulfiller = (client: PoolClient) => Promise<FulfillmentResult>;
+type Fulfiller = (client: PoolClient) => Promise<void>;
 
 async function prepareFulfillment(event: Stripe.Event): Promise<Fulfiller | null> {
   switch (event.type) {
@@ -137,10 +137,10 @@ async function fulfillCheckoutSession(
   paymentIntentId: string,
   processingFee: number | null,
   netAmount: number | null,
-): Promise<FulfillmentResult> {
+): Promise<void> {
   const userId = session.client_reference_id;
   const item = session.metadata?.item;
-  if (!userId || !item || !isPurchasableItem(item)) return null;
+  if (!userId || !item || !isPurchasableItem(item)) return;
 
   const amountPaid = (session.amount_total ?? 0) / 100;
   const itemType: "SinglePass" | "PassPack" | "MembershipRenewal" =
@@ -159,7 +159,7 @@ async function fulfillCheckoutSession(
       `SELECT membership_expires_at FROM users WHERE id = $1 FOR UPDATE`,
       [userId],
     );
-    if (userRow.rowCount === 0) return null;
+    if (userRow.rowCount === 0) return;
 
     // Renewing before expiry extends the current membership rather than
     // resetting the clock to today.
@@ -187,14 +187,16 @@ async function fulfillCheckoutSession(
       );
     }
 
-    return {
-      auditLog: {
+    await writeAuditLog(
+      {
         actorId: userId,
         actionType: "MEMBERSHIP_RENEWED",
         targetUserId: userId,
         metadata: { transactionId, amountPaid, validUntil: validUntil.toISOString(), bonusPassCount },
       },
-    };
+      client,
+    );
+    return;
   }
 
   const passCount = Number(session.metadata?.passCount ?? "0");
@@ -210,19 +212,20 @@ async function fulfillCheckoutSession(
     );
   }
 
-  return {
-    auditLog: {
+  await writeAuditLog(
+    {
       actorId: userId,
       actionType: "PASS_PURCHASED",
       targetUserId: userId,
       metadata: { transactionId, item, passCount, amountPaid, effectivePricePerPass },
     },
-  };
+    client,
+  );
 }
 
-async function applyRefund(client: PoolClient, charge: Stripe.Charge): Promise<FulfillmentResult> {
+async function applyRefund(client: PoolClient, charge: Stripe.Charge): Promise<void> {
   const paymentIntentId = paymentIntentIdOf(charge.payment_intent);
-  if (!paymentIntentId) return null;
+  if (!paymentIntentId) return;
 
   await client.query(
     `UPDATE transactions SET refunded_amount = $1, charge_status = 'Refunded' WHERE gateway_ref_id = $2`,
@@ -233,14 +236,12 @@ async function applyRefund(client: PoolClient, charge: Stripe.Charge): Promise<F
   // already logged at initiation time (src/app/admin/transactions/[id]/actions.ts)
   // with a real actor. One issued directly from the Stripe Dashboard has no
   // actor in our system to attribute it to.
-  return null;
 }
 
-async function applyDispute(client: PoolClient, paymentIntentId: string): Promise<FulfillmentResult> {
+async function applyDispute(client: PoolClient, paymentIntentId: string): Promise<void> {
   await client.query(`UPDATE transactions SET charge_status = 'Disputed' WHERE gateway_ref_id = $1`, [
     paymentIntentId,
   ]);
-  return null;
 }
 
 async function fetchPaymentIntentIdsForPayout(payoutId: string): Promise<string[]> {
@@ -269,12 +270,11 @@ async function applyPayout(
   payoutId: string,
   status: "Paid_Out" | "Failed",
   paymentIntentIds: string[],
-): Promise<FulfillmentResult> {
-  if (paymentIntentIds.length === 0) return null;
+): Promise<void> {
+  if (paymentIntentIds.length === 0) return;
 
   await client.query(
     `UPDATE transactions SET payout_status = $1, payout_batch_id = $2 WHERE gateway_ref_id = ANY($3::text[])`,
     [status, payoutId, paymentIntentIds],
   );
-  return null;
 }
