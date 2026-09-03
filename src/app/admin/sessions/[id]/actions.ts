@@ -6,7 +6,7 @@ import { requireAdmin } from "@/lib/auth/requireAdmin";
 import { writeAuditLog } from "@/lib/audit/log";
 import { pool } from "@/lib/db/pool";
 import { releaseAllBookingsForSession } from "@/lib/booking/actions";
-import { SESSION_TYPES } from "@/lib/sessions/shared";
+import { SESSION_TYPES, sessionTypeNeedsModel } from "@/lib/sessions/shared";
 import { resolveHostUsername } from "@/lib/sessions/host";
 import {
   cancelEntireSeries,
@@ -223,7 +223,9 @@ export async function updateSessionDetailsAction(
     description: string | null;
     max_capacity: number;
     host_user_id: string | null;
+    model_required: boolean;
   };
+  let modelRequired: boolean;
   try {
     await client.query("BEGIN");
 
@@ -233,8 +235,9 @@ export async function updateSessionDetailsAction(
       max_capacity: number;
       host_user_id: string | null;
       status: string;
+      model_required: boolean;
     }>(
-      `SELECT session_type, description, max_capacity, host_user_id, status FROM sessions WHERE id = $1 FOR UPDATE`,
+      `SELECT session_type, description, max_capacity, host_user_id, status, model_required FROM sessions WHERE id = $1 FOR UPDATE`,
       [sessionId],
     );
     if (sessionRow.rowCount === 0) {
@@ -261,10 +264,20 @@ export async function updateSessionDetailsAction(
       return { error: `Capacity can't be less than the ${bookedCount} ticket(s) already booked.` };
     }
 
+    // Only re-derive model_required when the type actually changes — a
+    // same-type edit (capacity, host, description) must never clobber a
+    // Model Booker's own manual override (the "No model required" / "Actually,
+    // this needs a model" toggle on /ops/model-booking) for an unrelated
+    // reason. But a genuine type change (e.g. into/out of Gallery/Party) has
+    // to follow sessionTypeNeedsModel() the same way session creation does —
+    // otherwise editing a Regular session into a Gallery Hours session left
+    // model_required stuck at its old value, silently wrong either direction.
+    modelRequired = sessionType === before.session_type ? before.model_required : sessionTypeNeedsModel(sessionType);
+
     await client.query(
-      `UPDATE sessions SET session_type = $1, description = $2, max_capacity = $3, host_user_id = $4
-       WHERE id = $5 AND status = 'Scheduled'`,
-      [sessionType, description || null, maxCapacity, hostResult.hostUserId, sessionId],
+      `UPDATE sessions SET session_type = $1, description = $2, max_capacity = $3, host_user_id = $4, model_required = $5
+       WHERE id = $6 AND status = 'Scheduled'`,
+      [sessionType, description || null, maxCapacity, hostResult.hostUserId, modelRequired, sessionId],
     );
 
     await client.query("COMMIT");
@@ -283,6 +296,7 @@ export async function updateSessionDetailsAction(
       before,
       after: {
         sessionType,
+        modelRequired,
         description: description || null,
         maxCapacity,
         hostUserId: hostResult.hostUserId,

@@ -187,3 +187,55 @@ test("the All sessions table's default (no page param) landing is anchored near 
     await pool.query(`DELETE FROM sessions WHERE id = $1`, [nearRow.rows[0].id]);
   }
 });
+
+test("editing a session's type via the single-session instance editor recomputes model_required", async ({
+  page,
+}) => {
+  // Regression test: updateSessionDetailsAction updated session_type but
+  // never touched model_required, so editing a Regular session into a
+  // Party (or vice versa) left the flag stuck at whatever it was set to at
+  // creation time.
+  const startTime = new Date(Date.now() + 80 * 60 * 60 * 1000);
+  const sessionResult = await pool.query<{ id: string }>(
+    `INSERT INTO sessions (session_type, description, start_time, end_time, max_capacity, is_ticketed, model_required)
+     VALUES ('R', $1, $2, $3, 10, true, true) RETURNING id`,
+    [`edit-type-test-${Date.now()}`, startTime, new Date(startTime.getTime() + 3 * 60 * 60 * 1000)],
+  );
+  const sessionId = sessionResult.rows[0].id;
+
+  const admin = await createTestUser({ username: `e2eedittype${Date.now()}`, baseRole: "Admin" });
+  await loginAsUser(page, admin);
+  await page.goto(`/admin/sessions/${sessionId}`);
+
+  // No waitForURL after either submit — start URL and redirect target are
+  // the same (/admin/sessions/{id}), the exact "resolves immediately
+  // without waiting for the mutation to actually commit" trap this
+  // codebase has hit and fixed before (cms.spec.ts). Poll the DB directly
+  // instead.
+  await page.getByLabel("Type").selectOption("Party");
+  await page.getByRole("button", { name: "Save changes" }).click();
+
+  await expect(async () => {
+    const row = await pool.query<{ model_required: boolean }>(
+      `SELECT model_required FROM sessions WHERE id = $1`,
+      [sessionId],
+    );
+    expect(row.rows[0].model_required).toBe(false);
+  }).toPass({ timeout: 5000 });
+
+  // And back the other way — editing a Party session into a real drawing
+  // type must flip model_required back to true, not leave it false. Reload
+  // first so the form's own defaultValue reflects the just-saved "Party"
+  // state rather than whatever the browser cached from before this edit.
+  await page.reload();
+  await page.getByLabel("Type").selectOption("R");
+  await page.getByRole("button", { name: "Save changes" }).click();
+
+  await expect(async () => {
+    const row = await pool.query<{ model_required: boolean }>(
+      `SELECT model_required FROM sessions WHERE id = $1`,
+      [sessionId],
+    );
+    expect(row.rows[0].model_required).toBe(true);
+  }).toPass({ timeout: 5000 });
+});
