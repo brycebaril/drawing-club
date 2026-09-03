@@ -11,6 +11,7 @@ interface LegacyAttendeeRow {
   lastName: string;
   email: string;
   PasswordHash: string | null;
+  mailList: number;
 }
 
 interface SuspendedRow {
@@ -94,7 +95,7 @@ export async function migrateUsers(client: PoolClient): Promise<MigrationReport>
 
   const [attendees, suspended, existingUsernames] = await Promise.all([
     legacyQuery<(LegacyAttendeeRow & RowDataPacket)[]>(
-      `SELECT id, firstName, lastName, email, PasswordHash FROM session_attendees`,
+      `SELECT id, firstName, lastName, email, PasswordHash, mailList FROM session_attendees`,
     ),
     legacyQuery<(SuspendedRow & RowDataPacket)[]>(`SELECT suspendedAttendeeID FROM suspended_attendee_accounts`),
     client.query<{ username: string }>(`SELECT username FROM users`),
@@ -137,10 +138,10 @@ export async function migrateUsers(client: PoolClient): Promise<MigrationReport>
       // Legacy Migration Scope memory) is exactly why: without this, every
       // rehearsal run would make thousands of years-old accounts look
       // "new this week" on the admin dashboard.
-      `INSERT INTO users (legacy_id, username, display_name, email, password_hash, base_role, status, email_verified_at, created_at)
-       VALUES ($1, $2, $3, $4, $5, 'AccountHolder', $6, $7, $7)
+      `INSERT INTO users (legacy_id, username, display_name, email, password_hash, base_role, status, email_verified_at, created_at, marketing_email_opt_in)
+       VALUES ($1, $2, $3, $4, $5, 'AccountHolder', $6, $7, $7, $8)
        RETURNING id`,
-      [String(row.id), username, displayName, row.email, passwordHash, status, migratedAt],
+      [String(row.id), username, displayName, row.email, passwordHash, status, migratedAt, row.mailList === 1],
     );
     legacyAttendeeIdToNewId.set(row.id, result.rows[0].id);
     if (displayName) {

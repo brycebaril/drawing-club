@@ -15,6 +15,10 @@ interface LegacyOwnedPassRow {
   entitlementNames: string;
 }
 
+interface LegacyAltManagerRow {
+  altManager: number;
+}
+
 // Reads directly as base_role='Admin' — no finer-grained equivalent to
 // dataview_power/bio_view_power's narrower legacy scope exists in this
 // app's role model (docs/MigrationPlan.md §5's volunteer_roles mapping).
@@ -170,6 +174,34 @@ export async function migrateRolesAndMembership(client: PoolClient, cutoverDate:
         );
       }
     }
+  }
+
+  // session_alt_managers records real people who stood in as a session's
+  // manager for a date range — a real, proven VOL_HOST-equivalent (docs/
+  // MigrationPlan.md's session_notes writeup already found sessions.ts never
+  // reads this table at all). They don't otherwise get SessionManager from
+  // the owned_passes/entitlement loop above unless they *also* separately
+  // hold a currently-valid "Session Manager Pass" — an alt manager fills in
+  // without ever being the *designated* (session_general_schedule) or
+  // pass-holding manager, so this is additive, not redundant, confirmed with
+  // the org. Not date-gated like the grants above: every row here already
+  // describes something that really happened (a real substitution), not a
+  // still-open entitlement window that could be stale — there's no
+  // "isCurrentlyValid" reading of a past event.
+  const altManagerRows = await legacyQuery<(LegacyAltManagerRow & RowDataPacket)[]>(
+    `SELECT DISTINCT altManager FROM session_alt_managers`,
+  );
+  for (const row of altManagerRows) {
+    const userId = legacyAttendeeIdToNewId.get(row.altManager);
+    if (!userId) {
+      report.warnings.push(`session_alt_managers.altManager ${row.altManager} has no migrated user — skipped.`);
+      continue;
+    }
+    await client.query(
+      `INSERT INTO volunteer_roles (user_id, role) VALUES ($1, 'SessionManager') ON CONFLICT (user_id, role) DO NOTHING`,
+      [userId],
+    );
+    report.migrated += 1;
   }
 
   for (const userId of usersToPromoteToAdmin) {
