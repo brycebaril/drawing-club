@@ -68,19 +68,25 @@ export default async function NewSeriesPage({
         becomes one session{existingSeriesName ? "" : ", sharing the numbered seat map you set below"}.
         Already-booked slots are shown but can&apos;t be picked.
       </p>
-      <p>
-        <a href={`?start=${prevStart}${seriesIdParam}`}>&larr; Previous {WINDOW_DAYS / 7} weeks</a>
-        {" · "}
-        <a href={`?start=${nextStart}${seriesIdParam}`}>Next {WINDOW_DAYS / 7} weeks &rarr;</a>
-      </p>
       {seriesId && existingSeriesName ? (
-        <AddSeriesSlotsForm seriesId={seriesId} days={days} occupied={occupied} hostCandidates={hostCandidates} />
+        <AddSeriesSlotsForm
+          seriesId={seriesId}
+          days={days}
+          occupied={occupied}
+          hostCandidates={hostCandidates}
+          prevHref={`?start=${prevStart}${seriesIdParam}`}
+          nextHref={`?start=${nextStart}${seriesIdParam}`}
+          windowWeeks={WINDOW_DAYS / 7}
+        />
       ) : (
         <SeriesSlotPickerForm
           days={days}
           occupied={occupied}
           defaultSeatCount={defaultSeatCount}
           hostCandidates={hostCandidates}
+          prevHref={`?start=${prevStart}${seriesIdParam}`}
+          nextHref={`?start=${nextStart}${seriesIdParam}`}
+          windowWeeks={WINDOW_DAYS / 7}
         />
       )}
     </main>
