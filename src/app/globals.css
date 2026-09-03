@@ -133,6 +133,20 @@ img {
   height: auto;
 }
 
+/* The universal reset above zeroes ul/ol's default padding-left, but the
+   browser's default list-style-position (outside) still renders the bullet
+   marker in that now-zero-width gutter — poking left of the shared edge
+   every heading/paragraph in a card actually sits on (confirmed for real on
+   /dashboard: "Member benefits"' bullets sat left of "Membership"'s "M").
+   `inside` moves the marker into the text flow instead, as the first glyph
+   of the line, so it starts flush with everything else. Harmless for every
+   `list-style: none` list elsewhere (nav, chip lists, dropdowns, etc.) —
+   position only matters when a marker is actually rendered. */
+ul,
+ol {
+  list-style-position: inside;
+}
+
 /* ---- Layout ---- */
 
 main {
