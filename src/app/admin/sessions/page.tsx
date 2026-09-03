@@ -15,20 +15,20 @@ interface SessionRow {
   session_type: string;
   description: string | null;
   start_time: Date;
-  end_time: Date;
   max_capacity: number;
   host_username: string | null;
   host_display_name: string | null;
   booked_count: string;
   recurrence_rule_id: string | null;
   series_id: string | null;
+  model_required: boolean;
+  model_names: string[];
   total_count: string;
 }
 
 const SORT_COLUMNS = {
   type: "s.session_type",
   start: "s.start_time",
-  end: "s.end_time",
   booked: "booked_count",
   host: "u.username",
 } as const;
@@ -71,9 +71,13 @@ export default async function AdminSessionsPage({
 
   const [result, gridResult, defaultCapacity, hostCandidates] = await Promise.all([
     pool.query<SessionRow>(
-      `SELECT s.id, s.session_type, s.description, s.start_time, s.end_time, s.max_capacity,
+      `SELECT s.id, s.session_type, s.description, s.start_time, s.max_capacity,
               u.username AS host_username, u.display_name AS host_display_name, s.recurrence_rule_id, s.series_id,
+              s.model_required,
               (SELECT count(*) FROM passes p WHERE p.session_id = s.id AND p.status = 'Used') AS booked_count,
+              (SELECT COALESCE(json_agg(m.name ORDER BY m.name), '[]'::json)
+                 FROM session_model_mapping smm JOIN models m ON m.id = smm.model_id
+                 WHERE smm.session_id = s.id) AS model_names,
               count(*) OVER() AS total_count
        FROM sessions s
        LEFT JOIN users u ON u.id = s.host_user_id
@@ -203,8 +207,8 @@ export default async function AdminSessionsPage({
         <thead>
           <tr>
             <SortableTh label="Type" columnKey="type" pathname="/admin/sessions" currentParams={currentParams} current={state} />
-            <SortableTh label="Start" columnKey="start" pathname="/admin/sessions" currentParams={currentParams} current={state} />
-            <SortableTh label="End" columnKey="end" pathname="/admin/sessions" currentParams={currentParams} current={state} />
+            <SortableTh label="Date" columnKey="start" pathname="/admin/sessions" currentParams={currentParams} current={state} />
+            <th>Time</th>
             <SortableTh
               label="Booked / Capacity"
               columnKey="booked"
@@ -213,6 +217,7 @@ export default async function AdminSessionsPage({
               current={state}
             />
             <SortableTh label="Host" columnKey="host" pathname="/admin/sessions" currentParams={currentParams} current={state} />
+            <th>Model</th>
             <th></th>
           </tr>
         </thead>
@@ -220,12 +225,27 @@ export default async function AdminSessionsPage({
           {result.rows.map((row) => (
             <tr key={row.id}>
               <td>{row.session_type}</td>
-              <td>{new Date(row.start_time).toLocaleString("en-US", { timeZone: ORG_TIMEZONE })}</td>
-              <td>{new Date(row.end_time).toLocaleString("en-US", { timeZone: ORG_TIMEZONE })}</td>
+              <td>{new Date(row.start_time).toLocaleDateString("en-US", { timeZone: ORG_TIMEZONE })}</td>
+              <td>{slotFor(new Date(row.start_time))}</td>
               <td>
                 {row.booked_count} / {row.max_capacity}
               </td>
-              <td>{row.host_username ? memberLabel(row.host_display_name, row.host_username) : "Open — needs a host"}</td>
+              <td>
+                {row.host_username ? (
+                  memberLabel(row.host_display_name, row.host_username)
+                ) : (
+                  <Link href={`/admin/sessions/${row.id}`}>Open — needs a host</Link>
+                )}
+              </td>
+              <td>
+                {!row.model_required ? (
+                  "Not required"
+                ) : row.model_names.length > 0 ? (
+                  row.model_names.join(", ")
+                ) : (
+                  <Link href={`/admin/sessions/${row.id}`}>Needs a model</Link>
+                )}
+              </td>
               <td>
                 {row.recurrence_rule_id && "Recurring · "}
                 {row.series_id && "Series · "}
