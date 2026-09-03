@@ -12,7 +12,8 @@ import { ScheduleAgenda } from "./ScheduleAgenda";
 import { Legend } from "./Legend";
 import { Modal } from "./Modal";
 import { SiteNav } from "@/components/SiteNav";
-import { formatOpensDate, formatWeekRange, type GridCellData } from "./scheduleTypes";
+import { cellHref, formatFullDateTime, formatOpensDate, formatWeekRange, sessionTypeInfo, type GridCellData } from "./scheduleTypes";
+import { NextSessionCallout } from "./NextSessionCallout";
 import { displayModelNames } from "@/lib/models/modelName";
 import { memberLabel } from "@/lib/users/memberLabel";
 import { getAvailableTicketCount } from "@/lib/payments/passes";
@@ -180,6 +181,14 @@ export default async function SchedulePage({
     });
   }
 
+  // First-time guidance: the earliest bookable session on the *default*
+  // view only (week 0) — `sessions` is already ordered by start_time ASC.
+  // Only meaningful on the page's true landing view; paging away drops it
+  // rather than re-anchoring to whatever's bookable in that later week,
+  // since the hint is meant to orient a first-time visitor, not track
+  // wherever they've navigated to.
+  const nextBookableSession = weekOffset === 0 ? sessions.find((s) => statusFor(s) === "Available") : undefined;
+
   const grid = new Map<string, GridCellData>(); // key: `${dayIdx}:${slot}` -> first session in that cell
   for (const s of sessions) {
     const idx = dayIndex(viewStart, new Date(s.start_time));
@@ -297,6 +306,16 @@ export default async function SchedulePage({
             )}
           </div>
         </div>
+
+        <p className="mb-4 text-sm text-ink-soft">Click an open session below to view details and book it.</p>
+
+        {nextBookableSession && (
+          <NextSessionCallout
+            href={cellHref(nextBookableSession.id, weekOffset)}
+            label={sessionTypeInfo(nextBookableSession.session_type).label}
+            whenText={formatFullDateTime(new Date(nextBookableSession.start_time))}
+          />
+        )}
 
         {/* Design Philosophy.dc.html §06: the grid doesn't survive a phone —
             below the breakpoint an agenda list replaces it. Both render

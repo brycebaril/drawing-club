@@ -62,6 +62,22 @@ export function formatOpensDate(date: Date): string {
   return OPENS_DATE_FORMAT.format(date);
 }
 
+const FULL_DATETIME_FORMAT = new Intl.DateTimeFormat("en-US", {
+  weekday: "long",
+  month: "short",
+  day: "numeric",
+  hour: "numeric",
+  minute: "2-digit",
+  timeZone: ORG_TIMEZONE,
+});
+
+/** "Thursday, Sep 4, 10:00 AM" — used by the schedule page's ephemeral
+ * "book your next session" callout, which names a specific session outside
+ * the grid's own compact cell. */
+export function formatFullDateTime(date: Date): string {
+  return FULL_DATETIME_FORMAT.format(date);
+}
+
 const WEEK_RANGE_DAY_FORMAT = new Intl.DateTimeFormat("en-US", { day: "numeric", timeZone: ORG_TIMEZONE });
 const WEEK_RANGE_MONTH_DAY_FORMAT = new Intl.DateTimeFormat("en-US", { day: "numeric", month: "long", timeZone: ORG_TIMEZONE });
 
