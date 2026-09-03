@@ -9,6 +9,7 @@ import { slotFor, startOfDay, dayIndex, toDateOnly, parseDateOnly } from "@/lib/
 import { SessionCalendarGrid, type OccupiedCell } from "./SessionCalendarGrid";
 import { ORG_TIMEZONE } from "@/lib/org";
 import { memberLabel } from "@/lib/users/memberLabel";
+import { truncateModelName } from "@/lib/models/modelName";
 
 interface SessionRow {
   id: string;
@@ -262,7 +263,7 @@ export default async function AdminSessionsPage({
                 {!row.model_required ? (
                   "Not required"
                 ) : row.model_names.length > 0 ? (
-                  row.model_names.join(", ")
+                  row.model_names.map(truncateModelName).join(", ")
                 ) : (
                   <Link href={`/admin/sessions/${row.id}`}>Needs a model</Link>
                 )}

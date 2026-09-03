@@ -205,7 +205,7 @@ export default async function SchedulePage({
         hostUsername: s.host_username,
         hostDisplayName: s.host_display_name,
         modelRequired: s.model_required,
-        modelNames: displayModelNames(s.model_names, viewerRoles),
+        modelNames: displayModelNames(s.model_names),
         bookedCount: s.booked_count,
         maxCapacity: s.max_capacity,
       }); // one session per cell for this phase (no overlap handling yet)

@@ -189,7 +189,7 @@ export async function getCheckInRoster(sessionId: string): Promise<CheckInRoster
       hostDisplayName: sessionRow.hostDisplayName,
       isSeries,
     },
-    modelNames: displayModelNames(modelResult.rows[0]?.names ?? null, ctx.roles),
+    modelNames: displayModelNames(modelResult.rows[0]?.names ?? null),
     roster,
     notes: notesResult.rows.map((n) => ({
       id: n.id,
