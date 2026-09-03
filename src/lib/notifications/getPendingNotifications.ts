@@ -24,7 +24,9 @@ export async function getPendingNotifications(userId: string): Promise<PendingNo
   // NotificationBanner, rendered on every authenticated page view) but
   // still pushed in a fixed order below so the list itself stays
   // deterministic regardless of which query happens to resolve first.
-  const [pendingTransfersResult, ticketsNeedingReplyResult] = await Promise.all([
+  const today = startOfDay(new Date());
+  const tomorrow = new Date(today.getTime() + 24 * 60 * 60 * 1000);
+  const [pendingTransfersResult, ticketsNeedingReplyResult, hostingTodayResult] = await Promise.all([
     pool.query<{ count: number }>(`SELECT count(*)::int AS count FROM passes WHERE pending_recipient_id = $1`, [
       userId,
     ]),
@@ -32,6 +34,12 @@ export async function getPendingNotifications(userId: string): Promise<PendingNo
       `SELECT count(*)::int AS count FROM support_tickets
        WHERE requester_user_id = $1 AND status = 'Open' AND last_message_by_user_id != requester_user_id`,
       [userId],
+    ),
+    pool.query<{ id: string; session_type: string; start_time: Date }>(
+      `SELECT id, session_type, start_time FROM sessions
+       WHERE host_user_id = $1 AND status = 'Scheduled' AND start_time >= $2 AND start_time < $3
+       ORDER BY start_time ASC LIMIT 1`,
+      [userId, today, tomorrow],
     ),
   ]);
 
@@ -118,14 +126,6 @@ export async function getPendingNotifications(userId: string): Promise<PendingNo
   // check-in page (no point nudging someone who's already there); the
   // /ops/check-in overview page still gets it, since it lists every hosted
   // session, not just this one. x-pathname is set by src/proxy.ts.
-  const today = startOfDay(new Date());
-  const tomorrow = new Date(today.getTime() + 24 * 60 * 60 * 1000);
-  const hostingTodayResult = await pool.query<{ id: string; session_type: string; start_time: Date }>(
-    `SELECT id, session_type, start_time FROM sessions
-     WHERE host_user_id = $1 AND status = 'Scheduled' AND start_time >= $2 AND start_time < $3
-     ORDER BY start_time ASC LIMIT 1`,
-    [userId, today, tomorrow],
-  );
   if (hostingTodayResult.rowCount! > 0) {
     const session = hostingTodayResult.rows[0];
     const currentPathname = (await headers()).get("x-pathname");
