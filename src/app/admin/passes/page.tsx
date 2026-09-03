@@ -4,8 +4,8 @@ import { SiteNav } from "@/components/SiteNav";
 import { SortableTh } from "@/components/SortableTh";
 import { resolveSort } from "@/lib/sort";
 import { PassRowActions } from "./PassRowActions";
-import { GrantVolunteerPassesForm } from "./GrantVolunteerPassesForm";
 import { ORG_TIMEZONE } from "@/lib/org";
+import { memberLabelWithUsername } from "@/lib/users/memberLabel";
 
 const SORT_COLUMNS = {
   owner: "owner.username",
@@ -39,6 +39,15 @@ interface BatchOption {
 }
 
 const STATUSES = ["Available", "Assigned", "Used", "Forfeited", "Revoked"] as const;
+
+interface RecentGrantRow {
+  id: string;
+  week_start_date: Date;
+  granted_count: number;
+  created_at: Date;
+  username: string;
+  display_name: string | null;
+}
 
 /** Any unspent transferable pass is eligible for admin revocation — matches revokePassAction's own scope. */
 function isRevocable(pass: PassRow): boolean {
@@ -80,6 +89,20 @@ export default async function AdminPassesPage({
     `SELECT id, organization_name, created_at FROM pass_batches ORDER BY created_at DESC`,
   );
 
+  // volunteer_pass_grants only ever gets a row when a grant actually
+  // happened (grantWeeklyVolunteerPasses skips the insert entirely for
+  // anyone at/above cap) — so every row here is a real grant, not a
+  // decision log. This replaces the old "click a button, see one ephemeral
+  // result banner" flow with a standing, always-visible record of what the
+  // scheduled job has actually done recently.
+  const recentGrantsResult = await pool.query<RecentGrantRow>(
+    `SELECT vpg.id, vpg.week_start_date, vpg.granted_count, vpg.created_at, u.username, u.display_name
+     FROM volunteer_pass_grants vpg
+     JOIN users u ON u.id = vpg.user_id
+     WHERE vpg.created_at >= now() - interval '7 days'
+     ORDER BY vpg.created_at DESC`,
+  );
+
   return (
     <>
       <SiteNav />
@@ -92,12 +115,49 @@ export default async function AdminPassesPage({
       <section>
         <h2>Volunteer weekly tickets</h2>
         <p className="section-note">
-          Grants the configured weekly allowance to every member holding the General Volunteer
-          role, skipping anyone already at or above the wallet cap (both settings on{" "}
-          <Link href="/admin/settings">Settings</Link>). Safe to run more than once in the same
-          week — a second run grants nothing new.
+          Runs automatically once a week — there&apos;s nothing to click here. Every member
+          currently holding the <strong>General Volunteer</strong> role (assigned per-member on
+          their <Link href="/admin/users">account page</Link>, not the same as any staff/ops
+          role) gets{" "}
+          <strong>
+            <code>VOLUNTEER_WEEKLY_PASS_ALLOWANCE</code>
+          </strong>{" "}
+          free ticket(s), but only if they currently hold <em>fewer than</em>{" "}
+          <strong>
+            <code>VOLUNTEER_PASS_WALLET_CAP</code>
+          </strong>{" "}
+          unspent volunteer-granted tickets — someone at or above the cap is skipped entirely for
+          that week, not topped up to the cap. Both numbers are admin-editable on{" "}
+          <Link href="/admin/settings">Settings</Link>. Safe to trigger more than once in the same
+          week (e.g. a manual re-run after debugging) — a repeat run grants nothing new to anyone
+          already granted.
         </p>
-        <GrantVolunteerPassesForm />
+        {recentGrantsResult.rowCount === 0 ? (
+          <p>No volunteer ticket grants in the past 7 days.</p>
+        ) : (
+          <div className="table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>Granted</th>
+                  <th>Member</th>
+                  <th>Week of</th>
+                  <th>Tickets</th>
+                </tr>
+              </thead>
+              <tbody>
+                {recentGrantsResult.rows.map((grant) => (
+                  <tr key={grant.id}>
+                    <td>{new Date(grant.created_at).toLocaleString("en-US", { timeZone: ORG_TIMEZONE })}</td>
+                    <td>{memberLabelWithUsername(grant.display_name, grant.username)}</td>
+                    <td>{new Date(grant.week_start_date).toLocaleDateString("en-US", { timeZone: ORG_TIMEZONE })}</td>
+                    <td>{grant.granted_count}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </section>
 
       <form>

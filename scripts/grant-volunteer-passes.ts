@@ -1,10 +1,13 @@
 /**
- * Manual stand-in for a weekly scheduled job (Sundays 5pm local time, via
- * EventBridge Scheduler once AWS infra is provisioned — same "no scheduler
- * infra yet" reasoning as scripts/generate-payouts.ts and
- * scripts/rollforward.ts). Also triggerable on-demand from /admin/passes
- * (src/app/admin/passes/actions.ts), both calling the same
- * grantWeeklyVolunteerPasses function.
+ * Manual/local-dev escape hatch only — the real weekly grant runs via a
+ * genuine scheduled trigger now: a GitHub Actions cron workflow
+ * (.github/workflows/grant-volunteer-passes.yml) calling the protected
+ * POST /api/jobs/grant-volunteer-passes route (src/app/api/jobs/
+ * grant-volunteer-passes/route.ts), which calls this exact same
+ * grantWeeklyVolunteerPasses function. There is deliberately no admin-UI
+ * button for this anymore (removed — a real weekly grant shouldn't depend
+ * on a person remembering to click something); this script is for running
+ * it by hand locally or against staging when debugging.
  *
  * Usage: pnpm grant-volunteer-passes
  * Always targets the *current* week — unlike payout reports, there's no

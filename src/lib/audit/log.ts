@@ -2,7 +2,11 @@ import type { Pool, PoolClient } from "pg";
 import { pool } from "@/lib/db/pool";
 
 export interface AuditLogEntry {
-  actorId: string;
+  // Optional, not defaulted to a synthetic "system" user — actor_id is a
+  // nullable FK (ON DELETE SET NULL) precisely so a real absence of a human
+  // actor (a scheduled-job-triggered mutation, e.g. src/app/api/jobs/*) can
+  // be recorded as NULL rather than inventing a fake account to blame it on.
+  actorId?: string;
   actionType: string;
   targetUserId?: string;
   metadata?: Record<string, unknown>;
@@ -29,7 +33,7 @@ export async function writeAuditLog(entry: AuditLogEntry, queryable: Pool | Pool
     `INSERT INTO system_audit_logs (actor_id, action_type, target_user_id, metadata)
      VALUES ($1, $2, $3, $4)`,
     [
-      entry.actorId,
+      entry.actorId ?? null,
       entry.actionType,
       entry.targetUserId ?? null,
       // node-postgres doesn't auto-serialize objects for jsonb columns.

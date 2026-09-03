@@ -5,8 +5,6 @@ import { redirect } from "next/navigation";
 import { pool } from "@/lib/db/pool";
 import { requireAdmin } from "@/lib/auth/requireAdmin";
 import { writeAuditLog } from "@/lib/audit/log";
-import { grantWeeklyVolunteerPasses } from "@/lib/ops/volunteerPasses";
-import { currentWeekStart, toDateOnly } from "@/lib/sessions/shared";
 
 export interface CreateBatchState {
   error?: string;
@@ -94,49 +92,6 @@ export async function createBatchAction(
 
   revalidatePath("/admin/passes");
   return { success: true, organizationName, ownerUsername };
-}
-
-export interface GrantVolunteerPassesState {
-  error?: string;
-  granted?: number;
-  skippedAtCap?: number;
-  alreadyGranted?: number;
-  weekStart?: string;
-}
-
-/**
- * Always targets the current week — no date picker, unlike
- * generateReportAction's, since there's no legitimate reason to backdate a
- * volunteer pass grant. Mirrors that action's shape otherwise.
- */
-export async function grantVolunteerPassesAction(
-  _prevState: GrantVolunteerPassesState,
-  _formData: FormData,
-): Promise<GrantVolunteerPassesState> {
-  const ctx = await requireAdmin();
-  if (!ctx) return { error: "Not authorized." };
-
-  const weekStart = currentWeekStart(new Date());
-  const result = await grantWeeklyVolunteerPasses(weekStart);
-
-  await writeAuditLog({
-    actorId: ctx.id,
-    actionType: "VOLUNTEER_PASSES_GRANTED",
-    metadata: {
-      weekStart: toDateOnly(weekStart),
-      granted: result.granted.length,
-      skippedAtCap: result.skippedAtCap.length,
-      alreadyGranted: result.alreadyGranted.length,
-    },
-  });
-
-  revalidatePath("/admin/passes");
-  return {
-    granted: result.granted.length,
-    skippedAtCap: result.skippedAtCap.length,
-    alreadyGranted: result.alreadyGranted.length,
-    weekStart: toDateOnly(weekStart),
-  };
 }
 
 export interface RevokeState {
