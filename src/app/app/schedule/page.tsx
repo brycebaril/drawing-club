@@ -232,7 +232,7 @@ export default async function SchedulePage({
   return (
     <>
       <SiteNav />
-      <main className="main--wide">
+      <main>
         {/* Every section below (heading, ticket callout, week nav, the grid,
             the legend) used to manage its own width independently — the
             grid centered itself narrowly while the heading and legend
@@ -242,7 +242,13 @@ export default async function SchedulePage({
             that — 900px comfortably fits the grid's own ~838px natural
             width (7×92px cells + the 100px rail + gaps) with a little
             breathing room, and everything else now shares its exact
-            left/right edges instead of each picking its own. */}
+            left/right edges instead of each picking its own. Now that
+            `<main>` itself is the plain boxed default (960px, same as
+            About/Pricing/Dashboard) rather than `main--wide`, this wrapper
+            is mostly redundant — `main`'s own 2×var(--space-6) padding
+            already leaves ~896px of inner content width, just under this
+            900px cap — but harmless to keep rather than restructure further
+            than asked. */}
         <div className="mx-auto max-w-[900px]">
         <h1>Schedule</h1>
         {ticketCount === 0 && (
@@ -330,15 +336,21 @@ export default async function SchedulePage({
 
             960px, not the doc's own stated 824px: that figure is ScheduleGrid's
             raw content width (7×92px cells + the 100px rail + gaps), but the
-            breakpoint has to compare against the full viewport — which also
-            has to fit main.main--wide's own horizontal margins
-            (2×var(--space-5) = 48px) and a scrollbar (~15-17px) around that
-            content. Using 824px directly left a real dead zone (roughly
-            824-890px) where the grid rendered instead of the agenda but still
-            needed its own horizontal scroll to fit — confirmed by computing
-            ScheduleGrid's actual rendered width (~838px, close to but not
-            exactly the doc's figure) plus that overhead (≈903px minimum),
-            then rounding up for safety margin. */}
+            breakpoint has to compare against the full viewport — which
+            originally also had to fit `main.main--wide`'s own horizontal
+            margins and a scrollbar around that content, before `<main>`
+            switched to the plain boxed default below. That default caps out
+            at 960px total width with 2×var(--space-6) padding, so at the
+            960px breakpoint itself the inner content area is a fixed ~896px
+            regardless of how much wider the viewport gets — comfortably
+            above the grid's ~838px need, so the same 960px value still
+            works and didn't need recalculating. Using 824px directly
+            originally left a real dead zone (roughly 824-890px) where the
+            grid rendered instead of the agenda but still needed its own
+            horizontal scroll to fit — confirmed by computing ScheduleGrid's
+            actual rendered width (~838px, close to but not exactly the
+            doc's figure) plus that overhead, then rounding up for safety
+            margin. */}
         <div id="schedule-grid-view" className="hidden min-[960px]:block">
           <ScheduleGrid days={days} grid={grid} windowDays={viewerWindowDays} weekOffset={weekOffset} />
         </div>

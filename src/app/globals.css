@@ -266,6 +266,18 @@ nav form {
   display: inline;
 }
 
+/* The Schedule link's own .button-link styling (see "---- Buttons ----"
+   below) carries a `margin-top` meant for its other use as a standalone CTA
+   below a paragraph (e.g. the dashboard's "Buy tickets" prompt) — inside the
+   nav, that top-only margin makes the flex item taller from the top than its
+   plain-<a> siblings, so `nav ul`'s `align-items: center` shifts the pill's
+   visible text down relative to the rest of the row (confirmed for real on
+   staging: "Schedule" sat ~6px lower than "Home"). Zeroing it here doesn't
+   touch the CTA usage, which isn't inside a `nav`. */
+nav .button-link {
+  margin-top: 0;
+}
+
 /* Resets the generic filled-pill <button> styling (see "---- Buttons ----"
    below) back down to a plain nav link's look — used on the Log out button
    so it reads as one more item in the list rather than a second primary CTA
