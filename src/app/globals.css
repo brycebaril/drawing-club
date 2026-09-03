@@ -259,6 +259,19 @@ nav a:hover {
    competing with the Schedule link's own .button-link treatment. */
 nav .plain-button {
   all: unset;
+  /* all: unset resets `display` to its CSS-spec-initial value (inline) and
+     `vertical-align` to its own initial value (baseline) — on paper that
+     should already match the plain <a> tags around it, but a <button>
+     retains native OS/browser form-control chrome that `all` doesn't fully
+     strip in every engine, throwing its baseline off from surrounding text
+     (confirmed for real on staging — "Log out" sat visibly higher than its
+     neighbors). appearance: none removes that native widget rendering;
+     the explicit display/vertical-align below make the two properties
+     `all: unset` already sets no longer implicit, so this doesn't silently
+     regress the same way again if `all: unset` is ever narrowed. */
+  appearance: none;
+  display: inline;
+  vertical-align: baseline;
   cursor: pointer;
   font-weight: 500;
   color: var(--color-text);
