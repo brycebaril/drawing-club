@@ -19,7 +19,10 @@ export async function requireOpsRole(allowed: Role[]): Promise<UserAuthContext |
   if (!session?.user?.id) redirect("/auth/login");
 
   const ctx = await getUserAuthContext(session.user.id);
-  if (!ctx) return null;
+  // Mirrors src/proxy.ts's own isActiveSession check (see requireAdmin's
+  // identical comment) — a Server Function reached without an intervening
+  // page load isn't covered by proxy.ts's fresh-per-request status check.
+  if (!ctx || ctx.status !== "Active") return null;
   if (ctx.roles.includes("ADMIN")) return ctx;
   if (allowed.some((role) => ctx.roles.includes(role))) return ctx;
   return null;
