@@ -47,7 +47,7 @@ export default async function ModelBookingPage({
      LEFT JOIN session_model_mapping smm ON smm.session_id = s.id
      LEFT JOIN models m ON m.id = smm.model_id
      WHERE s.status = 'Scheduled' AND s.start_time >= now() AND s.start_time <= now() + interval '60 days'
-     GROUP BY s.id, s.session_type, s.start_time, u.username, s.model_required
+     GROUP BY s.id, s.session_type, s.start_time, u.username, u.display_name, s.model_required
      ORDER BY s.start_time`,
     [],
   );
