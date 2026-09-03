@@ -69,6 +69,10 @@ export async function getAccountClassStats(): Promise<AccountClassStats> {
          -- 4,234 real local-dev users before this fix).
          COALESCE(u.membership_expires_at > now(), false) AS is_member
        FROM users u
+       -- A GDPR-anonymized account has no meaningful role/membership left
+       -- to classify — without this, it stayed counted in its old bucket
+       -- forever, permanently inflating headcount stats with every erasure.
+       WHERE u.status != 'Deleted'
      ),
      active_this_week AS (
        SELECT DISTINCT user_id FROM (
