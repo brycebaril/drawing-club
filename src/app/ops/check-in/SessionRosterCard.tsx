@@ -86,7 +86,7 @@ export function SessionRosterCard({
     }
   }
 
-  const { session, modelName, roster, notes } = data;
+  const { session, modelNames, roster, notes } = data;
   const attending = roster.filter((r) => r.checkedIn).length;
   const registered = roster.length;
   const unregistered = Math.max(0, session.maxCapacity - registered);
@@ -110,7 +110,7 @@ export function SessionRosterCard({
           {start.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone: ORG_TIMEZONE })} –{" "}
           {new Date(session.endTime).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone: ORG_TIMEZONE })} · Host:{" "}
           {session.hostUsername ? memberLabel(session.hostDisplayName, session.hostUsername) : "Open"}
-          {modelName && <> · Model: {modelName}</>} · Status: {session.status}
+          {modelNames && <> · Model: {modelNames}</>} · Status: {session.status}
         </p>
         {session.description && <p>{session.description}</p>}
 

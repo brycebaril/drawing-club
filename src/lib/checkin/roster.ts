@@ -3,7 +3,7 @@
 import { pool } from "@/lib/db/pool";
 import { requireOpsRole } from "@/lib/auth/requireOpsRole";
 import { requireCheckInAccess } from "./access";
-import { canSeeFullModelName, truncateModelName } from "@/lib/models/modelName";
+import { displayModelNames } from "@/lib/models/modelName";
 
 export interface CheckInSessionSummary {
   id: string;
@@ -42,7 +42,7 @@ export interface CheckInNote {
 
 export interface CheckInRoster {
   session: CheckInSessionSummary;
-  modelName: string | null;
+  modelNames: string | null;
   roster: RosterRow[];
   notes: CheckInNote[];
 }
@@ -64,8 +64,13 @@ export async function getCheckInRoster(sessionId: string): Promise<CheckInRoster
   const isSeries = sessionRow.seriesId !== null;
 
   const [modelResult, rosterBaseResult, notesResult] = await Promise.all([
-    pool.query<{ name: string }>(
-      `SELECT m.name FROM session_model_mapping smm JOIN models m ON m.id = smm.model_id WHERE smm.session_id = $1 LIMIT 1`,
+    // string_agg, not LIMIT 1 — a session can have more than one model
+    // assigned (src/app/ops/model-booking's own assign/unassign UI already
+    // supports it, and the schedule page's own tooltip already aggregates
+    // every assigned model this same way), and check-in previously silently
+    // dropped every model past the first from view.
+    pool.query<{ names: string | null }>(
+      `SELECT string_agg(m.name, ', ' ORDER BY m.name) AS names FROM session_model_mapping smm JOIN models m ON m.id = smm.model_id WHERE smm.session_id = $1`,
       [sessionId],
     ),
     isSeries
@@ -184,11 +189,7 @@ export async function getCheckInRoster(sessionId: string): Promise<CheckInRoster
       hostDisplayName: sessionRow.hostDisplayName,
       isSeries,
     },
-    modelName: modelResult.rows[0]
-      ? canSeeFullModelName(ctx.roles)
-        ? modelResult.rows[0].name
-        : truncateModelName(modelResult.rows[0].name)
-      : null,
+    modelNames: displayModelNames(modelResult.rows[0]?.names ?? null, ctx.roles),
     roster,
     notes: notesResult.rows.map((n) => ({
       id: n.id,

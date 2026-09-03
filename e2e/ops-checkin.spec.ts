@@ -118,3 +118,42 @@ test("a first-time attendee is badged, a member is badged, and the overview page
   // toBeVisible.
   await expect(page.getByText(new RegExp(member.username))).toBeAttached();
 });
+
+test("check-in shows every model assigned to a session, not just the first", async ({ page }) => {
+  // Regression test: getCheckInRoster used to query model names with
+  // LIMIT 1, silently dropping any model past the first from view — this
+  // pins the fix (string_agg over every session_model_mapping row).
+  const startTime = new Date(Date.now() + 56 * 60 * 60 * 1000);
+  const sessionId = await createOneOffSessionAsAdmin(page, {
+    description: `checkin-multimodel-test-${Date.now()}`,
+    startTime,
+    capacity: 5,
+  });
+
+  const host = await createTestUser({ username: `e2emultimodelhost${Date.now()}` });
+  await pool.query(`INSERT INTO volunteer_roles (user_id, role) VALUES ($1, 'SessionManager')`, [host.id]);
+  await pool.query(`UPDATE sessions SET host_user_id = $1 WHERE id = $2`, [host.id, sessionId]);
+
+  // Single-token names — a VOL_HOST (unlike ADMIN/VOL_MBR) sees truncated
+  // first-name-only model names, and a multi-word name would collapse two
+  // distinct models down to an indistinguishable truncated string.
+  const modelOneName = `AlphaE2E${Date.now()}`;
+  const modelTwoName = `BetaE2E${Date.now()}`;
+  const modelOne = await pool.query<{ id: string }>(
+    `INSERT INTO models (name, contact_info) VALUES ($1, 'a@example.test') RETURNING id`,
+    [modelOneName],
+  );
+  const modelTwo = await pool.query<{ id: string }>(
+    `INSERT INTO models (name, contact_info) VALUES ($1, 'b@example.test') RETURNING id`,
+    [modelTwoName],
+  );
+  await pool.query(`INSERT INTO session_model_mapping (session_id, model_id) VALUES ($1, $2), ($1, $3)`, [
+    sessionId,
+    modelOne.rows[0].id,
+    modelTwo.rows[0].id,
+  ]);
+
+  await loginAsUser(page, host);
+  await page.goto(`/ops/check-in/${sessionId}`);
+  await expect(page.getByText(new RegExp(`Model: ${modelOneName}, ${modelTwoName}`))).toBeVisible();
+});
