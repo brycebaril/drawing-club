@@ -253,6 +253,19 @@ nav a:hover {
   color: var(--color-link);
 }
 
+/* The Log out button is wrapped in a <form> (LogoutForm.tsx) so it can post
+   to the signOut server action — that <form> inherits the global `form {
+   margin-bottom: var(--space-5) }` rule below, making its <li> ~24px taller
+   than its plain-<a> siblings. nav ul's `align-items: center` then centers
+   that taller box, shifting the visible button text upward relative to the
+   rest of the row (confirmed for real on staging — a separate, earlier fix
+   to .plain-button itself, still correct on its own terms, didn't touch this
+   because the offset comes from the <form> ancestor, not the button). */
+nav form {
+  margin: 0;
+  display: inline;
+}
+
 /* Resets the generic filled-pill <button> styling (see "---- Buttons ----"
    below) back down to a plain nav link's look — used on the Log out button
    so it reads as one more item in the list rather than a second primary CTA
