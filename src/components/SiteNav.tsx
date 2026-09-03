@@ -6,11 +6,7 @@ import { RESERVED_STATIC_PAGE_SLUGS } from "@/lib/cms/slugify";
 import { LogoutForm } from "./LogoutForm";
 import { NotificationBanner } from "./NotificationBanner";
 import { EnvStatusBanner } from "./EnvStatusBanner";
-
-interface StaffLink {
-  href: string;
-  label: string;
-}
+import { StaffMenu, type StaffLink } from "./StaffMenu";
 
 const ADMIN_LINKS: StaffLink[] = [
   { href: "/admin/sessions", label: "Sessions" },
@@ -53,12 +49,12 @@ function opsLinksFor(roles: Role[], isAdmin: boolean, supportNeedsReplyCount: nu
  * holding those role-gated links, kept out of the visible list entirely
  * rather than just styled differently, since an admin is a participant
  * first with admin capabilities layered on top, not a different kind of
- * user. Built with <details>/<summary> rather than a client component +
- * useState — a native disclosure needs no JS at all, keeping SiteNav a
- * plain Server Component (this app has no client-side nav interactivity
- * anywhere else). Trade-off: it won't auto-close on an outside click the
- * way a JS-driven dropdown would; toggling the summary again or navigating
- * away (any link click) closes it.
+ * user. Still a native <details>/<summary> under the hood (StaffMenu.tsx),
+ * but that component is now a small client-side island specifically to add
+ * click/tap-outside-to-close — a real reported gap, since a native
+ * disclosure alone only closes by re-toggling its own summary. SiteNav
+ * itself stays a plain async Server Component; only StaffMenu opts into
+ * client rendering.
  */
 export async function SiteNav() {
   const session = await auth();
@@ -116,7 +112,9 @@ export async function SiteNav() {
           <li>
             {/* /app/schedule is the unified public + member page (src/lib/auth/rbac.ts
                 has a dedicated public rule for it) — no more conditional login redirect. */}
-            <Link href="/app/schedule">Schedule</Link>
+            <Link href="/app/schedule" className="button-link">
+              Schedule
+            </Link>
           </li>
           {ctx ? (
             <>
@@ -143,39 +141,7 @@ export async function SiteNav() {
               </li>
             </>
           )}
-          {showStaffMenu && (
-            <li className="staff-menu">
-              <details>
-                <summary role="button">☰ Staff</summary>
-                <div className="staff-menu-panel">
-                  {isAdmin && (
-                    <>
-                      <p className="nav-group-label">Admin</p>
-                      <ul>
-                        {ADMIN_LINKS.map((link) => (
-                          <li key={link.href}>
-                            <Link href={link.href}>{link.label}</Link>
-                          </li>
-                        ))}
-                      </ul>
-                    </>
-                  )}
-                  {opsLinks.length > 0 && (
-                    <>
-                      <p className="nav-group-label">Ops</p>
-                      <ul>
-                        {opsLinks.map((link) => (
-                          <li key={link.href}>
-                            <Link href={link.href}>{link.label}</Link>
-                          </li>
-                        ))}
-                      </ul>
-                    </>
-                  )}
-                </div>
-              </details>
-            </li>
-          )}
+          {showStaffMenu && <StaffMenu isAdmin={isAdmin} adminLinks={ADMIN_LINKS} opsLinks={opsLinks} />}
         </ul>
       </nav>
       <NotificationBanner />

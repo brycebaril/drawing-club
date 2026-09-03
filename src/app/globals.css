@@ -253,6 +253,21 @@ nav a:hover {
   color: var(--color-link);
 }
 
+/* Resets the generic filled-pill <button> styling (see "---- Buttons ----"
+   below) back down to a plain nav link's look — used on the Log out button
+   so it reads as one more item in the list rather than a second primary CTA
+   competing with the Schedule link's own .button-link treatment. */
+nav .plain-button {
+  all: unset;
+  cursor: pointer;
+  font-weight: 500;
+  color: var(--color-text);
+}
+
+nav .plain-button:hover {
+  color: var(--color-link);
+}
+
 /* ---- Tables ---- */
 
 /* Every <table> is wrapped in a .table-scroll div (see e.g.
