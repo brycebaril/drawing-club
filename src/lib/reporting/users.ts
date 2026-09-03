@@ -11,6 +11,8 @@ export interface UserStats {
   byBaseRole: Record<string, number>;
   byStatus: Record<string, number>;
   activeMembers: number;
+  /** Real opt-in count, matching /admin/users' own marketing-opt-in filter/export. */
+  marketingOptInCount: number;
 }
 
 /** Pure rollup, split out for unit testing separate from the DB round-trip. */
@@ -37,9 +39,13 @@ export async function getUserStats(): Promise<UserStats> {
   const activeMembersResult = await pool.query<{ count: number }>(
     `SELECT count(*)::int AS count FROM users WHERE membership_expires_at > now()`,
   );
+  const marketingOptInResult = await pool.query<{ count: number }>(
+    `SELECT count(*)::int AS count FROM users WHERE marketing_email_opt_in = true`,
+  );
 
   return {
     ...summarizeUserRows(rowsResult.rows),
     activeMembers: activeMembersResult.rows[0].count,
+    marketingOptInCount: marketingOptInResult.rows[0].count,
   };
 }

@@ -1,13 +1,29 @@
 import { pool } from "@/lib/db/pool";
 import { dateRangeClause, resolveGroupBy, timeBucketExpression, type DateRange, type Granularity } from "./queryFilters";
 
-export const ACCOUNT_STATUSES = ["Active", "Suspended", "Banned"] as const;
+// "Deleted" (GDPR-style anonymization, src/app/admin/users/[id]/actions.ts's
+// anonymizeAccountAction) was missing here — an API consumer's
+// ?accountStatus=Deleted was silently dropped by this allowlist even though
+// the users table itself has held the status for a while (filterUsers.ts's
+// own UserRow type already included it).
+export const ACCOUNT_STATUSES = ["Active", "Suspended", "Banned", "Deleted"] as const;
 export type AccountStatus = (typeof ACCOUNT_STATUSES)[number];
 
 export const MEMBERSHIP_STATUSES = ["active", "expired", "never"] as const;
 export type MembershipStatus = (typeof MEMBERSHIP_STATUSES)[number];
 
-export const VOLUNTEER_ROLES = ["SessionManager", "ContentEditor", "ModelBooker", "Controller", "Board"] as const;
+// GenericVolunteer and SupportAgent were added to the app after this list
+// was written (matches admin/users/[id]/page.tsx's own VOLUNTEER_ROLE_LABELS,
+// which already has both) — same drift as ACCOUNT_STATUSES above.
+export const VOLUNTEER_ROLES = [
+  "SessionManager",
+  "ContentEditor",
+  "ModelBooker",
+  "Controller",
+  "Board",
+  "SupportAgent",
+  "GenericVolunteer",
+] as const;
 export type VolunteerRole = (typeof VOLUNTEER_ROLES)[number];
 
 export interface MembersReportFilters {
