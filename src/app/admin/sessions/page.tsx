@@ -61,7 +61,28 @@ export default async function AdminSessionsPage({
   const currentParams = new URLSearchParams({ sort: state.key, dir: state.dir });
 
   const requestedPage = Number(pageParam);
-  const page = Number.isInteger(requestedPage) && requestedPage > 0 ? requestedPage : 1;
+  let page: number;
+  if (Number.isInteger(requestedPage) && requestedPage > 0) {
+    page = requestedPage;
+  } else if (state.key === "start") {
+    // No explicit page requested while sorted by date: land on the page
+    // containing "now" instead of page 1, which under a plain start_time
+    // sort would be the extreme edge of the table (the furthest-future
+    // rollforward-generated occurrence under the default "desc" direction,
+    // or the oldest legacy-migrated session under "asc") — mirrors
+    // /app/schedule's own default of opening at today's date rather than
+    // one end of its full booking window.
+    const anchorResult = await pool.query<{ count: string }>(
+      `SELECT count(*) FROM sessions WHERE status = 'Scheduled' AND start_time ${state.dir === "desc" ? ">" : "<"} now()`,
+    );
+    // Rows on the "now" side of the boundary occupy ranks 1..anchorCount;
+    // ceil (not floor) lands on the page holding the last of those ranks,
+    // i.e. the row closest to "now" — floor would overshoot by one page
+    // whenever anchorCount is an exact multiple of PAGE_SIZE.
+    page = Math.max(1, Math.ceil(Number(anchorResult.rows[0].count) / PAGE_SIZE));
+  } else {
+    page = 1;
+  }
   const offset = (page - 1) * PAGE_SIZE;
 
   const parsedStart = start ? parseDateOnly(start) : new Date();
