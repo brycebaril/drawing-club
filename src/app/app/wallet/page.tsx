@@ -113,6 +113,9 @@ export default async function WalletPage({
           </>
         )}
 
+        <h2>Buy tickets</h2>
+        <PurchaseButtons isMember={isMember} disabled={!ctx.emailVerified} />
+
         <h2>Standard tickets</h2>
         <p>Available tickets: {standardPasses.length}</p>
         {standardPasses.length > 0 && (
@@ -189,9 +192,6 @@ export default async function WalletPage({
             </div>
           </>
         )}
-
-        <h2>Buy tickets</h2>
-        <PurchaseButtons isMember={isMember} disabled={!ctx.emailVerified} />
       </main>
     </>
   );
