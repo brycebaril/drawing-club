@@ -3,6 +3,17 @@ import { orgDateParts, orgStartOfDay, orgDayIndex, orgDateOnly, parseOrgDateOnly
 // Design Doc §3.2.
 export const SESSION_TYPES = ["L", "R", "G", "P", "S", "X", "Gallery", "Party"] as const;
 
+// Gallery Hours and Party are the two "drop-in" types (SESSION_TYPE_INFO's
+// own sage-vs-terracotta split in the schedule grid) — no live model posing
+// happens at either, unlike every other type. Every session-creation path
+// (one-off, recurring, series) should call this rather than leaving
+// model_required to its DB default (always true) regardless of type, which
+// used to mean a newly created Party/Gallery Hours session always showed as
+// "needs a model" until a Model Booker manually cleared it by hand.
+export function sessionTypeNeedsModel(sessionType: string): boolean {
+  return sessionType !== "Gallery" && sessionType !== "Party";
+}
+
 // Matches JS Date.getDay() (0=Sunday..6=Saturday).
 export const DAYS_OF_WEEK = [
   { value: 0, label: "Sunday" },

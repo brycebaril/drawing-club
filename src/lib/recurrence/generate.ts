@@ -1,6 +1,7 @@
 import { pool } from "@/lib/db/pool";
 import { getSettingNumber } from "@/lib/settings";
 import { clampRangeStart, combineDateAndTime, computeOccurrenceDates, excludeStartedDates } from "./dates";
+import { sessionTypeNeedsModel } from "@/lib/sessions/shared";
 
 /**
  * No scheduler infra exists yet (EventBridge is still unprovisioned AWS
@@ -53,9 +54,18 @@ async function insertSessionsForDates(ruleId: string, rule: RuleRow, dates: Date
       const endTime = combineDateAndTime(date, rule.end_time_of_day);
       await client.query(
         `INSERT INTO sessions
-           (session_type, description, start_time, end_time, max_capacity, host_user_id, is_ticketed, recurrence_rule_id)
-         VALUES ($1, $2, $3, $4, $5, $6, true, $7)`,
-        [rule.session_type, rule.description, startTime, endTime, maxCapacity, rule.default_host_user_id, ruleId],
+           (session_type, description, start_time, end_time, max_capacity, host_user_id, is_ticketed, recurrence_rule_id, model_required)
+         VALUES ($1, $2, $3, $4, $5, $6, true, $7, $8)`,
+        [
+          rule.session_type,
+          rule.description,
+          startTime,
+          endTime,
+          maxCapacity,
+          rule.default_host_user_id,
+          ruleId,
+          sessionTypeNeedsModel(rule.session_type),
+        ],
       );
     }
     await client.query("COMMIT");
