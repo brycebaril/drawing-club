@@ -33,7 +33,15 @@ export default auth(async (req) => {
   }
 
   if (isAllowed(pathname, roles)) {
-    return NextResponse.next();
+    // Exposes the current path to Server Components via headers() (next/headers)
+    // — used by getPendingNotifications' host-CTA check to suppress itself on
+    // that specific session's own check-in page. Must be set on the
+    // *request* headers passed through (not response.headers.set, which only
+    // reaches the browser) — that's what makes it visible to headers() in a
+    // downstream Server Component render.
+    const requestHeaders = new Headers(req.headers);
+    requestHeaders.set("x-pathname", pathname);
+    return NextResponse.next({ request: { headers: requestHeaders } });
   }
 
   if (roles === null) {

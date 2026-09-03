@@ -1,5 +1,8 @@
+import { headers } from "next/headers";
 import { pool } from "@/lib/db/pool";
 import { getUserAuthContext } from "@/lib/auth/roles";
+import { startOfDay } from "@/lib/sessions/shared";
+import { ORG_TIMEZONE } from "@/lib/org";
 
 export interface PendingNotification {
   message: string;
@@ -103,6 +106,40 @@ export async function getPendingNotifications(userId: string): Promise<PendingNo
         ctaLabel: "Review requests",
         ctaHref: "/admin/users?filter=cancellation-requested",
         urgent: true,
+      });
+    }
+  }
+
+  // "You're hosting today" — reuses /ops/check-in/page.tsx's exact
+  // startOfDay/+24h "today" window (the same cutoff that page already uses
+  // to decide which roster card defaults open), not gated on still holding
+  // VOL_HOST — this is about what the sessions table actually says, not the
+  // viewer's current role set. Suppressed on that specific session's own
+  // check-in page (no point nudging someone who's already there); the
+  // /ops/check-in overview page still gets it, since it lists every hosted
+  // session, not just this one. x-pathname is set by src/proxy.ts.
+  const today = startOfDay(new Date());
+  const tomorrow = new Date(today.getTime() + 24 * 60 * 60 * 1000);
+  const hostingTodayResult = await pool.query<{ id: string; session_type: string; start_time: Date }>(
+    `SELECT id, session_type, start_time FROM sessions
+     WHERE host_user_id = $1 AND status = 'Scheduled' AND start_time >= $2 AND start_time < $3
+     ORDER BY start_time ASC LIMIT 1`,
+    [userId, today, tomorrow],
+  );
+  if (hostingTodayResult.rowCount! > 0) {
+    const session = hostingTodayResult.rows[0];
+    const currentPathname = (await headers()).get("x-pathname");
+    const checkInHref = `/ops/check-in/${session.id}`;
+    if (currentPathname !== checkInHref) {
+      const time = new Date(session.start_time).toLocaleTimeString("en-US", {
+        hour: "numeric",
+        minute: "2-digit",
+        timeZone: ORG_TIMEZONE,
+      });
+      notifications.push({
+        message: `You're hosting ${session.session_type} today at ${time}.`,
+        ctaLabel: "Go to check-in",
+        ctaHref: checkInHref,
       });
     }
   }
