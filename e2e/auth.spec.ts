@@ -7,7 +7,7 @@ test("registering creates an account and signs the user in", async ({ page }) =>
   await page.goto("/auth/register");
   await page.getByLabel("Name", { exact: true }).fill("E2E User");
   await page.getByLabel("Username").fill(username);
-  await page.getByLabel("Email").fill(`${username}@example.test`);
+  await page.getByLabel("Email", { exact: true }).fill(`${username}@example.test`);
   await page.getByLabel("Password").fill("a-decent-password");
   await page.getByRole("button", { name: "Create account" }).click();
 
@@ -18,6 +18,41 @@ test("registering creates an account and signs the user in", async ({ page }) =>
   // change (a real, previously undiscovered break — found while separately
   // debugging an account-management e2e run).
   await expect(page.getByText("Logged in as E2E User")).toBeVisible();
+});
+
+test("registering with marketing email opt-in checked captures real consent", async ({ page }) => {
+  const username = `e2emarketingoptin${Date.now()}`;
+  await page.goto("/auth/register");
+  await page.getByLabel("Name", { exact: true }).fill("E2E Opt-In User");
+  await page.getByLabel("Username").fill(username);
+  await page.getByLabel("Email", { exact: true }).fill(`${username}@example.test`);
+  await page.getByLabel("Password").fill("a-decent-password");
+  await page.getByLabel("Send me occasional email about upcoming events and news").check();
+  await page.getByRole("button", { name: "Create account" }).click();
+  await page.waitForURL("**/dashboard");
+
+  const row = await pool.query<{ marketing_email_opt_in: boolean }>(
+    `SELECT marketing_email_opt_in FROM users WHERE username = $1`,
+    [username],
+  );
+  expect(row.rows[0].marketing_email_opt_in).toBe(true);
+});
+
+test("registering without checking the marketing opt-in defaults to no consent", async ({ page }) => {
+  const username = `e2emarketingoptout${Date.now()}`;
+  await page.goto("/auth/register");
+  await page.getByLabel("Name", { exact: true }).fill("E2E Opt-Out User");
+  await page.getByLabel("Username").fill(username);
+  await page.getByLabel("Email", { exact: true }).fill(`${username}@example.test`);
+  await page.getByLabel("Password").fill("a-decent-password");
+  await page.getByRole("button", { name: "Create account" }).click();
+  await page.waitForURL("**/dashboard");
+
+  const row = await pool.query<{ marketing_email_opt_in: boolean }>(
+    `SELECT marketing_email_opt_in FROM users WHERE username = $1`,
+    [username],
+  );
+  expect(row.rows[0].marketing_email_opt_in).toBe(false);
 });
 
 test("unauthenticated visit to /dashboard redirects to login", async ({ page }) => {

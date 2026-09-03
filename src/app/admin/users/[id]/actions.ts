@@ -14,7 +14,20 @@ export interface ActionState {
 }
 
 const STATUSES = ["Active", "Suspended", "Banned"] as const;
-const VOLUNTEER_ROLES = ["SessionManager", "ContentEditor", "ModelBooker", "Controller", "Board"] as const;
+// SupportAgent was missing here even though it's a real, assignable DB enum
+// value with its own display label below (VOLUNTEER_ROLE_LABELS in
+// page.tsx) — the dropdown offered it, but assignVolunteerRoleAction's own
+// validation against this array silently rejected it with "Choose a valid
+// role." Found and fixed while adding GenericVolunteer alongside it.
+const VOLUNTEER_ROLES = [
+  "SessionManager",
+  "ContentEditor",
+  "ModelBooker",
+  "Controller",
+  "Board",
+  "SupportAgent",
+  "GenericVolunteer",
+] as const;
 
 /**
  * Every mutation here is reachable via a prefetched <Link> in SiteNav's

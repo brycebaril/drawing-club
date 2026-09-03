@@ -8,6 +8,7 @@ export interface UserRow {
   membership_expires_at: Date | null;
   volunteer_roles: string[];
   cancellation_requested_at: Date | null;
+  marketing_email_opt_in: boolean;
 }
 
 export const VOLUNTEER_ROLE_MAP: Record<string, string> = {
@@ -36,7 +37,7 @@ export function mappedRolesFor(row: UserRow): string[] {
  */
 export function filterUserRows(
   rows: UserRow[],
-  filters: { status?: string; tier?: string; role?: string; q?: string; filter?: string },
+  filters: { status?: string; tier?: string; role?: string; q?: string; filter?: string; marketingOptIn?: boolean },
   now: Date,
 ): UserRow[] {
   const q = filters.q?.trim().toLowerCase();
@@ -45,6 +46,7 @@ export function filterUserRows(
     if (filters.status && row.status !== filters.status) return false;
 
     if (filters.filter === "cancellation-requested" && !row.cancellation_requested_at) return false;
+    if (filters.marketingOptIn && !row.marketing_email_opt_in) return false;
 
     const isMember = isMemberTier(row, now);
     if (filters.tier === "MBR" && !isMember) return false;

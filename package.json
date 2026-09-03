@@ -14,6 +14,7 @@
     "seed": "dotenv -e .env -- tsx scripts/seed.ts",
     "rollforward": "dotenv -e .env -- tsx scripts/rollforward.ts",
     "generate-payouts": "dotenv -e .env -- tsx scripts/generate-payouts.ts",
+    "grant-volunteer-passes": "dotenv -e .env -- tsx scripts/grant-volunteer-passes.ts",
     "migrate-legacy-data": "dotenv -e .env -- tsx scripts/migrate-legacy-data.ts",
     "test": "dotenv -e .env -- vitest run",
     "test:coverage": "dotenv -e .env -- vitest run --coverage",

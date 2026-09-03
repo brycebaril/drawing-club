@@ -25,6 +25,7 @@ export async function registerAction(
   const username = String(formData.get("username") ?? "").trim();
   const email = String(formData.get("email") ?? "").trim();
   const password = String(formData.get("password") ?? "");
+  const marketingOptIn = formData.get("marketingOptIn") === "on";
 
   if (!displayName) {
     return { error: "Enter your name." };
@@ -52,10 +53,10 @@ export async function registerAction(
   let user: { id: string; username: string; email: string };
   try {
     const result = await pool.query<{ id: string; username: string; email: string }>(
-      `INSERT INTO users (username, password_hash, email, display_name, base_role, status)
-       VALUES ($1, $2, $3, $4, 'AccountHolder', 'Active')
+      `INSERT INTO users (username, password_hash, email, display_name, base_role, status, marketing_email_opt_in)
+       VALUES ($1, $2, $3, $4, 'AccountHolder', 'Active', $5)
        RETURNING id, username, email`,
-      [username, passwordHash, email, displayName],
+      [username, passwordHash, email, displayName, marketingOptIn],
     );
     user = result.rows[0];
   } catch (error) {

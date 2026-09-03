@@ -29,10 +29,11 @@ export async function GET(request: Request): Promise<NextResponse> {
   const role = params.get("role") ?? undefined;
   const q = params.get("q") ?? undefined;
   const filter = params.get("filter") ?? undefined;
+  const marketingOptIn = params.get("marketingOptIn") === "true";
 
   const result = await pool.query<UserRow>(
     `SELECT u.id, u.username, u.display_name, u.email, u.status, u.base_role, u.membership_expires_at,
-            u.cancellation_requested_at,
+            u.cancellation_requested_at, u.marketing_email_opt_in,
             COALESCE(array_agg(vr.role::text) FILTER (WHERE vr.role IS NOT NULL), '{}') AS volunteer_roles
      FROM users u
      LEFT JOIN volunteer_roles vr ON vr.user_id = u.id
@@ -41,9 +42,9 @@ export async function GET(request: Request): Promise<NextResponse> {
   );
 
   const now = new Date();
-  const rows = filterUserRows(result.rows, { status, tier, role, q, filter }, now);
+  const rows = filterUserRows(result.rows, { status, tier, role, q, filter, marketingOptIn }, now);
 
-  const lines = ["Username,Display Name,Email,Status,Tier,Roles"];
+  const lines = ["Username,Display Name,Email,Status,Tier,Roles,Marketing Opt-In"];
   for (const row of rows) {
     lines.push(
       [
@@ -53,6 +54,7 @@ export async function GET(request: Request): Promise<NextResponse> {
         row.status,
         isMemberTier(row, now) ? "MBR" : "ACCT",
         csvEscape(mappedRolesFor(row).join("; ")),
+        row.marketing_email_opt_in ? "Yes" : "No",
       ].join(","),
     );
   }

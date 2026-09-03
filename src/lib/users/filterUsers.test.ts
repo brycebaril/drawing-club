@@ -12,6 +12,7 @@ function makeRow(overrides: Partial<UserRow> = {}): UserRow {
     membership_expires_at: null,
     volunteer_roles: [],
     cancellation_requested_at: null,
+    marketing_email_opt_in: false,
     ...overrides,
   };
 }
@@ -96,5 +97,32 @@ describe("filterUserRows — filter=cancellation-requested", () => {
   it("returns every row when the filter isn't set", () => {
     const rows = [makeRow({ id: "1" }), makeRow({ id: "2", cancellation_requested_at: new Date() })];
     expect(filterUserRows(rows, {}, NOW)).toHaveLength(2);
+  });
+});
+
+describe("filterUserRows — marketingOptIn", () => {
+  it("keeps only rows that opted in when set", () => {
+    const rows = [
+      makeRow({ id: "1", marketing_email_opt_in: true }),
+      makeRow({ id: "2", marketing_email_opt_in: false }),
+    ];
+    const result = filterUserRows(rows, { marketingOptIn: true }, NOW);
+    expect(result).toHaveLength(1);
+    expect(result[0].id).toBe("1");
+  });
+
+  it("returns every row when unset, regardless of opt-in status", () => {
+    const rows = [makeRow({ id: "1", marketing_email_opt_in: true }), makeRow({ id: "2" })];
+    expect(filterUserRows(rows, {}, NOW)).toHaveLength(2);
+  });
+
+  it("combines independently with the cancellation-requested filter", () => {
+    const rows = [
+      makeRow({ id: "1", marketing_email_opt_in: true, cancellation_requested_at: new Date() }),
+      makeRow({ id: "2", marketing_email_opt_in: true, cancellation_requested_at: null }),
+    ];
+    const result = filterUserRows(rows, { marketingOptIn: true, filter: "cancellation-requested" }, NOW);
+    expect(result).toHaveLength(1);
+    expect(result[0].id).toBe("1");
   });
 });

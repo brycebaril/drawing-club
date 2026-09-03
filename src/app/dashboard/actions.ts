@@ -183,6 +183,21 @@ export async function disableMfaAction(_prevState: ActionState, _formData: FormD
   redirect("/dashboard");
 }
 
+/**
+ * Revocable consent (SecurityDocument.md §6) — the self-service half of
+ * marketing-email opt-in; registration (register/actions.ts) is the other.
+ * Not audit-logged, same self-service precedent as the rest of this file.
+ */
+export async function updateMarketingOptInAction(_prevState: ActionState, formData: FormData): Promise<ActionState> {
+  const userId = await requireUserId();
+  const optIn = formData.get("marketingOptIn") === "on";
+
+  await pool.query(`UPDATE users SET marketing_email_opt_in = $1 WHERE id = $2`, [optIn, userId]);
+
+  revalidatePath("/dashboard");
+  redirect("/dashboard");
+}
+
 /** Lets a member change their mind before an admin has acted on the request. */
 export async function withdrawCancellationRequestAction(): Promise<void> {
   const userId = await requireUserId();

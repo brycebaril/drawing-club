@@ -11,6 +11,7 @@ import { ChangePasswordForm } from "./ChangePasswordForm";
 import { MfaSettingsSection } from "./MfaSettingsSection";
 import { UpdateProfileForm, UpdateEmailForm } from "./UpdateProfileForm";
 import { CancelAccountForm } from "./CancelAccountForm";
+import { MarketingOptInForm } from "./MarketingOptInForm";
 import { memberLabel } from "@/lib/users/memberLabel";
 import { ORG_TIMEZONE } from "@/lib/org";
 
@@ -45,26 +46,57 @@ export default async function DashboardPage() {
 
   const isMember = ctx.roles.includes("MBR");
 
-  const [membershipRow, accountDays, memberDays, membershipFee, bonusPasses, ticketCount] = await Promise.all([
-    pool.query<{
-      membership_expires_at: Date | null;
-      email: string;
-      cancellation_requested_at: Date | null;
-      cancellation_reason: string | null;
-    }>(
-      `SELECT membership_expires_at, email, cancellation_requested_at, cancellation_reason FROM users WHERE id = $1`,
-      [ctx.id],
-    ),
-    getSettingNumber("BOOKING_WINDOW_ACCOUNT_DAYS"),
-    getSettingNumber("BOOKING_WINDOW_MEMBER_DAYS"),
-    getSettingNumber("MEMBERSHIP_ANNUAL_FEE"),
-    getSettingNumber("MEMBERSHIP_BONUS_PASSES"),
-    getAvailableTicketCount(ctx.id),
-  ]);
+  const [membershipRow, accountDays, memberDays, membershipFee, bonusPasses, ticketCount, isGenericVolunteerResult] =
+    await Promise.all([
+      pool.query<{
+        membership_expires_at: Date | null;
+        email: string;
+        cancellation_requested_at: Date | null;
+        cancellation_reason: string | null;
+        marketing_email_opt_in: boolean;
+      }>(
+        `SELECT membership_expires_at, email, cancellation_requested_at, cancellation_reason, marketing_email_opt_in
+         FROM users WHERE id = $1`,
+        [ctx.id],
+      ),
+      getSettingNumber("BOOKING_WINDOW_ACCOUNT_DAYS"),
+      getSettingNumber("BOOKING_WINDOW_MEMBER_DAYS"),
+      getSettingNumber("MEMBERSHIP_ANNUAL_FEE"),
+      getSettingNumber("MEMBERSHIP_BONUS_PASSES"),
+      getAvailableTicketCount(ctx.id),
+      // GenericVolunteer carries no RBAC code (see the migration that adds
+      // it), so it never appears in ctx.roles — has to be checked against
+      // the raw table directly, not the resolved role list.
+      pool.query<{ is_generic_volunteer: boolean }>(
+        `SELECT EXISTS(SELECT 1 FROM volunteer_roles WHERE user_id = $1 AND role = 'GenericVolunteer') AS is_generic_volunteer`,
+        [ctx.id],
+      ),
+    ]);
 
-  const { email, cancellation_requested_at: cancellationRequestedAt, cancellation_reason: cancellationReason } =
-    membershipRow.rows[0];
+  const {
+    email,
+    cancellation_requested_at: cancellationRequestedAt,
+    cancellation_reason: cancellationReason,
+    marketing_email_opt_in: marketingOptIn,
+  } = membershipRow.rows[0];
   const expiresAt = membershipRow.rows[0].membership_expires_at;
+  const isGenericVolunteer = isGenericVolunteerResult.rows[0].is_generic_volunteer;
+
+  // Only fetched for the population the section actually renders for —
+  // avoids two setting reads + a count query on every other dashboard view.
+  const volunteerBenefits = isGenericVolunteer
+    ? await (async () => {
+        const [allowance, cap, countResult] = await Promise.all([
+          getSettingNumber("VOLUNTEER_WEEKLY_PASS_ALLOWANCE"),
+          getSettingNumber("VOLUNTEER_PASS_WALLET_CAP"),
+          pool.query<{ count: string }>(
+            `SELECT count(*) FROM passes WHERE owner_id = $1 AND status = 'Available' AND is_volunteer_grant = true`,
+            [ctx.id],
+          ),
+        ]);
+        return { allowance, cap, current: Number(countResult.rows[0].count) };
+      })()
+    : null;
   const expiresIn = expiresAt ? daysUntil(expiresAt) : null;
   // isMember (derived from membership_expires_at > now()) already rules out
   // a lapsed-but-still-set expiry date counting as "active" here — a
@@ -139,25 +171,43 @@ export default async function DashboardPage() {
         <p>Roles: {ctx.roles.join(", ")}</p>
         <p>Email verified: {ctx.emailVerified ? "yes" : "no"}</p>
 
-        <h2>Account settings</h2>
+        {volunteerBenefits && (
+          <>
+            <h2>Volunteer benefits</h2>
+            <p>
+              You receive {volunteerBenefits.allowance} free ticket{volunteerBenefits.allowance === 1 ? "" : "s"}{" "}
+              every week you&rsquo;re under the {volunteerBenefits.cap}-ticket cap.
+            </p>
+            <p>
+              You currently hold {volunteerBenefits.current} of your {volunteerBenefits.cap}-ticket cap.
+            </p>
+          </>
+        )}
 
-        <h3>Password</h3>
-        <ChangePasswordForm />
+        <details>
+          <summary role="button">Account settings</summary>
 
-        <h3>Two-factor authentication</h3>
-        <MfaSettingsSection mfaEnabled={ctx.mfaEnabled} mfaRequired={ctx.mfaRequired} />
+          <h3>Password</h3>
+          <ChangePasswordForm />
 
-        <h3>Profile</h3>
-        <UpdateProfileForm displayName={ctx.displayName ?? ""} username={ctx.username} />
+          <h3>Two-factor authentication</h3>
+          <MfaSettingsSection mfaEnabled={ctx.mfaEnabled} mfaRequired={ctx.mfaRequired} />
 
-        <h3>Email</h3>
-        <UpdateEmailForm email={email} emailVerified={ctx.emailVerified} />
+          <h3>Profile</h3>
+          <UpdateProfileForm displayName={ctx.displayName ?? ""} username={ctx.username} />
 
-        <h3>Cancel account</h3>
-        <CancelAccountForm
-          requestedAt={cancellationRequestedAt ? cancellationRequestedAt.toISOString() : null}
-          reason={cancellationReason}
-        />
+          <h3>Email</h3>
+          <UpdateEmailForm email={email} emailVerified={ctx.emailVerified} />
+
+          <h3>Marketing email</h3>
+          <MarketingOptInForm optedIn={marketingOptIn} />
+
+          <h3>Cancel account</h3>
+          <CancelAccountForm
+            requestedAt={cancellationRequestedAt ? cancellationRequestedAt.toISOString() : null}
+            reason={cancellationReason}
+          />
+        </details>
       </main>
     </>
   );

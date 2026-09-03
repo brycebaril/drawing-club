@@ -66,6 +66,12 @@ const VOLUNTEER_ROLE_LABELS: Record<string, string> = {
   // this map, fixed alongside this) — a support agent showed as the raw
   // "SupportAgent" DB enum value on this page until now.
   SupportAgent: "Support Agent (VOL_SUPPORT)",
+  // No corresponding VOL_* RBAC level, same reasoning as Board above — a
+  // generic placeholder for legacy labor-for-pass volunteer categories
+  // (gallery coordinator, cleaner, etc.) this app doesn't yet have a
+  // specific role for. Grants the weekly volunteer free-pass benefit, not
+  // any page access.
+  GenericVolunteer: "General Volunteer",
 };
 
 export default async function AdminUserDetailPage({

@@ -46,6 +46,12 @@ function RegisterForm() {
           autoComplete="new-password"
         />
       </div>
+      <div>
+        <label>
+          <input type="checkbox" name="marketingOptIn" />
+          {" "}Send me occasional email about upcoming events and news
+        </label>
+      </div>
       {state.error && <p role="alert">{state.error}</p>}
       <button type="submit" disabled={pending}>
         {pending ? "Creating account…" : "Create account"}

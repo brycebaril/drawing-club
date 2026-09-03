@@ -4,6 +4,7 @@ import { SiteNav } from "@/components/SiteNav";
 import { SortableTh } from "@/components/SortableTh";
 import { resolveSort } from "@/lib/sort";
 import { PassRowActions } from "./PassRowActions";
+import { GrantVolunteerPassesForm } from "./GrantVolunteerPassesForm";
 import { ORG_TIMEZONE } from "@/lib/org";
 
 const SORT_COLUMNS = {
@@ -87,6 +88,17 @@ export default async function AdminPassesPage({
       <p>
         <Link href="/admin/passes/new-batch">New batch</Link>
       </p>
+
+      <section>
+        <h2>Volunteer weekly tickets</h2>
+        <p className="section-note">
+          Grants the configured weekly allowance to every member holding the General Volunteer
+          role, skipping anyone already at or above the wallet cap (both settings on{" "}
+          <Link href="/admin/settings">Settings</Link>). Safe to run more than once in the same
+          week — a second run grants nothing new.
+        </p>
+        <GrantVolunteerPassesForm />
+      </section>
 
       <form>
         <label htmlFor="status">Status</label>
