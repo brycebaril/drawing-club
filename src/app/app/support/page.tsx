@@ -33,8 +33,7 @@ export default async function SupportPage() {
       <main>
         <h1>Support</h1>
         <p>
-          Questions about your account, bookings, session tickets, or membership. For trouble signing in before you can
-          reach this page, use the <Link href="/contact">Contact</Link> form instead.
+          Questions about your account, bookings, session tickets, or membership.
         </p>
 
         <h2>New support request</h2>
