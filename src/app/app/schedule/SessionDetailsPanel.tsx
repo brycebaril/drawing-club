@@ -15,6 +15,10 @@ interface SessionInfo {
   host_username: string | null;
   host_display_name: string | null;
   booked_count: number;
+  /** Already privacy-truncated to first name(s) via displayModelNames() —
+   * this modal isn't the model-booking or payment screen, so it must never
+   * receive/render a full last name. */
+  model_names: string | null;
 }
 
 export function SessionDetailsPanel({
@@ -59,7 +63,10 @@ export function SessionDetailsPanel({
             {info.display}
           </div>
           <div>
-            <h2 className="text-xl font-bold text-ink">{info.label}</h2>
+            <h2 className="text-xl font-bold text-ink">
+              {info.label}
+              {session.model_names && <span className="text-brand"> · {session.model_names}</span>}
+            </h2>
             <p className="text-sm font-medium text-ink-soft">
               {dateStr} · {timeStr}
             </p>

@@ -373,7 +373,7 @@ export default async function SchedulePage({
               />
             ) : (
               <SessionDetailsPanel
-                session={selectedSession}
+                session={{ ...selectedSession, model_names: displayModelNames(selectedSession.model_names) }}
                 status={statusFor(selectedSession)}
                 needsModel={selectedSession.model_required && !selectedSession.has_model}
                 bookingError={bookingError}
