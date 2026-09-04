@@ -29,6 +29,19 @@ function describeAuthorRole(baseRole: string, volunteerRoles: string[]): string 
 }
 
 /**
+ * Legacy-platform parity: "to" is the host's own address, the class goes
+ * in "bcc" so attendees never see each other's email. Each address is
+ * percent-encoded individually and joined with a literal comma (the bcc
+ * field's separator, not itself part of any one address).
+ */
+function buildMailtoHref(data: CheckInRoster, subject: string): string {
+  const bcc = Array.from(new Set(data.roster.map((r) => r.email)))
+    .map((email) => encodeURIComponent(email))
+    .join(",");
+  return `mailto:${data.viewerEmail}?bcc=${bcc}&subject=${encodeURIComponent(subject)}`;
+}
+
+/**
  * The full per-session check-in unit — reused verbatim by both
  * /ops/check-in (one card per upcoming session) and /ops/check-in/[id]
  * (a single card), so the two entry points can't drift the way this
@@ -91,6 +104,8 @@ export function SessionRosterCard({
   const registered = roster.length;
   const unregistered = Math.max(0, session.maxCapacity - registered);
   const start = new Date(session.startTime);
+  const subject = `${session.sessionType} — ${start.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", timeZone: ORG_TIMEZONE })}, ${start.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone: ORG_TIMEZONE })}`;
+  const mailtoHref = buildMailtoHref(data, subject);
 
   return (
     <details className="roster-card" open={defaultOpen}>
@@ -113,6 +128,14 @@ export function SessionRosterCard({
           {modelNames && <> · Model: {modelNames}</>} · Status: {session.status}
         </p>
         {session.description && <p>{session.description}</p>}
+
+        {roster.length > 0 && (
+          <p>
+            <a href={mailtoHref} className="button-link">
+              Email attendees
+            </a>
+          </p>
+        )}
 
         {roster.length === 0 ? (
           <p>Nobody booked yet.</p>
