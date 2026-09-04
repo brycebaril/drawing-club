@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { combineOrgDateAndTime, orgDateOnly, orgDateParts, parseOrgDateOnly, zonedWallTimeToInstant } from "./timezone";
+import {
+  combineOrgDateAndTime,
+  orgDateOnly,
+  orgDateParts,
+  parseOrgDateOnly,
+  parseOrgDateTimeLocal,
+  zonedWallTimeToInstant,
+} from "./timezone";
 
 // ORG_TIMEZONE defaults to America/Vancouver (no override in the test env) —
 // these tests assert against that real IANA zone's actual DST transition
@@ -53,5 +60,25 @@ describe("combineOrgDateAndTime", () => {
     // must derive "Sept 2" via the ORG_TIMEZONE reading, not assume it.
     const combined = combineOrgDateAndTime(parseOrgDateOnly("2026-09-02"), "19:00:00");
     expect(combined.toISOString()).toBe("2026-09-03T02:00:00.000Z");
+  });
+});
+
+describe("parseOrgDateTimeLocal", () => {
+  it("parses a datetime-local value as ORG_TIMEZONE wall-clock time, not the process's own zone", () => {
+    // The exact bug this function replaces a raw `new Date(value)` parse to
+    // fix: on Amplify's UTC-running Lambda, `new Date("2026-09-02T19:00")`
+    // would parse "19:00" as UTC (an evening session landing as an 11am/
+    // noon Pacific "morning" session) instead of 19:00 Vancouver time.
+    const instant = parseOrgDateTimeLocal("2026-09-02T19:00");
+    expect(instant.toISOString()).toBe("2026-09-03T02:00:00.000Z");
+  });
+
+  it("accepts an optional :SS component", () => {
+    expect(parseOrgDateTimeLocal("2026-01-15T10:30:00").toISOString()).toBe("2026-01-15T18:30:00.000Z");
+  });
+
+  it("returns an Invalid Date for malformed input, matching native new Date(badInput)'s own shape", () => {
+    expect(Number.isNaN(parseOrgDateTimeLocal("").getTime())).toBe(true);
+    expect(Number.isNaN(parseOrgDateTimeLocal("not-a-date").getTime())).toBe(true);
   });
 });

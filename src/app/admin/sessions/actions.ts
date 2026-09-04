@@ -9,6 +9,7 @@ import { SESSION_TYPES, parseDateOnly, sessionTypeNeedsModel } from "@/lib/sessi
 import { resolveHostUsername } from "@/lib/sessions/host";
 import { generateSessionsForRule } from "@/lib/recurrence/generate";
 import { parseSlotValues, checkSlotConflicts } from "@/lib/sessions/slots";
+import { parseOrgDateTimeLocal } from "@/lib/timezone";
 
 export interface CreateSessionState {
   error?: string;
@@ -28,8 +29,13 @@ export async function createSessionAction(
 
   const description = String(formData.get("description") ?? "").trim();
 
-  const startTime = new Date(String(formData.get("startTime") ?? ""));
-  const endTime = new Date(String(formData.get("endTime") ?? ""));
+  // parseOrgDateTimeLocal, not `new Date(string)` — the raw <input
+  // type="datetime-local"> value has no timezone/offset, so native Date
+  // parsing would read it in the *process's* local timezone rather than
+  // ORG_TIMEZONE (fine on a Pacific-timezone dev machine, wrong by ~7-8
+  // hours on Amplify's UTC-running Lambda). See src/lib/timezone.ts.
+  const startTime = parseOrgDateTimeLocal(String(formData.get("startTime") ?? ""));
+  const endTime = parseOrgDateTimeLocal(String(formData.get("endTime") ?? ""));
   if (Number.isNaN(startTime.getTime()) || Number.isNaN(endTime.getTime())) {
     return { error: "Enter valid start and end times." };
   }

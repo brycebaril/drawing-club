@@ -125,3 +125,22 @@ export function combineOrgDateAndTime(date: Date, timeOfDay: string): Date {
   const p = orgDateParts(date);
   return zonedWallTimeToInstant(p.year, p.month, p.day, hours, minutes, seconds ?? 0);
 }
+
+/**
+ * Parses a raw `<input type="datetime-local">` value ("YYYY-MM-DDTHH:MM" or
+ * "...:SS") as ORG_TIMEZONE wall-clock time. This is the exact bug this
+ * file's own header describes, found again for real: `new Date(value)` on
+ * one of these zone-less strings parses it in the *process's* local
+ * timezone, not ORG_TIMEZONE — invisible on a Pacific-timezone dev machine,
+ * wrong by ~7-8 hours on Amplify's UTC-running Lambda (an evening session
+ * landing as morning). Returns an Invalid Date (matching native `new
+ * Date(badInput)`'s own behavior, not a thrown error) for malformed input,
+ * so an existing `Number.isNaN(result.getTime())` validation check still
+ * catches it the same way it caught a native parse failure before.
+ */
+export function parseOrgDateTimeLocal(value: string): Date {
+  const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?$/.exec(value);
+  if (!match) return new Date(NaN);
+  const [, year, month, day, hour, minute, second] = match;
+  return zonedWallTimeToInstant(Number(year), Number(month), Number(day), Number(hour), Number(minute), Number(second ?? 0));
+}
