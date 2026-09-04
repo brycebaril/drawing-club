@@ -37,12 +37,12 @@ export default async function SupportPage() {
           reach this page, use the <Link href="/contact">Contact</Link> form instead.
         </p>
 
-        <h2>New ticket</h2>
+        <h2>New support request</h2>
         <NewTicketForm />
 
-        <h2>Your tickets</h2>
+        <h2>Your support requests</h2>
         {ticketsResult.rowCount === 0 ? (
-          <p>No support tickets yet.</p>
+          <p>Nothing to see here.</p>
         ) : (
           <ul>
             {ticketsResult.rows.map((ticket) => (
