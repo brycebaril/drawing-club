@@ -1108,6 +1108,15 @@ button:disabled {
   border-radius: 0;
 }
 
+/* The wash alone (see the .washed comment above) didn't leave reliable
+   contrast for text over a real photo — confirmed by the user against the
+   live page, not just anticipated. A bottom-weighted scrim (transparent at
+   the top, opaque near the text) fixes this without flattening the whole
+   photo the way a uniform tint would, and it's built from --color-text
+   (the same warm near-black already used for body copy everywhere else)
+   rather than pure black, so it stays inside the warm palette. Text
+   switches to --color-bg (the paper tone) for the same reason white text
+   would otherwise clash with the "warm, not neutral" rule. */
 .hero-photo-content {
   position: relative;
   z-index: 1;
@@ -1116,10 +1125,31 @@ button:disabled {
   flex-direction: column;
   justify-content: flex-end;
   min-height: 22rem;
+  background: linear-gradient(
+    to bottom,
+    transparent 0%,
+    color-mix(in srgb, var(--color-text) 25%, transparent) 55%,
+    color-mix(in srgb, var(--color-text) 80%, transparent) 100%
+  );
+  color: var(--color-bg);
 }
 
 .hero-photo-content h1 {
   font-size: 2.75rem;
+  color: var(--color-bg);
+}
+
+.hero-photo-content p.tagline {
+  color: color-mix(in srgb, var(--color-bg) 75%, transparent);
+}
+
+.hero-photo-content p a {
+  color: var(--color-bg);
+  text-decoration-color: color-mix(in srgb, var(--color-bg) 55%, transparent);
+}
+
+.hero-photo-content p a:hover {
+  color: var(--color-accent-bg);
 }
 
 @media (max-width: 640px) {
