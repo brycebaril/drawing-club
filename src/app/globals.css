@@ -1059,6 +1059,75 @@ button:disabled {
   color: var(--color-link-hover);
 }
 
+/* ---- Photography (.washed) ----
+   Every content photograph is wrapped in .washed, never a raw <img>/<Image>
+   without it. Cuts saturation and contrast and lifts brightness so a photo
+   sits INTO the warm --color-bg paper ground rather than as a separate
+   rectangle on top of it — does NOT grayscale or neutralise hue, the
+   palette is deliberately warm. .washed--warm applies a touch more
+   desaturation for the two source frames (studio-room, exhibition-wall)
+   that run noticeably more orange than the others. No --radius-lg token:
+   this system only has one generous radius (--radius, see above), so
+   these reuse it directly rather than implying a second value exists. */
+.washed {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: var(--radius);
+  filter: saturate(0.55) contrast(0.88) brightness(1.06);
+}
+
+.washed--warm {
+  filter: saturate(0.42) contrast(0.85) brightness(1.08);
+}
+
+/* A rounded, bordered frame around an inset/accent photo (About page,
+   News header, empty states) — matches the border/shadow language every
+   other card-like element in this system already carries. */
+.photo-frame {
+  overflow: hidden;
+  border-radius: var(--radius);
+  border: 1px solid var(--color-border);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  margin-bottom: var(--space-4);
+}
+
+/* Full-bleed hero (homepage) — the photo fills a positioned ancestor via
+   next/image's `fill` prop, so .washed's own width/height/border-radius
+   are overridden here rather than fighting `fill`'s absolute positioning. */
+.hero-photo {
+  position: relative;
+  width: 100%;
+  min-height: 22rem;
+  border-radius: var(--radius);
+  overflow: hidden;
+  margin-bottom: var(--space-5);
+}
+
+.hero-photo .washed {
+  border-radius: 0;
+}
+
+.hero-photo-content {
+  position: relative;
+  z-index: 1;
+  padding: var(--space-6) var(--space-5) var(--space-5);
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  min-height: 22rem;
+}
+
+.hero-photo-content h1 {
+  font-size: 2.75rem;
+}
+
+@media (max-width: 640px) {
+  .hero-photo-content h1 {
+    font-size: 2rem;
+  }
+}
+
 /* ---- Media picker (src/components/cms/MediaPickerModal.tsx) ---- */
 
 .media-picker-grid {

@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import { SLOTS, slotFor } from "@/lib/sessions/shared";
 import {
@@ -175,7 +176,14 @@ export function ScheduleAgenda({
         </label>
       </fieldset>
 
-      {dayGroups.length === 0 && <p className="text-sm text-ink-soft">Nothing scheduled this week.</p>}
+      {dayGroups.length === 0 && (
+        <div className="flex flex-col items-center gap-3 py-6 text-center">
+          <div className="w-40 overflow-hidden rounded-lg">
+            <Image src="/photos/cast-head.jpg" alt="" width={320} height={425} className="washed" />
+          </div>
+          <p className="text-sm text-ink-soft">Nothing scheduled this week.</p>
+        </div>
+      )}
       {/* Filtered-to-zero-results messages — dayGroups.length===0 above only
           covers "nothing scheduled at all"; these cover "something's
           scheduled, just not anything matching this filter" (the most

@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import { pool } from "@/lib/db/pool";
 import { Markdown } from "@/components/Markdown";
@@ -25,12 +26,25 @@ export default async function Home() {
     <>
       <SiteNav />
       <main>
-        <h1>{ORG_DBA_NAME}</h1>
-        {ORG_LEGAL_NAME !== ORG_DBA_NAME && <p className="tagline">{ORG_LEGAL_NAME}</p>}
-        <p>
-          Join us for figure drawing sessions, workshops, and exhibitions.{" "}
-          <Link href="/app/schedule">View the schedule</Link> or <Link href="/auth/register">sign up</Link>.
-        </p>
+        <div className="hero-photo">
+          <Image
+            src="/photos/studio-room.jpg"
+            alt="The empty studio room from the doorway: benches ringed around the model's platform, the drawing-covered back wall, and a skeleton standing by the wall. No instructor, no critique — just the model, the clock, and whoever turns up."
+            fill
+            className="washed washed--warm"
+            style={{ objectFit: "cover", objectPosition: "50% 68%" }}
+            preload
+            sizes="100vw"
+          />
+          <div className="hero-photo-content">
+            <h1>{ORG_DBA_NAME}</h1>
+            {ORG_LEGAL_NAME !== ORG_DBA_NAME && <p className="tagline">{ORG_LEGAL_NAME}</p>}
+            <p>
+              Join us for figure drawing sessions, workshops, and exhibitions.{" "}
+              <Link href="/app/schedule">View the schedule</Link> or <Link href="/auth/register">sign up</Link>.
+            </p>
+          </div>
+        </div>
 
         {pageResult.rowCount! > 0 && <Markdown content={pageResult.rows[0].content} />}
 

@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import Image from "next/image";
 import { auth } from "@/auth";
 import { pool } from "@/lib/db/pool";
 import { getUserAuthContext } from "@/lib/auth/roles";
@@ -115,6 +116,15 @@ export default async function WalletPage({
 
         <h2>Buy tickets</h2>
         <PurchaseButtons isMember={isMember} disabled={!ctx.emailVerified} />
+
+        {standardPasses.length === 0 && transferablePasses.length === 0 && (
+          <div className="stat-callout">
+            <div className="photo-frame" style={{ maxWidth: "160px", marginBottom: 0 }}>
+              <Image src="/photos/cast-head.jpg" alt="" width={160} height={213} className="washed" />
+            </div>
+            <p style={{ margin: 0 }}>No tickets yet — buy a single session, a pack, or a membership above to get started.</p>
+          </div>
+        )}
 
         <h2>Standard tickets</h2>
         <p>Available tickets: {standardPasses.length}</p>

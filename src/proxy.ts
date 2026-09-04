@@ -58,7 +58,12 @@ export default auth(async (req) => {
 
 // API routes are excluded entirely: they need their own auth handling (e.g.
 // a 401 JSON response or a bearer-token check per ArchitectureDocument.md
-// §9), not a redirect to an HTML login page.
+// §9), not a redirect to an HTML login page. /photos is also excluded: it's
+// raw static files under public/ (the studio photography), not an app
+// route with an rbac.ts entry — without this exclusion every request for
+// one (including on fully public pages like the homepage) was being
+// redirected to /auth/login, since Proxy's matcher doesn't auto-exclude
+// public/-rooted static assets the way it does _next/static.
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon\\.ico|api/).*)"],
+  matcher: ["/((?!_next/static|_next/image|favicon\\.ico|api/|photos/).*)"],
 };
