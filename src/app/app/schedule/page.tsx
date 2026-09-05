@@ -34,6 +34,7 @@ interface SessionRow {
   model_required: boolean;
   has_model: boolean;
   model_names: string | null;
+  is_ticketed: boolean;
 }
 
 export default async function SchedulePage({
@@ -84,7 +85,7 @@ export default async function SchedulePage({
 
   const sessionsResult = await pool.query<SessionRow>(
     `SELECT s.id, s.session_type, s.description, s.start_time, s.end_time, s.max_capacity,
-            u.username AS host_username, u.display_name AS host_display_name, s.series_id, s.model_required,
+            u.username AS host_username, u.display_name AS host_display_name, s.series_id, s.model_required, s.is_ticketed,
             EXISTS(SELECT 1 FROM session_model_mapping smm WHERE smm.session_id = s.id) AS has_model,
             mn.model_names,
             COALESCE(bc.booked_count, 0)::int AS booked_count
@@ -117,7 +118,7 @@ export default async function SchedulePage({
   if (selectedId && !selectedSession) {
     const singleResult = await pool.query<SessionRow>(
       `SELECT s.id, s.session_type, s.description, s.start_time, s.end_time, s.max_capacity,
-              u.username AS host_username, u.display_name AS host_display_name, s.series_id, s.model_required,
+              u.username AS host_username, u.display_name AS host_display_name, s.series_id, s.model_required, s.is_ticketed,
               EXISTS(SELECT 1 FROM session_model_mapping smm WHERE smm.session_id = s.id) AS has_model,
               mn.model_names,
               COALESCE(bc.booked_count, 0)::int AS booked_count
@@ -170,7 +171,7 @@ export default async function SchedulePage({
   const viewerWindowDays = viewerBookingWindowDays(viewerRoles, accountDays, memberDays);
   function statusFor(s: SessionRow) {
     return computeSessionStatus({
-      session: { startTime: new Date(s.start_time), maxCapacity: s.max_capacity },
+      session: { startTime: new Date(s.start_time), maxCapacity: s.max_capacity, isTicketed: s.is_ticketed },
       roles: viewerRoles,
       bookedCount: s.booked_count,
       viewerHasBooking: bookedSessionIds.has(s.id),
@@ -187,7 +188,8 @@ export default async function SchedulePage({
   // rather than re-anchoring to whatever's bookable in that later week,
   // since the hint is meant to orient a first-time visitor, not track
   // wherever they've navigated to.
-  const nextBookableSession = weekOffset === 0 ? sessions.find((s) => statusFor(s) === "Available") : undefined;
+  const nextBookableSession =
+    weekOffset === 0 ? sessions.find((s) => s.is_ticketed && statusFor(s) === "Available") : undefined;
 
   const grid = new Map<string, GridCellData>(); // key: `${dayIdx}:${slot}` -> first session in that cell
   for (const s of sessions) {
@@ -208,6 +210,7 @@ export default async function SchedulePage({
         modelNames: displayModelNames(s.model_names),
         bookedCount: s.booked_count,
         maxCapacity: s.max_capacity,
+        isTicketed: s.is_ticketed,
       }); // one session per cell for this phase (no overlap handling yet)
     }
   }

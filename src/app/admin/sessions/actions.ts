@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { pool } from "@/lib/db/pool";
 import { requireAdmin } from "@/lib/auth/requireAdmin";
 import { writeAuditLog } from "@/lib/audit/log";
-import { SESSION_TYPES, parseDateOnly, sessionTypeNeedsModel } from "@/lib/sessions/shared";
+import { SESSION_TYPES, parseDateOnly, sessionTypeIsTicketed, sessionTypeNeedsModel } from "@/lib/sessions/shared";
 import { resolveHostUsername } from "@/lib/sessions/host";
 import { generateSessionsForRule } from "@/lib/recurrence/generate";
 import { parseSlotValues, checkSlotConflicts } from "@/lib/sessions/slots";
@@ -54,9 +54,18 @@ export async function createSessionAction(
 
   const inserted = await pool.query<{ id: string }>(
     `INSERT INTO sessions (session_type, description, start_time, end_time, max_capacity, host_user_id, is_ticketed, model_required)
-     VALUES ($1, $2, $3, $4, $5, $6, true, $7)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
      RETURNING id`,
-    [sessionType, description || null, startTime, endTime, maxCapacity, hostUserId, sessionTypeNeedsModel(sessionType)],
+    [
+      sessionType,
+      description || null,
+      startTime,
+      endTime,
+      maxCapacity,
+      hostUserId,
+      sessionTypeIsTicketed(sessionType),
+      sessionTypeNeedsModel(sessionType),
+    ],
   );
 
   await writeAuditLog({

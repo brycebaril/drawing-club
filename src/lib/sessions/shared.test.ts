@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { currentWeekStart, parseDateOnly, sessionTypeNeedsModel } from "./shared";
+import { currentWeekStart, parseDateOnly, sessionTypeIsTicketed, sessionTypeNeedsModel } from "./shared";
 
 describe("sessionTypeNeedsModel", () => {
   it("is false for the two drop-in types", () => {
@@ -10,6 +10,19 @@ describe("sessionTypeNeedsModel", () => {
   it("is true for every drawing session type", () => {
     for (const type of ["L", "R", "G", "P", "S", "X"]) {
       expect(sessionTypeNeedsModel(type)).toBe(true);
+    }
+  });
+});
+
+describe("sessionTypeIsTicketed", () => {
+  it("is false for the two announcement types", () => {
+    expect(sessionTypeIsTicketed("Gallery")).toBe(false);
+    expect(sessionTypeIsTicketed("Party")).toBe(false);
+  });
+
+  it("is true for every drawing session type", () => {
+    for (const type of ["L", "R", "G", "P", "S", "X"]) {
+      expect(sessionTypeIsTicketed(type)).toBe(true);
     }
   });
 });

@@ -46,7 +46,11 @@ function AgendaRow({ cell, href, windowDays }: { cell: GridCellData; href: strin
         : info.textClass;
 
   let subtitle: string;
-  if (variant === "locked") {
+  if (!cell.isTicketed) {
+    // Always "open"/Available (see computeSessionStatus) — no capacity to
+    // report, just the time.
+    subtitle = `${formatCellTime(cell.startTime)}–${formatCellTime(cell.endTime)}`;
+  } else if (variant === "locked") {
     const opensOn = opensOnDate(cell, windowDays);
     subtitle = opensOn ? `Opens ${formatOpensDate(opensOn)}` : "Not yet open";
   } else {

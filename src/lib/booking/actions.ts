@@ -39,7 +39,7 @@ export type BookSessionResult =
   | { ok: true }
   | {
       ok: false;
-      reason: "not-verified" | "no-pass" | "full" | "already-booked" | "not-found" | "too-far";
+      reason: "not-verified" | "no-pass" | "full" | "already-booked" | "not-found" | "too-far" | "not-ticketed";
     };
 
 /**
@@ -64,7 +64,8 @@ export async function bookSession(userId: string, sessionId: string): Promise<Bo
       start_time: Date;
       status: string;
       series_id: string | null;
-    }>(`SELECT max_capacity, start_time, status, series_id FROM sessions WHERE id = $1 FOR UPDATE`, [
+      is_ticketed: boolean;
+    }>(`SELECT max_capacity, start_time, status, series_id, is_ticketed FROM sessions WHERE id = $1 FOR UPDATE`, [
       sessionId,
     ]);
     if (
@@ -79,6 +80,14 @@ export async function bookSession(userId: string, sessionId: string): Promise<Bo
       return { ok: false, reason: "not-found" };
     }
     const session = sessionRow.rows[0];
+
+    if (!session.is_ticketed) {
+      // A Party/Gallery Hours announcement — no ticket, no RSVP. The UI
+      // never offers a Book button for one of these; this only matters for
+      // a direct/stale call (see sessionTypeIsTicketed, src/lib/sessions/shared.ts).
+      await client.query("ROLLBACK");
+      return { ok: false, reason: "not-ticketed" };
+    }
 
     if (new Date(session.start_time) > windowEnd) {
       await client.query("ROLLBACK");
@@ -401,11 +410,20 @@ export async function broadcastWaitlistOpening(sessionId: string): Promise<void>
 
 export type JoinWaitlistResult =
   | { ok: true }
-  | { ok: false; reason: "already-on-waitlist" | "not-found" | "not-verified" };
+  | { ok: false; reason: "already-on-waitlist" | "not-found" | "not-verified" | "not-ticketed" };
 
 export async function joinWaitlist(userId: string, sessionId: string): Promise<JoinWaitlistResult> {
   const eligibility = await resolveViewerEligibility(userId);
   if (!eligibility.ok) return eligibility;
+
+  // A Party/Gallery Hours announcement never reaches "Full" (see
+  // computeSessionStatus), so the UI never offers a waitlist join for one —
+  // this guard only matters for a direct/stale call.
+  const sessionRow = await pool.query<{ is_ticketed: boolean }>(`SELECT is_ticketed FROM sessions WHERE id = $1`, [
+    sessionId,
+  ]);
+  if (sessionRow.rowCount === 0) return { ok: false, reason: "not-found" };
+  if (!sessionRow.rows[0].is_ticketed) return { ok: false, reason: "not-ticketed" };
 
   try {
     await pool.query(`INSERT INTO waitlist_entries (session_id, user_id) VALUES ($1, $2)`, [

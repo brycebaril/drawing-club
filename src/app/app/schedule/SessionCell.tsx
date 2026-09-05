@@ -73,7 +73,11 @@ export function SessionCell({ cell, href, windowDays }: { cell: GridCellData; hr
   const middleLineClass = showsNeedsModelFlag ? "text-warn" : "text-ink-soft";
 
   let bottomLine: string;
-  if (variant === "locked") {
+  if (!cell.isTicketed) {
+    // Always "open"/Available (see computeSessionStatus) — no capacity to
+    // report, just the time.
+    bottomLine = formatCellTime(cell.startTime);
+  } else if (variant === "locked") {
     const opensOn = opensOnDate(cell, windowDays);
     bottomLine = opensOn ? `Opens ${formatOpensDate(opensOn)}` : "Not yet open";
   } else if (variant === "yours") {

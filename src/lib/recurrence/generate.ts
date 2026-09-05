@@ -1,7 +1,7 @@
 import { pool } from "@/lib/db/pool";
 import { getSettingNumber } from "@/lib/settings";
 import { clampRangeStart, combineDateAndTime, computeOccurrenceDates, excludeStartedDates } from "./dates";
-import { sessionTypeNeedsModel } from "@/lib/sessions/shared";
+import { sessionTypeIsTicketed, sessionTypeNeedsModel } from "@/lib/sessions/shared";
 
 /**
  * No scheduler infra exists yet (EventBridge is still unprovisioned AWS
@@ -55,7 +55,7 @@ async function insertSessionsForDates(ruleId: string, rule: RuleRow, dates: Date
       await client.query(
         `INSERT INTO sessions
            (session_type, description, start_time, end_time, max_capacity, host_user_id, is_ticketed, recurrence_rule_id, model_required)
-         VALUES ($1, $2, $3, $4, $5, $6, true, $7, $8)`,
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
         [
           rule.session_type,
           rule.description,
@@ -63,6 +63,7 @@ async function insertSessionsForDates(ruleId: string, rule: RuleRow, dates: Date
           endTime,
           maxCapacity,
           rule.default_host_user_id,
+          sessionTypeIsTicketed(rule.session_type),
           ruleId,
           sessionTypeNeedsModel(rule.session_type),
         ],

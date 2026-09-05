@@ -14,6 +14,16 @@ export function sessionTypeNeedsModel(sessionType: string): boolean {
   return sessionType !== "Gallery" && sessionType !== "Party";
 }
 
+// Gallery Hours and Party are announcements — a reserved calendar block
+// with details, not a bookable session: no ticket, no RSVP, no capacity
+// tracking. Only the general-admission creation paths (one-off, recurring)
+// should call this; multi-week series sessions are deliberately excluded
+// (a numbered-seat series is inherently a ticketed concept by
+// construction) — those creation paths keep is_ticketed hardcoded true.
+export function sessionTypeIsTicketed(sessionType: string): boolean {
+  return sessionType !== "Gallery" && sessionType !== "Party";
+}
+
 // Matches JS Date.getDay() (0=Sunday..6=Saturday).
 export const DAYS_OF_WEEK = [
   { value: 0, label: "Sunday" },

@@ -6,7 +6,7 @@ import { requireAdmin } from "@/lib/auth/requireAdmin";
 import { writeAuditLog } from "@/lib/audit/log";
 import { pool } from "@/lib/db/pool";
 import { releaseAllBookingsForSession } from "@/lib/booking/actions";
-import { SESSION_TYPES, sessionTypeNeedsModel } from "@/lib/sessions/shared";
+import { SESSION_TYPES, sessionTypeIsTicketed, sessionTypeNeedsModel } from "@/lib/sessions/shared";
 import { resolveHostUsername } from "@/lib/sessions/host";
 import { parseOrgDateTimeLocal } from "@/lib/timezone";
 import {
@@ -240,8 +240,10 @@ export async function updateSessionDetailsAction(
     max_capacity: number;
     host_user_id: string | null;
     model_required: boolean;
+    is_ticketed: boolean;
   };
   let modelRequired: boolean;
+  let isTicketed: boolean;
   try {
     await client.query("BEGIN");
 
@@ -254,8 +256,9 @@ export async function updateSessionDetailsAction(
       host_user_id: string | null;
       status: string;
       model_required: boolean;
+      is_ticketed: boolean;
     }>(
-      `SELECT session_type, description, start_time, end_time, max_capacity, host_user_id, status, model_required FROM sessions WHERE id = $1 FOR UPDATE`,
+      `SELECT session_type, description, start_time, end_time, max_capacity, host_user_id, status, model_required, is_ticketed FROM sessions WHERE id = $1 FOR UPDATE`,
       [sessionId],
     );
     if (sessionRow.rowCount === 0) {
@@ -292,10 +295,15 @@ export async function updateSessionDetailsAction(
     // model_required stuck at its old value, silently wrong either direction.
     modelRequired = sessionType === before.session_type ? before.model_required : sessionTypeNeedsModel(sessionType);
 
+    // Same "only re-derive on an actual type change" reasoning as
+    // modelRequired above — an admin's manual override on the same type
+    // must never be clobbered by an unrelated edit (capacity, host, time).
+    isTicketed = sessionType === before.session_type ? before.is_ticketed : sessionTypeIsTicketed(sessionType);
+
     await client.query(
-      `UPDATE sessions SET session_type = $1, description = $2, start_time = $3, end_time = $4, max_capacity = $5, host_user_id = $6, model_required = $7
-       WHERE id = $8 AND status = 'Scheduled'`,
-      [sessionType, description || null, startTime, endTime, maxCapacity, hostResult.hostUserId, modelRequired, sessionId],
+      `UPDATE sessions SET session_type = $1, description = $2, start_time = $3, end_time = $4, max_capacity = $5, host_user_id = $6, model_required = $7, is_ticketed = $8
+       WHERE id = $9 AND status = 'Scheduled'`,
+      [sessionType, description || null, startTime, endTime, maxCapacity, hostResult.hostUserId, modelRequired, isTicketed, sessionId],
     );
 
     await client.query("COMMIT");
@@ -315,6 +323,7 @@ export async function updateSessionDetailsAction(
       after: {
         sessionType,
         modelRequired,
+        isTicketed,
         description: description || null,
         startTime,
         endTime,
