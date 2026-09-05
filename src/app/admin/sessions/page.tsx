@@ -153,12 +153,13 @@ export default async function AdminSessionsPage({
     const key = `${dayIndex(gridStart, date)}:${slotFor(date)}`;
     const existing = gridOccupied[key];
     if (existing) {
-      existing.extraCount = (existing.extraCount ?? 0) + 1;
+      (existing.others ??= []).push({ sessionId: row.id, sessionType: row.session_type, startTime: row.start_time.toISOString() });
       continue;
     }
     gridOccupied[key] = {
       sessionId: row.id,
       sessionType: row.session_type,
+      startTime: row.start_time.toISOString(),
       needsHost: row.needs_host,
       needsModel: row.needs_model,
       bookedCount: Number(row.booked_count),

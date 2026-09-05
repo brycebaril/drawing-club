@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   combineOrgDateAndTime,
+  formatOrgDateTimeLocal,
   orgDateOnly,
   orgDateParts,
   parseOrgDateOnly,
@@ -80,5 +81,17 @@ describe("parseOrgDateTimeLocal", () => {
   it("returns an Invalid Date for malformed input, matching native new Date(badInput)'s own shape", () => {
     expect(Number.isNaN(parseOrgDateTimeLocal("").getTime())).toBe(true);
     expect(Number.isNaN(parseOrgDateTimeLocal("not-a-date").getTime())).toBe(true);
+  });
+});
+
+describe("formatOrgDateTimeLocal", () => {
+  it("round-trips through parseOrgDateTimeLocal", () => {
+    expect(formatOrgDateTimeLocal(parseOrgDateTimeLocal("2026-09-02T19:00"))).toBe("2026-09-02T19:00");
+  });
+
+  it("formats in ORG_TIMEZONE, not UTC or the process's own zone", () => {
+    // zonedWallTimeToInstant(2026, 1, 15, 10, 30) is 2026-01-15T18:30:00.000Z
+    // (PST, UTC-8) — formatting it back must read 10:30, not 18:30.
+    expect(formatOrgDateTimeLocal(zonedWallTimeToInstant(2026, 1, 15, 10, 30))).toBe("2026-01-15T10:30");
   });
 });

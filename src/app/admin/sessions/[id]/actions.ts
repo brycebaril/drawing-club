@@ -8,6 +8,7 @@ import { pool } from "@/lib/db/pool";
 import { releaseAllBookingsForSession } from "@/lib/booking/actions";
 import { SESSION_TYPES, sessionTypeNeedsModel } from "@/lib/sessions/shared";
 import { resolveHostUsername } from "@/lib/sessions/host";
+import { parseOrgDateTimeLocal } from "@/lib/timezone";
 import {
   cancelEntireSeries,
   cancelThisAndFutureOccurrences,
@@ -204,6 +205,19 @@ export async function updateSessionDetailsAction(
 
   const description = String(formData.get("description") ?? "").trim();
 
+  // parseOrgDateTimeLocal, not `new Date(string)` — same reasoning as
+  // createSessionAction (src/app/admin/sessions/actions.ts): the raw
+  // datetime-local value has no timezone, so a native parse would read it
+  // in the process's own zone instead of ORG_TIMEZONE.
+  const startTime = parseOrgDateTimeLocal(String(formData.get("startTime") ?? ""));
+  const endTime = parseOrgDateTimeLocal(String(formData.get("endTime") ?? ""));
+  if (Number.isNaN(startTime.getTime()) || Number.isNaN(endTime.getTime())) {
+    return { error: "Enter valid start and end times." };
+  }
+  if (endTime <= startTime) {
+    return { error: "End time must be after start time." };
+  }
+
   const maxCapacity = Number(formData.get("maxCapacity"));
   if (!Number.isInteger(maxCapacity) || maxCapacity < 1) {
     return { error: "Capacity must be a positive whole number." };
@@ -221,6 +235,8 @@ export async function updateSessionDetailsAction(
   let before: {
     session_type: string;
     description: string | null;
+    start_time: Date;
+    end_time: Date;
     max_capacity: number;
     host_user_id: string | null;
     model_required: boolean;
@@ -232,12 +248,14 @@ export async function updateSessionDetailsAction(
     const sessionRow = await client.query<{
       session_type: string;
       description: string | null;
+      start_time: Date;
+      end_time: Date;
       max_capacity: number;
       host_user_id: string | null;
       status: string;
       model_required: boolean;
     }>(
-      `SELECT session_type, description, max_capacity, host_user_id, status, model_required FROM sessions WHERE id = $1 FOR UPDATE`,
+      `SELECT session_type, description, start_time, end_time, max_capacity, host_user_id, status, model_required FROM sessions WHERE id = $1 FOR UPDATE`,
       [sessionId],
     );
     if (sessionRow.rowCount === 0) {
@@ -275,9 +293,9 @@ export async function updateSessionDetailsAction(
     modelRequired = sessionType === before.session_type ? before.model_required : sessionTypeNeedsModel(sessionType);
 
     await client.query(
-      `UPDATE sessions SET session_type = $1, description = $2, max_capacity = $3, host_user_id = $4, model_required = $5
-       WHERE id = $6 AND status = 'Scheduled'`,
-      [sessionType, description || null, maxCapacity, hostResult.hostUserId, modelRequired, sessionId],
+      `UPDATE sessions SET session_type = $1, description = $2, start_time = $3, end_time = $4, max_capacity = $5, host_user_id = $6, model_required = $7
+       WHERE id = $8 AND status = 'Scheduled'`,
+      [sessionType, description || null, startTime, endTime, maxCapacity, hostResult.hostUserId, modelRequired, sessionId],
     );
 
     await client.query("COMMIT");
@@ -298,6 +316,8 @@ export async function updateSessionDetailsAction(
         sessionType,
         modelRequired,
         description: description || null,
+        startTime,
+        endTime,
         maxCapacity,
         hostUserId: hostResult.hostUserId,
       },
