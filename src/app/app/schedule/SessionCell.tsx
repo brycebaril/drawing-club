@@ -1,7 +1,6 @@
 import Link from "next/link";
 import {
   describeCellTooltip,
-  describeModel,
   formatCellTime,
   formatOpensDate,
   isCellInteractive,
@@ -59,7 +58,18 @@ export function SessionCell({ cell, href, windowDays }: { cell: GridCellData; hr
         ? "text-ink-soft"
         : info.textClass;
 
-  const middleLine = showsNeedsModelFlag ? "no model yet" : describeModel(cell);
+  // Blank, not "None required" — the on-cell line is tight on space and a
+  // session type that never needs a model (Gallery/Party) doesn't need to
+  // say so explicitly here; the fuller "Model: None required" phrasing
+  // still shows on hover (describeCellTooltip) and in the agenda list,
+  // where there's room for it to read as informative rather than clutter.
+  const middleLine = showsNeedsModelFlag
+    ? "no model yet"
+    : cell.modelNames
+      ? cell.modelNames
+      : cell.modelRequired
+        ? "Not yet assigned"
+        : "";
   const middleLineClass = showsNeedsModelFlag ? "text-warn" : "text-ink-soft";
 
   let bottomLine: string;
