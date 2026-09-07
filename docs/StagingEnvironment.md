@@ -31,22 +31,34 @@ what the AWS side needs to match.
 ## A real gap worth knowing about: secrets
 
 `SecurityDocument.md` §4 describes secrets being read "via IAM role... not plaintext Amplify
-environment variables." As built, the app only ever reads `process.env.*` directly — there's no
-AWS SDK Secrets Manager client anywhere in the codebase (`@aws-sdk/client-s3` and
-`@aws-sdk/client-sesv2` exist; `@aws-sdk/client-secrets-manager` does not). True runtime
-Secrets-Manager-backed config would need real app code (fetch secrets at boot, or per-request)
-that doesn't exist today.
+environment variables." As built, most of the app's secrets (Stripe, NextAuth, the job-trigger
+secret) still only ever read `process.env.*` directly, set in **Amplify Console → App settings →
+Environment variables** — still encrypted at rest and access-controlled to whoever has
+Console/IAM permissions on the app, just without Secrets Manager's separate audit trail.
 
-For now, staging's secrets are set directly in **Amplify Console → App settings → Environment
-variables** — still encrypted at rest and access-controlled to whoever has Console/IAM
-permissions on the app, just without Secrets Manager's separate audit trail and rotation
-tooling. The one exception is the database credential itself: RDS's own "manage master
-credentials in Secrets Manager" option (set at RDS creation time) covers that one specifically
-with no app code involved, since the DB connection string is assembled once at setup time, not
-fetched by the running app.
+**The database credential is the one exception, and it's the one that actually needed fixing.**
+RDS's "manage master credentials in Secrets Manager" option (set at RDS creation time) rotates
+the master password automatically every 7 days — the original setup only fetched that value once,
+at RDS creation, and pasted it into a static `DATABASE_URL` env var, exactly the gap this section
+used to describe ("the DB connection string is assembled once at setup time, not fetched by the
+running app"). That's precisely what caused a real outage on 2026-09-06: every request failed
+with `password authentication failed for user "postgres"` from the moment the secret first
+rotated until someone noticed and manually pushed the new password.
 
-Closing this gap for real (the app reading secrets from Secrets Manager at runtime) is a
-deliberate future hardening task, not something this doc's setup silently papers over.
+Fixed for real, not just patched for that one incident: `src/lib/db/pool.ts` now fetches the
+current credential from Secrets Manager at runtime (`@aws-sdk/client-secrets-manager`, gated by
+the `DATABASE_SECRET_ARN` env var — unset everywhere except staging/production, so local dev/CI
+are unaffected), caches it for 15 minutes, and immediately re-fetches and retries once on an
+actual `28P01` (invalid password) error — so a live rotation costs at most one retried request,
+not an outage. `DATABASE_URL` on staging is now a `{username}`/`{password}` *template*, not a
+real credential — the actual password is never written into Amplify's env vars at all. This
+needed one manual IAM step (granting the Amplify SSR compute role, `AmplifySSRLoggingRole-*`,
+`secretsmanager:GetSecretValue` scoped to the one RDS-managed secret ARN) since Secrets Manager
+access isn't granted to that role by default.
+
+Every other secret in the table above is still a plain Amplify env var — closing that gap too
+(the app reading Stripe/NextAuth/etc. from Secrets Manager as well) remains a deliberate future
+hardening task, not something this doc silently papers over.
 
 ## A real gap worth knowing about: network exposure
 

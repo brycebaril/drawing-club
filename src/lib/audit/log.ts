@@ -1,5 +1,4 @@
-import type { Pool, PoolClient } from "pg";
-import { pool } from "@/lib/db/pool";
+import { pool, type Queryable } from "@/lib/db/pool";
 
 export interface AuditLogEntry {
   // Optional, not defaulted to a synthetic "system" user — actor_id is a
@@ -28,7 +27,7 @@ export interface AuditLogEntry {
  * and silently lost the audit entry for good (the retry's idempotency check
  * short-circuits before ever reaching this call again).
  */
-export async function writeAuditLog(entry: AuditLogEntry, queryable: Pool | PoolClient = pool): Promise<void> {
+export async function writeAuditLog(entry: AuditLogEntry, queryable: Queryable = pool): Promise<void> {
   await queryable.query(
     `INSERT INTO system_audit_logs (actor_id, action_type, target_user_id, metadata)
      VALUES ($1, $2, $3, $4)`,

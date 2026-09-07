@@ -33,7 +33,7 @@ frontend:
         # Next's standalone bundler copies the literal .env file into
         # .next/standalone/.env (and only that file, not .env.production),
         # and that the generated server.js loads it at startup.
-        - env | grep -e '^APP_ENV=' -e '^DATABASE_URL=' -e '^NEXTAUTH_SECRET=' -e '^NEXTAUTH_URL=' -e '^STRIPE_SECRET_KEY=' -e '^STRIPE_PUBLISHABLE_KEY=' -e '^STRIPE_WEBHOOK_SECRET=' -e '^S3_BUCKET_NAME=' -e '^JOB_TRIGGER_SECRET=' -e '^ORG_LEGAL_NAME=' -e '^ORG_DBA_NAME=' -e '^CONTACT_FORM_RECIPIENT_EMAIL=' -e '^AWS_REGION=' -e '^SES_FROM_EMAIL=' >> .env
+        - env | grep -e '^APP_ENV=' -e '^DATABASE_URL=' -e '^DATABASE_SECRET_ARN=' -e '^NEXTAUTH_SECRET=' -e '^NEXTAUTH_URL=' -e '^STRIPE_SECRET_KEY=' -e '^STRIPE_PUBLISHABLE_KEY=' -e '^STRIPE_WEBHOOK_SECRET=' -e '^S3_BUCKET_NAME=' -e '^JOB_TRIGGER_SECRET=' -e '^ORG_LEGAL_NAME=' -e '^ORG_DBA_NAME=' -e '^CONTACT_FORM_RECIPIENT_EMAIL=' -e '^AWS_REGION=' -e '^SES_FROM_EMAIL=' >> .env
         - pnpm build
   artifacts:
     baseDirectory: .next
