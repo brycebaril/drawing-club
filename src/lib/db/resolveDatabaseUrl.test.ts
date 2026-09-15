@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { substituteCredentials } from "./pool";
+import { substituteCredentials } from "./resolveDatabaseUrl";
 
 describe("substituteCredentials", () => {
   it("substitutes both tokens into the template", () => {

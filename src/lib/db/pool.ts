@@ -1,5 +1,5 @@
 import { Pool, type PoolClient, type QueryResult, type QueryResultRow } from "pg";
-import { SecretsManagerClient, GetSecretValueCommand } from "@aws-sdk/client-secrets-manager";
+import { resolveDatabaseUrl } from "./resolveDatabaseUrl";
 
 declare global {
   var _pgPool: Pool | undefined;
@@ -47,58 +47,20 @@ export interface QueryablePool extends Queryable {
 const SECRET_CACHE_MS = 15 * 60 * 1000;
 
 /**
- * Builds the real connection string for this request. When
- * DATABASE_SECRET_ARN is unset (local dev, CI — every environment except
- * staging/production), DATABASE_URL is used exactly as it always has been:
- * a complete connection string, no AWS calls, matching this module's
- * original behavior byte for byte. This is the same "no AWS config
- * present -> plain fallback" shape src/lib/email/sender.ts already
- * established for SES, not a new pattern.
- *
- * When DATABASE_SECRET_ARN *is* set (see StagingEnvironment.md — RDS's
- * managed master-password rotation was silently breaking every deploy
- * whenever it fired, since the old static DATABASE_URL never tracked it),
- * DATABASE_URL is instead a *template* containing literal "{username}"/
- * "{password}" tokens, substituted here from the secret's live values.
- * The secret itself only ever contains {username, password} — never host/
- * port/dbname, confirmed directly against the real secret — so those still
- * come from the template.
+ * Wraps resolveDatabaseUrl (src/lib/db/resolveDatabaseUrl.ts) with this
+ * module's own cache — the shared function itself does one AWS call (or
+ * none, in the local-dev/CI fallback) and returns; caching how often that
+ * happens is specific to this long-lived pool process, not to the
+ * one-shot migration-step caller of resolveDatabaseUrl.
  */
 async function resolveConnectionString(forceRefresh: boolean): Promise<string> {
-  const secretArn = process.env.DATABASE_SECRET_ARN;
-  if (!secretArn) {
-    const url = process.env.DATABASE_URL;
-    if (!url) throw new Error("DATABASE_URL is not set");
-    return url;
-  }
-
   const cached = globalThis._pgCredentialCache;
   if (!forceRefresh && cached && Date.now() - cached.fetchedAt < SECRET_CACHE_MS) {
     return cached.connectionString;
   }
-
-  const template = process.env.DATABASE_URL;
-  if (!template) throw new Error("DATABASE_URL (template) is not set");
-
-  const client = new SecretsManagerClient({});
-  const result = await client.send(new GetSecretValueCommand({ SecretId: secretArn }));
-  const secret = JSON.parse(result.SecretString ?? "{}") as { username: string; password: string };
-
-  const connectionString = substituteCredentials(template, secret.username, secret.password);
-
+  const connectionString = await resolveDatabaseUrl();
   globalThis._pgCredentialCache = { connectionString, fetchedAt: Date.now() };
   return connectionString;
-}
-
-/**
- * Pure substitution, split out from resolveConnectionString so it's
- * testable without mocking the AWS SDK. Percent-encodes both values since
- * a generated RDS password routinely contains URI-special characters
- * (confirmed against the real secret during the incident this module
- * fixes) that would otherwise corrupt the connection string.
- */
-export function substituteCredentials(template: string, username: string, password: string): string {
-  return template.replace("{username}", encodeURIComponent(username)).replace("{password}", encodeURIComponent(password));
 }
 
 /**
