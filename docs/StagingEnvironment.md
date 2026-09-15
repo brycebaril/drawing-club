@@ -51,10 +51,27 @@ the `DATABASE_SECRET_ARN` env var — unset everywhere except staging/production
 are unaffected), caches it for 15 minutes, and immediately re-fetches and retries once on an
 actual `28P01` (invalid password) error — so a live rotation costs at most one retried request,
 not an outage. `DATABASE_URL` on staging is now a `{username}`/`{password}` *template*, not a
-real credential — the actual password is never written into Amplify's env vars at all. This
-needed one manual IAM step (granting the Amplify SSR compute role, `AmplifySSRLoggingRole-*`,
-`secretsmanager:GetSecretValue` scoped to the one RDS-managed secret ARN) since Secrets Manager
-access isn't granted to that role by default.
+real credential — the actual password is never written into Amplify's env vars at all.
+
+**This needed a Compute role, not just a permissions grant — a distinction that cost a second
+outage (2026-09-15) to discover.** The first attempt granted `secretsmanager:GetSecretValue` to
+`AmplifySSRLoggingRole-*`, the app's general logging/service role — plausible-looking, but that
+role is only ever used for CloudWatch build logging. Amplify Hosting has a completely separate,
+opt-in **SSR Compute role** concept (trust policy scoped to the `amplify.amazonaws.com` service
+principal, not the logging role's trust policy), and it's the *only* role whose credentials
+reach server-side application code at runtime via the AWS SDK's default credential chain. Until
+one is explicitly created and attached (Amplify Console/CLI → app or branch → Compute role),
+server code gets **zero** AWS credentials, full stop, regardless of what any other role is
+granted — this produced `CredentialsProviderError: Could not load credentials from any
+providers` on every request the moment `DATABASE_SECRET_ARN` was first set, a second real outage
+immediately rolled back the same way as the first.
+
+The actual fix: a new role, `AmplifySSRComputeRole-drawing-club`, trusting `amplify.amazonaws.com`
+and holding `secretsmanager:GetSecretValue` scoped to the one RDS-managed secret ARN, attached as
+the `staging` branch's Compute role (`aws amplify update-branch --compute-role-arn <arn>`).
+Verified end-to-end afterward via a real DB-backed request (`/api/stats/*`), not just a 200 on
+`/` — a 200 alone doesn't prove the credential path actually worked, only that some response came
+back.
 
 Every other secret in the table above is still a plain Amplify env var — closing that gap too
 (the app reading Stripe/NextAuth/etc. from Secrets Manager as well) remains a deliberate future
