@@ -62,7 +62,7 @@ const ROUTE_RULES: RouteRule[] = [
   { pattern: "/uploads/*", public: true },
 ];
 
-function matchesPattern(pathname: string, pattern: string): boolean {
+export function matchesPattern(pathname: string, pattern: string): boolean {
   if (pattern.endsWith("/*")) {
     const prefix = pattern.slice(0, -2);
     return pathname === prefix || pathname.startsWith(`${prefix}/`);

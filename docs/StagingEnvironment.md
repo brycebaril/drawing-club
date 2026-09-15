@@ -149,6 +149,7 @@ for why this isn't Secrets Manager yet).
 | `ORG_LEGAL_NAME` | Amplify env var — same real value as local dev's `.env.example`. |
 | `ORG_DBA_NAME` | Amplify env var — same real value. |
 | `APP_ENV` | Amplify env var, set to `staging`. This is what `EnvStatusBanner` reads to show informational (not alarmed) styling — it only alarms when `APP_ENV=production` and something looks misconfigured. |
+| `LAUNCH_MODE` | **Left unset.** Staging always runs in full mode — it's a rehearsal target for the complete feature set (`docs/MigrationPlan.md`'s cutover rehearsals included), not the static-only public launch. See `docs/ImplementationNotesArchive.md`'s "Static-only launch mode" section. |
 | `GIT_SHA` | Left unset — `next.config.ts` derives it automatically from the checked-out commit at build time. |
 | `DATABASE_URL` | Amplify env var, built from the RDS-managed master credential (see the Secrets section) plus the staging RDS instance's endpoint/port/db name. |
 | `NEXTAUTH_SECRET` | Amplify env var — a **new, distinct** value generated with `openssl rand -base64 32`. Never reuse the value from local dev, CI, or (eventually) production. |

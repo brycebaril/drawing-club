@@ -6,6 +6,7 @@ import { isCancellable } from "@/lib/cancellation";
 import { sendEmail } from "@/lib/email/sender";
 import { viewerBookingWindowDays } from "./sessionStatus";
 import { ORG_TIMEZONE } from "@/lib/org";
+import { isStaticOnlyLaunch } from "@/lib/launchMode";
 
 export type ViewerEligibilityResult =
   | { ok: true; ctx: UserAuthContext }
@@ -51,6 +52,11 @@ export type BookSessionResult =
  * both row-locked so concurrent bookings can't oversell the last spot.
  */
 export async function bookSession(userId: string, sessionId: string): Promise<BookSessionResult> {
+  // Defense-in-depth: /app/schedule is already proxy-gated to the legacy
+  // booking site during static-only launch mode (src/lib/launchMode.ts) —
+  // see the registerAction comment for why this check is still here anyway.
+  if (isStaticOnlyLaunch()) return { ok: false, reason: "not-found" };
+
   const eligibility = await resolveViewerEligibility(userId);
   if (!eligibility.ok) return eligibility;
   const windowEnd = await resolveBookingWindowEnd(eligibility.ctx.roles);
@@ -188,6 +194,10 @@ export async function releaseBookedPass(
 }
 
 export async function cancelBooking(userId: string, sessionId: string): Promise<CancelBookingResult> {
+  // Defense-in-depth: /app/schedule is already proxy-gated during
+  // static-only launch mode — see the registerAction comment.
+  if (isStaticOnlyLaunch()) return { ok: false, reason: "not-found" };
+
   const cutoffHours = await getSettingNumber("CANCELLATION_CUTOFF_HOURS");
 
   const client = await pool.connect();
@@ -413,6 +423,10 @@ export type JoinWaitlistResult =
   | { ok: false; reason: "already-on-waitlist" | "not-found" | "not-verified" | "not-ticketed" };
 
 export async function joinWaitlist(userId: string, sessionId: string): Promise<JoinWaitlistResult> {
+  // Defense-in-depth: /app/schedule is already proxy-gated during
+  // static-only launch mode — see the registerAction comment.
+  if (isStaticOnlyLaunch()) return { ok: false, reason: "not-found" };
+
   const eligibility = await resolveViewerEligibility(userId);
   if (!eligibility.ok) return eligibility;
 

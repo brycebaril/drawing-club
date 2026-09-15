@@ -3,6 +3,7 @@ import { auth } from "@/auth";
 import { getUserAuthContext, type Role } from "@/lib/auth/roles";
 import { pool } from "@/lib/db/pool";
 import { RESERVED_STATIC_PAGE_SLUGS } from "@/lib/cms/slugify";
+import { isStaticOnlyLaunch, LEGACY_BOOKING_URL } from "@/lib/launchMode";
 import { LogoutForm } from "./LogoutForm";
 import { NotificationBanner } from "./NotificationBanner";
 import { EnvStatusBanner } from "./EnvStatusBanner";
@@ -59,6 +60,7 @@ function opsLinksFor(roles: Role[], isAdmin: boolean, supportNeedsReplyCount: nu
 export async function SiteNav() {
   const session = await auth();
   const ctx = session?.user?.id ? await getUserAuthContext(session.user.id) : null;
+  const staticOnly = isStaticOnlyLaunch();
 
   // Admin-created pages (src/app/pages/[slug]/page.tsx) have no other way
   // to be reachable except by typing the URL directly, so they're listed
@@ -110,23 +112,37 @@ export async function SiteNav() {
             <Link href="/pricing">Pricing</Link>
           </li>
           <li>
-            {/* /app/schedule is the unified public + member page (src/lib/auth/rbac.ts
-                has a dedicated public rule for it) — no more conditional login redirect. */}
-            <Link href="/app/schedule" className="button-link">
-              Schedule
-            </Link>
+            {staticOnly ? (
+              // Static-only launch mode (src/lib/launchMode.ts): booking
+              // isn't live in this app yet — send visitors to the existing
+              // legacy booking site instead of the (proxy-gated) internal
+              // schedule page.
+              <a href={LEGACY_BOOKING_URL} target="_blank" rel="noopener noreferrer" className="button-link">
+                Schedule
+              </a>
+            ) : (
+              // /app/schedule is the unified public + member page (src/lib/auth/rbac.ts
+              // has a dedicated public rule for it) — no more conditional login redirect.
+              <Link href="/app/schedule" className="button-link">
+                Schedule
+              </Link>
+            )}
           </li>
           {ctx ? (
             <>
-              <li>
-                <Link href="/dashboard">Dashboard</Link>
-              </li>
-              <li>
-                <Link href="/app/wallet">Wallet</Link>
-              </li>
-              <li>
-                <Link href="/app/support">Support</Link>
-              </li>
+              {!staticOnly && (
+                <>
+                  <li>
+                    <Link href="/dashboard">Dashboard</Link>
+                  </li>
+                  <li>
+                    <Link href="/app/wallet">Wallet</Link>
+                  </li>
+                  <li>
+                    <Link href="/app/support">Support</Link>
+                  </li>
+                </>
+              )}
               <li>
                 <LogoutForm />
               </li>
@@ -136,9 +152,11 @@ export async function SiteNav() {
               <li>
                 <Link href="/auth/login">Log in</Link>
               </li>
-              <li>
-                <Link href="/auth/register">Sign up</Link>
-              </li>
+              {!staticOnly && (
+                <li>
+                  <Link href="/auth/register">Sign up</Link>
+                </li>
+              )}
             </>
           )}
           {showStaffMenu && <StaffMenu isAdmin={isAdmin} adminLinks={ADMIN_LINKS} opsLinks={opsLinks} />}
