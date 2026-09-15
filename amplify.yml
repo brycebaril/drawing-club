@@ -20,7 +20,19 @@ frontend:
         # this — they run node_modules in place, never repackaged elsewhere
         # — so this flag is deliberately not a repo-wide .npmrc change.
         - pnpm install --frozen-lockfile --config.node-linker=hoisted
-        - pnpm exec node-pg-migrate up
+        # node-pg-migrate reads DATABASE_URL itself as a raw connection
+        # string — it has no idea src/lib/db/resolveDatabaseUrl.ts's
+        # {username}/{password} template scheme exists (see that file's own
+        # comment: DATABASE_URL is a template, not a real credential,
+        # whenever DATABASE_SECRET_ARN is set). Resolving it here, scoped to
+        # just this one command via a prefix assignment (not `export`), so
+        # the *real* DATABASE_URL/DATABASE_SECRET_ARN env vars are still
+        # what the build phase below writes into .env for the running app's
+        # own runtime resolution — this shell-scoped override must never
+        # leak into that step. Found for real: running the migration
+        # against the unresolved template failed outright with `password
+        # authentication failed for user "{username}"`.
+        - DATABASE_URL="$(pnpm exec tsx scripts/resolve-database-url.ts)" pnpm exec node-pg-migrate up
     build:
       commands:
         # Amplify only injects Console/branch-configured env vars at build
