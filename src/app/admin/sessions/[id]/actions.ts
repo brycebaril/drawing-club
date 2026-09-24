@@ -6,8 +6,9 @@ import { requireAdmin } from "@/lib/auth/requireAdmin";
 import { writeAuditLog } from "@/lib/audit/log";
 import { pool } from "@/lib/db/pool";
 import { releaseAllBookingsForSession } from "@/lib/booking/actions";
-import { SESSION_TYPES } from "@/lib/sessions/shared";
+import { SESSION_TYPES, sessionTypeIsTicketed, sessionTypeNeedsModel } from "@/lib/sessions/shared";
 import { resolveHostUsername } from "@/lib/sessions/host";
+import { parseOrgDateTimeLocal } from "@/lib/timezone";
 import {
   cancelEntireSeries,
   cancelThisAndFutureOccurrences,
@@ -204,6 +205,19 @@ export async function updateSessionDetailsAction(
 
   const description = String(formData.get("description") ?? "").trim();
 
+  // parseOrgDateTimeLocal, not `new Date(string)` — same reasoning as
+  // createSessionAction (src/app/admin/sessions/actions.ts): the raw
+  // datetime-local value has no timezone, so a native parse would read it
+  // in the process's own zone instead of ORG_TIMEZONE.
+  const startTime = parseOrgDateTimeLocal(String(formData.get("startTime") ?? ""));
+  const endTime = parseOrgDateTimeLocal(String(formData.get("endTime") ?? ""));
+  if (Number.isNaN(startTime.getTime()) || Number.isNaN(endTime.getTime())) {
+    return { error: "Enter valid start and end times." };
+  }
+  if (endTime <= startTime) {
+    return { error: "End time must be after start time." };
+  }
+
   const maxCapacity = Number(formData.get("maxCapacity"));
   if (!Number.isInteger(maxCapacity) || maxCapacity < 1) {
     return { error: "Capacity must be a positive whole number." };
@@ -221,20 +235,30 @@ export async function updateSessionDetailsAction(
   let before: {
     session_type: string;
     description: string | null;
+    start_time: Date;
+    end_time: Date;
     max_capacity: number;
     host_user_id: string | null;
+    model_required: boolean;
+    is_ticketed: boolean;
   };
+  let modelRequired: boolean;
+  let isTicketed: boolean;
   try {
     await client.query("BEGIN");
 
     const sessionRow = await client.query<{
       session_type: string;
       description: string | null;
+      start_time: Date;
+      end_time: Date;
       max_capacity: number;
       host_user_id: string | null;
       status: string;
+      model_required: boolean;
+      is_ticketed: boolean;
     }>(
-      `SELECT session_type, description, max_capacity, host_user_id, status FROM sessions WHERE id = $1 FOR UPDATE`,
+      `SELECT session_type, description, start_time, end_time, max_capacity, host_user_id, status, model_required, is_ticketed FROM sessions WHERE id = $1 FOR UPDATE`,
       [sessionId],
     );
     if (sessionRow.rowCount === 0) {
@@ -261,10 +285,25 @@ export async function updateSessionDetailsAction(
       return { error: `Capacity can't be less than the ${bookedCount} ticket(s) already booked.` };
     }
 
+    // Only re-derive model_required when the type actually changes — a
+    // same-type edit (capacity, host, description) must never clobber a
+    // Model Booker's own manual override (the "No model required" / "Actually,
+    // this needs a model" toggle on /ops/model-booking) for an unrelated
+    // reason. But a genuine type change (e.g. into/out of Gallery/Party) has
+    // to follow sessionTypeNeedsModel() the same way session creation does —
+    // otherwise editing a Regular session into a Gallery Hours session left
+    // model_required stuck at its old value, silently wrong either direction.
+    modelRequired = sessionType === before.session_type ? before.model_required : sessionTypeNeedsModel(sessionType);
+
+    // Same "only re-derive on an actual type change" reasoning as
+    // modelRequired above — an admin's manual override on the same type
+    // must never be clobbered by an unrelated edit (capacity, host, time).
+    isTicketed = sessionType === before.session_type ? before.is_ticketed : sessionTypeIsTicketed(sessionType);
+
     await client.query(
-      `UPDATE sessions SET session_type = $1, description = $2, max_capacity = $3, host_user_id = $4
-       WHERE id = $5 AND status = 'Scheduled'`,
-      [sessionType, description || null, maxCapacity, hostResult.hostUserId, sessionId],
+      `UPDATE sessions SET session_type = $1, description = $2, start_time = $3, end_time = $4, max_capacity = $5, host_user_id = $6, model_required = $7, is_ticketed = $8
+       WHERE id = $9 AND status = 'Scheduled'`,
+      [sessionType, description || null, startTime, endTime, maxCapacity, hostResult.hostUserId, modelRequired, isTicketed, sessionId],
     );
 
     await client.query("COMMIT");
@@ -283,7 +322,11 @@ export async function updateSessionDetailsAction(
       before,
       after: {
         sessionType,
+        modelRequired,
+        isTicketed,
         description: description || null,
+        startTime,
+        endTime,
         maxCapacity,
         hostUserId: hostResult.hostUserId,
       },

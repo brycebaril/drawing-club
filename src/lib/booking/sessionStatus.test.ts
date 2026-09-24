@@ -9,7 +9,7 @@ const ADMIN: Role[] = ["ACCT", "ADMIN"];
 
 function baseInput(overrides: Partial<Parameters<typeof computeSessionStatus>[0]> = {}) {
   return {
-    session: { startTime: new Date("2026-01-05T18:00:00Z"), maxCapacity: 2 },
+    session: { startTime: new Date("2026-01-05T18:00:00Z"), maxCapacity: 2, isTicketed: true },
     roles: ACCT,
     bookedCount: 0,
     viewerHasBooking: false,
@@ -36,7 +36,7 @@ describe("computeSessionStatus", () => {
   });
 
   it("CancelableNoRefund when the viewer has a booking inside the cutoff window", () => {
-    const session = { startTime: new Date("2026-01-01T18:00:00Z"), maxCapacity: 2 }; // 6h from NOW
+    const session = { startTime: new Date("2026-01-01T18:00:00Z"), maxCapacity: 2, isTicketed: true }; // 6h from NOW
     expect(computeSessionStatus(baseInput({ session, viewerHasBooking: true }))).toBe(
       "CancelableNoRefund",
     );
@@ -53,17 +53,17 @@ describe("computeSessionStatus", () => {
   });
 
   it("TooFarFuture for an Account Holder beyond their 14-day window", () => {
-    const session = { startTime: new Date("2026-01-20T18:00:00Z"), maxCapacity: 2 }; // 19 days out
+    const session = { startTime: new Date("2026-01-20T18:00:00Z"), maxCapacity: 2, isTicketed: true }; // 19 days out
     expect(computeSessionStatus(baseInput({ session, roles: ACCT }))).toBe("TooFarFuture");
   });
 
   it("Available for a Paid Member within their 30-day window at the same date", () => {
-    const session = { startTime: new Date("2026-01-20T18:00:00Z"), maxCapacity: 2 };
+    const session = { startTime: new Date("2026-01-20T18:00:00Z"), maxCapacity: 2, isTicketed: true };
     expect(computeSessionStatus(baseInput({ session, roles: MBR }))).toBe("Available");
   });
 
   it("registration overrides TooFarFuture — an existing booking is never hidden by window math", () => {
-    const session = { startTime: new Date("2026-01-20T18:00:00Z"), maxCapacity: 2 };
+    const session = { startTime: new Date("2026-01-20T18:00:00Z"), maxCapacity: 2, isTicketed: true };
     expect(
       computeSessionStatus(baseInput({ session, roles: ACCT, viewerHasBooking: true })),
     ).toBe("Registered");
@@ -72,13 +72,23 @@ describe("computeSessionStatus", () => {
   it("Available for a guest regardless of date — the booking window doesn't apply to null roles", () => {
     // Far beyond even a Member's 30-day window (19 days would already be
     // TooFarFuture for an Account Holder per the test above).
-    const session = { startTime: new Date("2026-03-01T18:00:00Z"), maxCapacity: 2 };
+    const session = { startTime: new Date("2026-03-01T18:00:00Z"), maxCapacity: 2, isTicketed: true };
     expect(computeSessionStatus(baseInput({ session, roles: null }))).toBe("Available");
   });
 
   it("Full for a guest when a far-future session is already at capacity", () => {
-    const session = { startTime: new Date("2026-03-01T18:00:00Z"), maxCapacity: 2 };
+    const session = { startTime: new Date("2026-03-01T18:00:00Z"), maxCapacity: 2, isTicketed: true };
     expect(computeSessionStatus(baseInput({ session, roles: null, bookedCount: 2 }))).toBe("Full");
+  });
+
+  it("Available for a non-ticketed announcement even far outside the booking window", () => {
+    const session = { startTime: new Date("2026-01-20T18:00:00Z"), maxCapacity: 2, isTicketed: false }; // 19 days out, would be TooFarFuture for ACCT if ticketed
+    expect(computeSessionStatus(baseInput({ session, roles: ACCT }))).toBe("Available");
+  });
+
+  it("Available for a non-ticketed announcement even at/over capacity", () => {
+    const session = { startTime: new Date("2026-01-05T18:00:00Z"), maxCapacity: 2, isTicketed: false };
+    expect(computeSessionStatus(baseInput({ session, bookedCount: 5 }))).toBe("Available");
   });
 });
 

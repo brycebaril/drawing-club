@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { createTestUser, loginAsUser } from "./helpers";
+import { createTestUser, loginAsUser, pool } from "./helpers";
 import { ORG_DBA_NAME } from "@/lib/org";
 
 test("home page renders", async ({ page }) => {
@@ -54,6 +54,59 @@ test("the staff menu (admin/ops links, behind a hamburger) is shown only to role
   await expect(page.getByRole("link", { name: "Sessions" })).toHaveCount(0);
   await expect(page.getByRole("link", { name: "Settings" })).toHaveCount(0);
 });
+
+// opsLinksFor's exact mapping (src/components/SiteNav.tsx): each ops role
+// grants its own link(s) and none of the others, and none of ADMIN_LINKS'
+// admin-only links. The one above (admin-vs-plain-member) never exercised
+// any of these five roles in isolation. ModelBooker gets *two* links, not
+// one — it's unscoped for check-in too (matches requireCheckInAccess's own
+// "VOL_MBR/ADMIN are unscoped" rule), a real behavior an earlier draft of
+// this test got wrong by assuming one role -> one link.
+const OPS_ROLE_CASES: { dbRole: string; ownLinks: string[]; ownLinkPatterns: RegExp[] }[] = [
+  { dbRole: "SessionManager", ownLinks: ["Check-in"], ownLinkPatterns: [/^Check-in$/] },
+  {
+    dbRole: "ModelBooker",
+    ownLinks: ["Check-in", "Model Booking"],
+    ownLinkPatterns: [/^Check-in$/, /^Model Booking$/],
+  },
+  { dbRole: "ContentEditor", ownLinks: ["CMS"], ownLinkPatterns: [/^CMS$/] },
+  { dbRole: "Controller", ownLinks: ["Financials"], ownLinkPatterns: [/^Financials$/] },
+  // Support's own label carries a live unread-reply count ("Support (3)")
+  // — a bare "Support" name match would miss it whenever this dev DB has
+  // any open tickets, so match the prefix instead.
+  { dbRole: "SupportAgent", ownLinks: ["Support"], ownLinkPatterns: [/^Support/] },
+];
+const ALL_OPS_LINKS = ["Check-in", "Model Booking", "CMS", "Financials"];
+const ADMIN_ONLY_LINKS = ["Sessions", "Users", "Transactions", "Tickets", "Audit Logs", "Reporting", "API Keys", "Settings"];
+
+for (const { dbRole, ownLinks, ownLinkPatterns } of OPS_ROLE_CASES) {
+  test(`staff menu shows only ${ownLinks.join(" + ")} for a ${dbRole}-only account`, async ({ page }) => {
+    const user = await createTestUser({ username: `e2estaffmenu${dbRole.toLowerCase()}${Date.now()}` });
+    await pool.query(`INSERT INTO volunteer_roles (user_id, role) VALUES ($1, $2)`, [user.id, dbRole]);
+    await loginAsUser(page, user);
+    await page.goto("/dashboard");
+
+    const staffToggle = page.getByRole("button", { name: "☰ Staff" });
+    await expect(staffToggle).toBeVisible();
+    await staffToggle.click();
+
+    const panel = page.locator(".staff-menu-panel");
+    for (const pattern of ownLinkPatterns) {
+      await expect(panel.getByRole("link", { name: pattern })).toBeVisible();
+    }
+
+    for (const label of ADMIN_ONLY_LINKS) {
+      await expect(panel.getByRole("link", { name: label, exact: true })).toHaveCount(0);
+    }
+    for (const otherLink of ALL_OPS_LINKS) {
+      if (ownLinks.includes(otherLink)) continue;
+      await expect(panel.getByRole("link", { name: otherLink, exact: true })).toHaveCount(0);
+    }
+    if (!ownLinks.includes("Support")) {
+      await expect(panel.getByRole("link", { name: /^Support/ })).toHaveCount(0);
+    }
+  });
+}
 
 test("health check reports a connected database", async ({ request }) => {
   const response = await request.get("/api/health");

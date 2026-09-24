@@ -4,7 +4,7 @@ import { dateRangeClause, resolveGroupBy, timeBucketExpression, type DateRange, 
 export const PASS_STATUSES = ["Available", "Assigned", "Used", "Forfeited", "Revoked"] as const;
 export type PassStatus = (typeof PASS_STATUSES)[number];
 
-export const PASS_ORIGINS = ["legacy", "stripe", "batch", "admin_grant"] as const;
+export const PASS_ORIGINS = ["legacy", "stripe", "batch", "admin_grant", "volunteer_grant"] as const;
 export type PassOrigin = (typeof PASS_ORIGINS)[number];
 
 export const COST_BASIS_SOURCES = ["Exact", "Estimated"] as const;
@@ -64,6 +64,7 @@ const ORIGIN_EXPRESSION = `
     WHEN t.gateway_ref_id LIKE 'legacy-%' THEN 'legacy'
     WHEN p.batch_id IS NOT NULL THEN 'batch'
     WHEN p.transaction_id IS NOT NULL THEN 'stripe'
+    WHEN p.is_volunteer_grant THEN 'volunteer_grant'
     ELSE 'admin_grant'
   END
 `.trim();

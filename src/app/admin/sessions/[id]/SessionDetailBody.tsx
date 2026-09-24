@@ -11,6 +11,7 @@ import {
 import { SessionDetailsEditForm } from "./SessionDetailsEditForm";
 import type { HostCandidate } from "@/lib/sessions/host";
 import { ORG_TIMEZONE } from "@/lib/org";
+import { formatOrgDateTimeLocal } from "@/lib/timezone";
 import { memberLabel } from "@/lib/users/memberLabel";
 
 /**
@@ -38,6 +39,7 @@ export function SessionDetailBody({
   const isRecurring = session.recurrence_rule_id !== null;
   const isSeries = session.series_id !== null;
   const isCanceled = session.status === "Canceled";
+  const isPast = new Date(session.start_time) < new Date();
 
   return (
     <>
@@ -86,10 +88,18 @@ export function SessionDetailBody({
       {!isCanceled && (
         <>
           <h2>Edit this occurrence</h2>
+          {isPast && (
+            <p role="alert">
+              This session already happened — changes here are a retroactive correction to historical
+              records, not a live scheduling change.
+            </p>
+          )}
           <SessionDetailsEditForm
             sessionId={session.id}
             sessionType={session.session_type}
             description={session.description ?? ""}
+            startTime={formatOrgDateTimeLocal(new Date(session.start_time))}
+            endTime={formatOrgDateTimeLocal(new Date(session.end_time))}
             maxCapacity={session.max_capacity}
             hostUsername={session.host_username ?? ""}
             hostCandidates={hostCandidates}

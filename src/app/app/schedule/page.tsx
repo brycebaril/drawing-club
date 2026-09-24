@@ -12,8 +12,11 @@ import { ScheduleAgenda } from "./ScheduleAgenda";
 import { Legend } from "./Legend";
 import { Modal } from "./Modal";
 import { SiteNav } from "@/components/SiteNav";
-import { formatOpensDate, formatWeekRange, type GridCellData } from "./scheduleTypes";
+import { cellHref, formatFullDateTime, formatOpensDate, formatWeekRange, sessionTypeInfo, type GridCellData } from "./scheduleTypes";
+import { NextSessionCallout } from "./NextSessionCallout";
+import { displayModelNames } from "@/lib/models/modelName";
 import { memberLabel } from "@/lib/users/memberLabel";
+import { getAvailableTicketCount } from "@/lib/payments/passes";
 
 const WEEK_LENGTH_DAYS = 7;
 
@@ -31,6 +34,7 @@ interface SessionRow {
   model_required: boolean;
   has_model: boolean;
   model_names: string | null;
+  is_ticketed: boolean;
 }
 
 export default async function SchedulePage({
@@ -45,6 +49,9 @@ export default async function SchedulePage({
   // computation that depends on a viewer identity accounts for that.
   const session = await auth();
   const ctx = session?.user?.id ? await getUserAuthContext(session.user.id) : null;
+  // Only queried for a logged-in viewer — a guest already sees the
+  // "Log in to book a session" prompt below and has no wallet to check.
+  const ticketCount = ctx ? await getAvailableTicketCount(ctx.id) : null;
 
   const {
     session_id: selectedId,
@@ -78,7 +85,7 @@ export default async function SchedulePage({
 
   const sessionsResult = await pool.query<SessionRow>(
     `SELECT s.id, s.session_type, s.description, s.start_time, s.end_time, s.max_capacity,
-            u.username AS host_username, u.display_name AS host_display_name, s.series_id, s.model_required,
+            u.username AS host_username, u.display_name AS host_display_name, s.series_id, s.model_required, s.is_ticketed,
             EXISTS(SELECT 1 FROM session_model_mapping smm WHERE smm.session_id = s.id) AS has_model,
             mn.model_names,
             COALESCE(bc.booked_count, 0)::int AS booked_count
@@ -111,7 +118,7 @@ export default async function SchedulePage({
   if (selectedId && !selectedSession) {
     const singleResult = await pool.query<SessionRow>(
       `SELECT s.id, s.session_type, s.description, s.start_time, s.end_time, s.max_capacity,
-              u.username AS host_username, u.display_name AS host_display_name, s.series_id, s.model_required,
+              u.username AS host_username, u.display_name AS host_display_name, s.series_id, s.model_required, s.is_ticketed,
               EXISTS(SELECT 1 FROM session_model_mapping smm WHERE smm.session_id = s.id) AS has_model,
               mn.model_names,
               COALESCE(bc.booked_count, 0)::int AS booked_count
@@ -164,7 +171,7 @@ export default async function SchedulePage({
   const viewerWindowDays = viewerBookingWindowDays(viewerRoles, accountDays, memberDays);
   function statusFor(s: SessionRow) {
     return computeSessionStatus({
-      session: { startTime: new Date(s.start_time), maxCapacity: s.max_capacity },
+      session: { startTime: new Date(s.start_time), maxCapacity: s.max_capacity, isTicketed: s.is_ticketed },
       roles: viewerRoles,
       bookedCount: s.booked_count,
       viewerHasBooking: bookedSessionIds.has(s.id),
@@ -174,6 +181,15 @@ export default async function SchedulePage({
       bookingWindowMemberDays: memberDays,
     });
   }
+
+  // First-time guidance: the earliest bookable session on the *default*
+  // view only (week 0) — `sessions` is already ordered by start_time ASC.
+  // Only meaningful on the page's true landing view; paging away drops it
+  // rather than re-anchoring to whatever's bookable in that later week,
+  // since the hint is meant to orient a first-time visitor, not track
+  // wherever they've navigated to.
+  const nextBookableSession =
+    weekOffset === 0 ? sessions.find((s) => s.is_ticketed && statusFor(s) === "Available") : undefined;
 
   const grid = new Map<string, GridCellData>(); // key: `${dayIdx}:${slot}` -> first session in that cell
   for (const s of sessions) {
@@ -191,9 +207,10 @@ export default async function SchedulePage({
         hostUsername: s.host_username,
         hostDisplayName: s.host_display_name,
         modelRequired: s.model_required,
-        modelNames: s.model_names,
+        modelNames: displayModelNames(s.model_names),
         bookedCount: s.booked_count,
         maxCapacity: s.max_capacity,
+        isTicketed: s.is_ticketed,
       }); // one session per cell for this phase (no overlap handling yet)
     }
   }
@@ -218,8 +235,35 @@ export default async function SchedulePage({
   return (
     <>
       <SiteNav />
-      <main className="main--wide">
+      <main>
+        {/* Every section below (heading, ticket callout, week nav, the grid,
+            the legend) used to manage its own width independently — the
+            grid centered itself narrowly while the heading and legend
+            stretched to main--wide's full bleed, leaving the page looking
+            like three unrelated widths stacked on top of each other. One
+            shared, centered max-width for the whole content column fixes
+            that — 900px comfortably fits the grid's own ~838px natural
+            width (7×92px cells + the 100px rail + gaps) with a little
+            breathing room, and everything else now shares its exact
+            left/right edges instead of each picking its own. Now that
+            `<main>` itself is the plain boxed default (960px, same as
+            About/Pricing/Dashboard) rather than `main--wide`, this wrapper
+            is mostly redundant — `main`'s own 2×var(--space-6) padding
+            already leaves ~896px of inner content width, just under this
+            900px cap — but harmless to keep rather than restructure further
+            than asked. */}
+        <div className="mx-auto max-w-[900px]">
         <h1>Schedule</h1>
+        {ticketCount === 0 && (
+          <div className="stat-callout">
+            <p className="stat-callout-count">
+              0<span>tickets available</span>
+            </p>
+            <a href="/app/wallet" className="button-link">
+              Buy your first ticket
+            </a>
+          </div>
+        )}
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
             <h2 style={{ marginTop: 0, marginBottom: 0 }}>{formatWeekRange(viewStart, viewEnd)}</h2>
@@ -272,6 +316,16 @@ export default async function SchedulePage({
           </div>
         </div>
 
+        <p className="mb-4 text-sm text-ink-soft">Click an open session below to view details and book it.</p>
+
+        {nextBookableSession && (
+          <NextSessionCallout
+            href={cellHref(nextBookableSession.id, weekOffset)}
+            label={sessionTypeInfo(nextBookableSession.session_type).label}
+            whenText={formatFullDateTime(new Date(nextBookableSession.start_time))}
+          />
+        )}
+
         {/* Design Philosophy.dc.html §06: the grid doesn't survive a phone —
             below the breakpoint an agenda list replaces it. Both render
             server-side; only a CSS breakpoint decides which is visible, so
@@ -285,15 +339,21 @@ export default async function SchedulePage({
 
             960px, not the doc's own stated 824px: that figure is ScheduleGrid's
             raw content width (7×92px cells + the 100px rail + gaps), but the
-            breakpoint has to compare against the full viewport — which also
-            has to fit main.main--wide's own horizontal margins
-            (2×var(--space-5) = 48px) and a scrollbar (~15-17px) around that
-            content. Using 824px directly left a real dead zone (roughly
-            824-890px) where the grid rendered instead of the agenda but still
-            needed its own horizontal scroll to fit — confirmed by computing
-            ScheduleGrid's actual rendered width (~838px, close to but not
-            exactly the doc's figure) plus that overhead (≈903px minimum),
-            then rounding up for safety margin. */}
+            breakpoint has to compare against the full viewport — which
+            originally also had to fit `main.main--wide`'s own horizontal
+            margins and a scrollbar around that content, before `<main>`
+            switched to the plain boxed default below. That default caps out
+            at 960px total width with 2×var(--space-6) padding, so at the
+            960px breakpoint itself the inner content area is a fixed ~896px
+            regardless of how much wider the viewport gets — comfortably
+            above the grid's ~838px need, so the same 960px value still
+            works and didn't need recalculating. Using 824px directly
+            originally left a real dead zone (roughly 824-890px) where the
+            grid rendered instead of the agenda but still needed its own
+            horizontal scroll to fit — confirmed by computing ScheduleGrid's
+            actual rendered width (~838px, close to but not exactly the
+            doc's figure) plus that overhead, then rounding up for safety
+            margin. */}
         <div id="schedule-grid-view" className="hidden min-[960px]:block">
           <ScheduleGrid days={days} grid={grid} windowDays={viewerWindowDays} weekOffset={weekOffset} />
         </div>
@@ -301,6 +361,7 @@ export default async function SchedulePage({
           <ScheduleAgenda days={days} grid={grid} windowDays={viewerWindowDays} weekOffset={weekOffset} />
         </div>
         <Legend />
+        </div>
 
         {selectedSession && (
           <Modal>
@@ -315,7 +376,7 @@ export default async function SchedulePage({
               />
             ) : (
               <SessionDetailsPanel
-                session={selectedSession}
+                session={{ ...selectedSession, model_names: displayModelNames(selectedSession.model_names) }}
                 status={statusFor(selectedSession)}
                 needsModel={selectedSession.model_required && !selectedSession.has_model}
                 bookingError={bookingError}

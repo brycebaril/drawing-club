@@ -77,3 +77,165 @@ test("two sessions landing in the same day+slot cell show a collision indicator 
   await expect(cell).toContainText("+1");
   await expect(cell).toHaveAccessibleName(/1 more session\(s\) also scheduled in this slot/);
 });
+
+test("the All sessions table defaults to current-to-old order and flags a past session's edit link as retroactive", async ({
+  page,
+}) => {
+  // Local/CI dev DBs can carry a lot of real historical + generated future
+  // session data (thousands of rows) — a session dated merely "10 days out"
+  // isn't guaranteed to land on page 1, so this uses a date far enough in
+  // the future that nothing else could plausibly rank ahead of it (no
+  // rollforward horizon in this app reaches anywhere near this far), making
+  // the "default sort is descending" check robust regardless of how much
+  // other data exists.
+  const future = `all-sessions-future-${Date.now()}`;
+  const futureRow = await pool.query<{ id: string }>(
+    `INSERT INTO sessions (session_type, description, start_time, end_time, max_capacity, is_ticketed)
+     VALUES ('R', $1, now() + interval '5 years', now() + interval '5 years' + interval '3 hours', 5, true)
+     RETURNING id`,
+    [future],
+  );
+
+  const admin = await createTestUser({ username: `e2eallsessions${Date.now()}`, baseRole: "Admin" });
+  await loginAsUser(page, admin);
+  // page=1 explicitly, since with no page param at all the table now
+  // defaults to the page containing "now" (mirrors /app/schedule's own
+  // default view) rather than page 1 — this test wants pure sort order,
+  // not that separate default-landing-page behavior.
+  await page.goto("/admin/sessions?sort=start&page=1");
+
+  // Descending default: the single most-future session in the whole table
+  // (this one) must be the very first data row. Scoped to the "All
+  // sessions" table specifically (identified by its "Booked / Capacity"
+  // header) — the admin calendar grid above it on the same page is *also*
+  // laid out as a <table>, so a bare "table tbody tr" locator matches that
+  // one instead. Checked via the row's own "Manage" link target (its
+  // description text isn't part of the table's visible output at all).
+  const allSessionsTable = page.locator("table").filter({ has: page.getByText("Booked / Capacity") });
+  const firstRowManageLink = allSessionsTable.locator("tbody tr").first().getByRole("link", { name: "Manage" });
+  await expect(firstRowManageLink).toHaveAttribute("href", `/admin/sessions/${futureRow.rows[0].id}`);
+
+  // Past-session labeling/warning: use real existing historical data
+  // (this dev DB already has plenty from the legacy migration) rather than
+  // inserting + hunting for a specific page — go straight to its detail
+  // page by id.
+  const pastSession = await pool.query<{ id: string }>(
+    `SELECT id FROM sessions WHERE status = 'Scheduled' AND start_time < now() ORDER BY start_time DESC LIMIT 1`,
+  );
+  expect(pastSession.rowCount).toBe(1);
+  await page.goto(`/admin/sessions/${pastSession.rows[0].id}`);
+  await expect(page.getByText("This session already happened")).toBeVisible();
+
+  await page.goto(`/admin/sessions/${futureRow.rows[0].id}`);
+  await expect(page.getByText("This session already happened")).toHaveCount(0);
+});
+
+test("the All sessions table's default (no page param) landing is anchored near today, not the extreme edge of the sort order", async ({
+  page,
+}) => {
+  // Deliberately doesn't insert its own competing far-future marker (the
+  // "defaults to current-to-old order" test above already owns that
+  // pattern for its own assertion) — two independent far-future rows
+  // inserted by tests running in the same parallel worker batch would race
+  // on which one actually ranks furthest out, breaking whichever test loses
+  // that race (this bit us for real while developing this test, even with
+  // a "10 years vs. 5 years" offset split meant to avoid it: this test's
+  // temporary row still briefly outranked the other test's while both were
+  // mid-flight in the same run). Instead, ask the DB directly for whatever
+  // its own actual current furthest-future row is, and confirm that one —
+  // whoever it belongs to — isn't visible on the default landing page.
+  const globalMax = await pool.query<{ id: string }>(
+    `SELECT id FROM sessions WHERE status = 'Scheduled' ORDER BY start_time DESC, id ASC LIMIT 1`,
+  );
+  expect(globalMax.rowCount).toBe(1);
+
+  // Near enough to "now" that it should reliably fall on whatever page the
+  // anchor logic lands on — real session slots are hour-blocks (SLOT_TIMES),
+  // so an arbitrary +10-minute mark is very unlikely to collide with other
+  // scheduled data sitting even closer to "now". This one doesn't compete
+  // with anything else for "most future," so no other test can race it.
+  const near = `all-sessions-anchor-near-${Date.now()}`;
+  const nearRow = await pool.query<{ id: string }>(
+    `INSERT INTO sessions (session_type, description, start_time, end_time, max_capacity, is_ticketed)
+     VALUES ('R', $1, now() + interval '10 minutes', now() + interval '3 hours 10 minutes', 5, true)
+     RETURNING id`,
+    [near],
+  );
+
+  try {
+    const admin = await createTestUser({ username: `e2eallsessionsanchor${Date.now()}`, baseRole: "Admin" });
+    await loginAsUser(page, admin);
+    // True default landing: no sort or page params at all.
+    await page.goto("/admin/sessions");
+
+    const allSessionsTable = page.locator("table").filter({ has: page.getByText("Booked / Capacity") });
+    // Whatever the table's actual most-future row is, it isn't visible on
+    // this default landing page — confirms we're not sitting at page 1's
+    // extreme future edge. (The rollforward horizon is 90 days and the dev
+    // DB carries thousands of rows, so the true global max is guaranteed to
+    // be many pages away from "today" — this doesn't depend on any test
+    // ever having inserted a far-future row at all.)
+    await expect(allSessionsTable.locator(`a[href="/admin/sessions/${globalMax.rows[0].id}"]`)).toHaveCount(0);
+    // And the near-"now" row is actually visible without paging anywhere —
+    // confirms the landing page is anchored near today, not just "not page 1".
+    // .first(): this row has no host/model assigned, so its "Open — needs a
+    // host", "Needs a model", and "Manage" cells are three separate links all
+    // pointing at the same session id — any one of them proves the row is
+    // present.
+    await expect(allSessionsTable.locator(`a[href="/admin/sessions/${nearRow.rows[0].id}"]`).first()).toBeVisible();
+  } finally {
+    await pool.query(`DELETE FROM sessions WHERE id = $1`, [nearRow.rows[0].id]);
+  }
+});
+
+test("editing a session's type via the single-session instance editor recomputes model_required", async ({
+  page,
+}) => {
+  // Regression test: updateSessionDetailsAction updated session_type but
+  // never touched model_required, so editing a Regular session into a
+  // Party (or vice versa) left the flag stuck at whatever it was set to at
+  // creation time.
+  const startTime = new Date(Date.now() + 80 * 60 * 60 * 1000);
+  const sessionResult = await pool.query<{ id: string }>(
+    `INSERT INTO sessions (session_type, description, start_time, end_time, max_capacity, is_ticketed, model_required)
+     VALUES ('R', $1, $2, $3, 10, true, true) RETURNING id`,
+    [`edit-type-test-${Date.now()}`, startTime, new Date(startTime.getTime() + 3 * 60 * 60 * 1000)],
+  );
+  const sessionId = sessionResult.rows[0].id;
+
+  const admin = await createTestUser({ username: `e2eedittype${Date.now()}`, baseRole: "Admin" });
+  await loginAsUser(page, admin);
+  await page.goto(`/admin/sessions/${sessionId}`);
+
+  // No waitForURL after either submit — start URL and redirect target are
+  // the same (/admin/sessions/{id}), the exact "resolves immediately
+  // without waiting for the mutation to actually commit" trap this
+  // codebase has hit and fixed before (cms.spec.ts). Poll the DB directly
+  // instead.
+  await page.getByLabel("Type").selectOption("Party");
+  await page.getByRole("button", { name: "Save changes" }).click();
+
+  await expect(async () => {
+    const row = await pool.query<{ model_required: boolean }>(
+      `SELECT model_required FROM sessions WHERE id = $1`,
+      [sessionId],
+    );
+    expect(row.rows[0].model_required).toBe(false);
+  }).toPass({ timeout: 5000 });
+
+  // And back the other way — editing a Party session into a real drawing
+  // type must flip model_required back to true, not leave it false. Reload
+  // first so the form's own defaultValue reflects the just-saved "Party"
+  // state rather than whatever the browser cached from before this edit.
+  await page.reload();
+  await page.getByLabel("Type").selectOption("R");
+  await page.getByRole("button", { name: "Save changes" }).click();
+
+  await expect(async () => {
+    const row = await pool.query<{ model_required: boolean }>(
+      `SELECT model_required FROM sessions WHERE id = $1`,
+      [sessionId],
+    );
+    expect(row.rows[0].model_required).toBe(true);
+  }).toPass({ timeout: 5000 });
+});

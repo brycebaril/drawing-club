@@ -18,7 +18,7 @@ export function ScheduleGrid({
   weekOffset: number;
 }) {
   return (
-    <div className="rounded-lg border border-line bg-panel shadow-sm">
+    <div className="mx-auto w-max max-w-full rounded-lg border border-line bg-panel shadow-sm">
       <div className="schedule-scroll overflow-x-auto p-5">
         <div className="w-max">
           <div className="mb-2 ml-[104px] flex gap-1.5">

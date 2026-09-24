@@ -12,7 +12,9 @@ export function LogoutForm() {
         await signOut({ redirectTo: "/" });
       }}
     >
-      <button type="submit">Log out</button>
+      <button type="submit" className="plain-button">
+        Log out
+      </button>
     </form>
   );
 }

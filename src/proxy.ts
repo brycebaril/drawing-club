@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { getUserAuthContext } from "@/lib/auth/roles";
 import { isAllowed } from "@/lib/auth/rbac";
+import { staticOnlyRedirectFor } from "@/lib/launchMode";
 
 // Next.js Proxy (the current name for the former "middleware" convention,
 // see node_modules/next/dist/docs/.../proxy.md) defaults to the Node.js
@@ -12,6 +13,18 @@ import { isAllowed } from "@/lib/auth/rbac";
 // (docs/SecurityDocument.md §2).
 export default auth(async (req) => {
   const { pathname } = req.nextUrl;
+
+  // Static-only launch mode (src/lib/launchMode.ts): checked first,
+  // pathname-only, before any DB round trip — a temporary deployment-state
+  // gate closing member-facing routes regardless of role, separate from
+  // the permanent RBAC matrix below. Also closes the Server Actions
+  // defined on these same pages, since Proxy's matcher doesn't exclude
+  // them (see node_modules/next/dist/docs/.../proxy.md's execution order).
+  const gateRedirect = staticOnlyRedirectFor(pathname);
+  if (gateRedirect) {
+    return NextResponse.redirect(new URL(gateRedirect, req.url));
+  }
+
   const userId = req.auth?.user?.id;
 
   const ctx = userId ? await getUserAuthContext(userId) : null;
@@ -33,7 +46,15 @@ export default auth(async (req) => {
   }
 
   if (isAllowed(pathname, roles)) {
-    return NextResponse.next();
+    // Exposes the current path to Server Components via headers() (next/headers)
+    // — used by getPendingNotifications' host-CTA check to suppress itself on
+    // that specific session's own check-in page. Must be set on the
+    // *request* headers passed through (not response.headers.set, which only
+    // reaches the browser) — that's what makes it visible to headers() in a
+    // downstream Server Component render.
+    const requestHeaders = new Headers(req.headers);
+    requestHeaders.set("x-pathname", pathname);
+    return NextResponse.next({ request: { headers: requestHeaders } });
   }
 
   if (roles === null) {
@@ -50,7 +71,12 @@ export default auth(async (req) => {
 
 // API routes are excluded entirely: they need their own auth handling (e.g.
 // a 401 JSON response or a bearer-token check per ArchitectureDocument.md
-// §9), not a redirect to an HTML login page.
+// §9), not a redirect to an HTML login page. /photos is also excluded: it's
+// raw static files under public/ (the studio photography), not an app
+// route with an rbac.ts entry — without this exclusion every request for
+// one (including on fully public pages like the homepage) was being
+// redirected to /auth/login, since Proxy's matcher doesn't auto-exclude
+// public/-rooted static assets the way it does _next/static.
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon\\.ico|api/).*)"],
+  matcher: ["/((?!_next/static|_next/image|favicon\\.ico|api/|photos/).*)"],
 };

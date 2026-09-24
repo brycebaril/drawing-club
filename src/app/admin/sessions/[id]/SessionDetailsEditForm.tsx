@@ -12,6 +12,8 @@ export function SessionDetailsEditForm({
   sessionId,
   sessionType,
   description,
+  startTime,
+  endTime,
   maxCapacity,
   hostUsername,
   hostCandidates,
@@ -19,6 +21,8 @@ export function SessionDetailsEditForm({
   sessionId: string;
   sessionType: string;
   description: string;
+  startTime: string;
+  endTime: string;
   maxCapacity: number;
   hostUsername: string;
   hostCandidates: HostCandidate[];
@@ -37,6 +41,14 @@ export function SessionDetailsEditForm({
             </option>
           ))}
         </select>
+      </div>
+      <div>
+        <label htmlFor="sde-startTime">Start time</label>
+        <input id="sde-startTime" name="startTime" type="datetime-local" defaultValue={startTime} required />
+      </div>
+      <div>
+        <label htmlFor="sde-endTime">End time</label>
+        <input id="sde-endTime" name="endTime" type="datetime-local" defaultValue={endTime} required />
       </div>
       <div>
         <label htmlFor="sde-description">Description</label>

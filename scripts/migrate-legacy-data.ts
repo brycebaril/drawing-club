@@ -50,7 +50,27 @@ const RESET_TABLES = [
   // Deleted after sessions (which reference it) but before users (which it
   // references via created_by/default_host_user_id) — see createRegularSchedule.
   "recurrence_rules",
+  // Not written by any migrate* function either (like session_model_mapping
+  // above) — real payout reports generated locally via `pnpm
+  // generate-payouts` reference models RESTRICT, which blocked a --reset
+  // rehearsal outright on any DB that had ever run that script. Found by
+  // actually running --reset against a local dev DB with real payout
+  // history on it, not a theoretical gap.
+  "model_payout_reports",
   "models",
+  // None of these three are written by any migrate* function either, and
+  // none are reachable via another table's CASCADE already in this list —
+  // support_tickets/uploaded_files have no FK to sessions/models at all, so
+  // nothing here removes them as a side effect. Each references
+  // users.*_user_id/created_by/uploaded_by RESTRICT, so real local usage of
+  // /admin/passes, /app/support, or /ops/cms/uploads before a --reset
+  // rehearsal blocked it the same way model_payout_reports did above — found
+  // the same way, by actually running --reset against a local dev DB with
+  // real rows in each. support_ticket_messages isn't listed separately: it
+  // CASCADEs from support_tickets.
+  "pass_batches",
+  "support_tickets",
+  "uploaded_files",
   "users",
 ] as const;
 
