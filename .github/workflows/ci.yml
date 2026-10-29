@@ -51,14 +51,14 @@ jobs:
         with:
           node-version-file: .nvmrc
           # check-latest: without this, setup-node silently reuses whatever
-          # Node 22 patch happens to be pre-cached on the runner image,
-          # which can carry stale bundled ICU/tzdata. Found for real: a
-          # cached patch's Intl didn't know about the Nov 1, 2026
-          # America/Vancouver DST transition at all (treated it as
-          # perpetually PDT), producing two grid dates that both formatted
-          # to the same calendar day. amplify.yml's own prod install
-          # already documents wanting "the newest patch on every build"
-          # for the same reason (security fixes); this makes CI match that.
+          # patch of .nvmrc's major happens to be pre-cached on the runner
+          # image, rather than the actual latest. amplify.yml's own prod
+          # install already documents wanting "the newest patch on every
+          # build" (security fixes); this makes CI match that. Kept even
+          # after the real cause of the Nov 1 2026 DST-transition bug
+          # turned out to be Node 22's own bundled ICU, not patch staleness
+          # (fixed by bumping .nvmrc to 24, which has correct ICU data for
+          # this) -- still good practice for picking up patch releases.
           check-latest: true
           cache: pnpm
 
