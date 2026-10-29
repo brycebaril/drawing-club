@@ -64,14 +64,23 @@ jobs:
 
       - name: TEMP diagnostic - ICU/timezone data on this runner
         run: |
+          date -u
+          date
+          cat /etc/timezone 2>&1 || true
+          ls -la /usr/share/zoneinfo/America/Vancouver 2>&1 || true
+          zdump -v America/Vancouver 2>&1 | grep 2026 || true
           node -e "
             console.log('node', process.version, 'icu', process.versions.icu);
             console.log('TZ env', process.env.TZ);
-            console.log('resolvedOptions', JSON.stringify(new Intl.DateTimeFormat('en-US', { timeZone: 'America/Vancouver' }).resolvedOptions()));
-            const a = new Date('2026-11-01T12:00:00.000Z');
-            const b = new Date('2026-11-02T12:00:00.000Z');
-            console.log('Nov1 12:00Z in Vancouver:', a.toLocaleString('en-US', { timeZone: 'America/Vancouver' }));
-            console.log('Nov2 12:00Z in Vancouver:', b.toLocaleString('en-US', { timeZone: 'America/Vancouver' }));
+            // Straddle the real transition instant (Nov 1 09:00 UTC = 2am Pacific):
+            // one hour before it, one hour after.
+            const before = new Date('2026-11-01T08:00:00.000Z');
+            const after = new Date('2026-11-01T10:00:00.000Z');
+            console.log('08:00Z (should be PDT, 1am):', before.toLocaleString('en-US', { timeZone: 'America/Vancouver' }));
+            console.log('10:00Z (should be PST, 2am):', after.toLocaleString('en-US', { timeZone: 'America/Vancouver' }));
+            // Same check one week later, in case the transition is just offset.
+            const laterBefore = new Date('2026-11-08T08:00:00.000Z');
+            console.log('Nov8 08:00Z (should be PST, midnight):', laterBefore.toLocaleString('en-US', { timeZone: 'America/Vancouver' }));
           "
 
       - name: Install dependencies
