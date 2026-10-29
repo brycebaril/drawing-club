@@ -115,15 +115,20 @@ test("the All sessions table defaults to current-to-old order and flags a past s
   const firstRowManageLink = allSessionsTable.locator("tbody tr").first().getByRole("link", { name: "Manage" });
   await expect(firstRowManageLink).toHaveAttribute("href", `/admin/sessions/${futureRow.rows[0].id}`);
 
-  // Past-session labeling/warning: use real existing historical data
-  // (this dev DB already has plenty from the legacy migration) rather than
-  // inserting + hunting for a specific page — go straight to its detail
-  // page by id.
-  const pastSession = await pool.query<{ id: string }>(
-    `SELECT id FROM sessions WHERE status = 'Scheduled' AND start_time < now() ORDER BY start_time DESC LIMIT 1`,
+  // Past-session labeling/warning: previously relied on the dev DB already
+  // holding real historical data from the legacy migration — true on a
+  // local dev DB, but CI's own DB only ever runs the plain seed script
+  // (never the separate legacy-migration script), so this query came back
+  // empty there. Insert a controlled past session instead, same pattern as
+  // futureRow above.
+  const past = `all-sessions-past-${Date.now()}`;
+  const pastRow = await pool.query<{ id: string }>(
+    `INSERT INTO sessions (session_type, description, start_time, end_time, max_capacity, is_ticketed)
+     VALUES ('R', $1, now() - interval '5 years', now() - interval '5 years' + interval '3 hours', 5, true)
+     RETURNING id`,
+    [past],
   );
-  expect(pastSession.rowCount).toBe(1);
-  await page.goto(`/admin/sessions/${pastSession.rows[0].id}`);
+  await page.goto(`/admin/sessions/${pastRow.rows[0].id}`);
   await expect(page.getByText("This session already happened")).toBeVisible();
 
   await page.goto(`/admin/sessions/${futureRow.rows[0].id}`);

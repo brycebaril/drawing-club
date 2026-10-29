@@ -96,6 +96,31 @@ export function orgStartOfDay(instant: Date): Date {
   return zonedWallTimeToInstant(p.year, p.month, p.day);
 }
 
+/**
+ * Adds `days` ORG_TIMEZONE calendar days to an instant — NOT
+ * `instant.getTime() + days * 86400000`, which drifts by an hour across a
+ * DST transition (ORG_TIMEZONE's fall-back day is 25 real hours, its
+ * spring-forward day 23) and silently produces a duplicate or skipped
+ * calendar day. Found for real in admin/sessions/page.tsx's grid, whose
+ * ms-arithmetic day-stepping rendered Nov 1, 2026 (the US fall-back date)
+ * twice in the same 28-day window.
+ */
+export function orgAddDays(instant: Date, days: number): Date {
+  const p = orgDateParts(instant);
+  // Date.UTC normalizes an out-of-range day (e.g. day 32) into the next
+  // month correctly — reused here as plain calendar-day arithmetic, then
+  // re-anchored to a real ORG_TIMEZONE instant via zonedWallTimeToInstant.
+  const normalized = new Date(Date.UTC(p.year, p.month - 1, p.day + days, p.hour, p.minute, p.second));
+  return zonedWallTimeToInstant(
+    normalized.getUTCFullYear(),
+    normalized.getUTCMonth() + 1,
+    normalized.getUTCDate(),
+    normalized.getUTCHours(),
+    normalized.getUTCMinutes(),
+    normalized.getUTCSeconds(),
+  );
+}
+
 /** ORG_TIMEZONE calendar-day difference between two instants' own ORG_TIMEZONE days (floor). */
 export function orgDayIndex(gridStart: Date, instant: Date): number {
   const msPerDay = 24 * 60 * 60 * 1000;

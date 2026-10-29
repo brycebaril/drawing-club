@@ -1,14 +1,16 @@
 import { expect, test } from "@playwright/test";
 import { createTestUser, loginAsUser, pool } from "./helpers";
-import { toDateOnly } from "@/lib/sessions/shared";
+import { toDateOnly, startOfDay, addDays } from "@/lib/sessions/shared";
+import { orgDateParts, combineOrgDateAndTime } from "@/lib/timezone";
 
+// Built on ORG_TIMEZONE helpers, not native Date getters/setters (which
+// reason in the *process's* own local timezone) — those passed on a
+// Pacific-timezone dev machine but computed the wrong week/session time on
+// CI's UTC runner, a real failure found for real, same bug class as every
+// other ambient-local-timezone bug this codebase has already hit.
 function mostRecentCompletedWeekStart(now: Date): Date {
-  const mostRecentSunday = new Date(now);
-  mostRecentSunday.setHours(0, 0, 0, 0);
-  mostRecentSunday.setDate(mostRecentSunday.getDate() - mostRecentSunday.getDay());
-  const weekStart = new Date(mostRecentSunday);
-  weekStart.setDate(weekStart.getDate() - 6);
-  return weekStart;
+  const mostRecentSunday = addDays(startOfDay(now), -orgDateParts(now).weekday);
+  return addDays(mostRecentSunday, -6);
 }
 
 test("Controller generates a payout report, downloads its CSV, and regenerating is idempotent", async ({
@@ -27,9 +29,7 @@ test("Controller generates a payout report, downloads its CSV, and regenerating 
   const modelId = modelResult.rows[0].id;
 
   const weekStart = mostRecentCompletedWeekStart(new Date());
-  const sessionStart = new Date(weekStart);
-  sessionStart.setDate(sessionStart.getDate() + 2); // Wednesday of that week
-  sessionStart.setHours(18, 0, 0, 0);
+  const sessionStart = combineOrgDateAndTime(addDays(weekStart, 2), "18:00"); // Wednesday of that week
   const sessionEnd = new Date(sessionStart.getTime() + 2 * 60 * 60 * 1000);
 
   const sessionResult = await pool.query<{ id: string }>(

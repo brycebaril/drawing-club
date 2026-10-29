@@ -1,7 +1,7 @@
 import { headers } from "next/headers";
 import { pool } from "@/lib/db/pool";
 import { getUserAuthContext } from "@/lib/auth/roles";
-import { startOfDay } from "@/lib/sessions/shared";
+import { startOfDay, addDays } from "@/lib/sessions/shared";
 import { ORG_TIMEZONE } from "@/lib/org";
 
 export interface PendingNotification {
@@ -25,7 +25,7 @@ export async function getPendingNotifications(userId: string): Promise<PendingNo
   // still pushed in a fixed order below so the list itself stays
   // deterministic regardless of which query happens to resolve first.
   const today = startOfDay(new Date());
-  const tomorrow = new Date(today.getTime() + 24 * 60 * 60 * 1000);
+  const tomorrow = addDays(today, 1);
   const [pendingTransfersResult, ticketsNeedingReplyResult, hostingTodayResult] = await Promise.all([
     pool.query<{ count: number }>(`SELECT count(*)::int AS count FROM passes WHERE pending_recipient_id = $1`, [
       userId,

@@ -2,7 +2,7 @@ import type { Page } from "@playwright/test";
 import { Pool } from "pg";
 import { Secret, TOTP } from "otpauth";
 import { hashPassword } from "@/lib/auth/password";
-import { slotFor, startOfDay } from "@/lib/sessions/shared";
+import { slotFor, startOfDay, addDays, toDateOnly } from "@/lib/sessions/shared";
 
 // Module-level singleton shared by every spec file that imports it.
 // Deliberately never closed here or in any spec file's afterAll — Playwright
@@ -11,11 +11,6 @@ import { slotFor, startOfDay } from "@/lib/sessions/shared";
 // shares that same worker process ("Cannot use a pool after calling end on
 // the pool"). Connections close naturally when the worker process exits.
 export const pool = new Pool({ connectionString: process.env.DATABASE_URL });
-
-function toDateOnly(date: Date): string {
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
-}
 
 /**
  * Finds the smallest base day-offset (searching minBase..maxBase) whose
@@ -60,8 +55,8 @@ export async function findOpenSlotBase(
 ): Promise<number> {
   const dayStart = startOfDay(now);
   const maxOffset = Math.max(...offsets);
-  const windowStart = new Date(dayStart.getTime() + minBase * 86400000);
-  const windowEnd = new Date(dayStart.getTime() + (maxBase + maxOffset + 1) * 86400000);
+  const windowStart = addDays(dayStart, minBase);
+  const windowEnd = addDays(dayStart, maxBase + maxOffset + 1);
   const occupiedResult = await pool.query<{ start_time: Date }>(
     `SELECT start_time FROM sessions WHERE status = 'Scheduled' AND start_time >= $1 AND start_time < $2`,
     [windowStart, windowEnd],
@@ -73,7 +68,7 @@ export async function findOpenSlotBase(
   );
 
   for (let base = minBase; base <= maxBase; base++) {
-    const candidates = offsets.map((offset) => toDateOnly(new Date(now.getTime() + (base + offset) * 86400000)));
+    const candidates = offsets.map((offset) => toDateOnly(addDays(dayStart, base + offset)));
     if (candidates.every((day) => !occupiedDays.has(day))) {
       return base;
     }
@@ -115,7 +110,7 @@ export async function findOpenWeekday(
 ): Promise<number> {
   const dayStart = startOfDay(now);
   const maxWeekOffset = Math.max(...weekOffsets);
-  const windowEnd = new Date(dayStart.getTime() + (6 + maxWeekOffset + 1) * 86400000);
+  const windowEnd = addDays(dayStart, 6 + maxWeekOffset + 1);
   const occupiedResult = await pool.query<{ start_time: Date }>(
     `SELECT start_time FROM sessions WHERE status = 'Scheduled' AND start_time >= $1 AND start_time < $2`,
     [dayStart, windowEnd],
@@ -127,9 +122,7 @@ export async function findOpenWeekday(
   );
 
   for (let delta = 1; delta <= 6; delta++) {
-    const candidates = weekOffsets.map((offset) =>
-      toDateOnly(new Date(dayStart.getTime() + (delta + offset) * 86400000)),
-    );
+    const candidates = weekOffsets.map((offset) => toDateOnly(addDays(dayStart, delta + offset)));
     if (candidates.every((day) => !occupiedDays.has(day))) {
       return (now.getDay() + delta) % 7;
     }

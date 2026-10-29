@@ -4,7 +4,7 @@ import { pool } from "@/lib/db/pool";
 import { getUserAuthContext } from "@/lib/auth/roles";
 import { getSettingNumber } from "@/lib/settings";
 import { computeSessionStatus, viewerBookingWindowDays } from "@/lib/booking/sessionStatus";
-import { slotFor, startOfDay, dayIndex } from "@/lib/sessions/shared";
+import { slotFor, startOfDay, addDays, dayIndex } from "@/lib/sessions/shared";
 import { SeriesPanel } from "./SeriesPanel";
 import { SessionDetailsPanel } from "./SessionDetailsPanel";
 import { ScheduleGrid } from "./ScheduleGrid";
@@ -80,8 +80,8 @@ export default async function SchedulePage({
   const maxWeekOffset = Math.max(0, Math.ceil(memberDays / WEEK_LENGTH_DAYS) - 1);
   const rawWeek = Number(weekParam ?? "0");
   const weekOffset = Number.isFinite(rawWeek) ? Math.min(Math.max(Math.trunc(rawWeek), 0), maxWeekOffset) : 0;
-  const viewStart = new Date(today.getTime() + weekOffset * WEEK_LENGTH_DAYS * 24 * 60 * 60 * 1000);
-  const viewEnd = new Date(viewStart.getTime() + WEEK_LENGTH_DAYS * 24 * 60 * 60 * 1000);
+  const viewStart = addDays(today, weekOffset * WEEK_LENGTH_DAYS);
+  const viewEnd = addDays(viewStart, WEEK_LENGTH_DAYS);
 
   const sessionsResult = await pool.query<SessionRow>(
     `SELECT s.id, s.session_type, s.description, s.start_time, s.end_time, s.max_capacity,
@@ -215,10 +215,7 @@ export default async function SchedulePage({
     }
   }
 
-  const days = Array.from(
-    { length: WEEK_LENGTH_DAYS },
-    (_, i) => new Date(viewStart.getTime() + i * 24 * 60 * 60 * 1000),
-  );
+  const days = Array.from({ length: WEEK_LENGTH_DAYS }, (_, i) => addDays(viewStart, i));
 
   const selectedSeat = seat ? Number(seat) : null;
 
@@ -226,7 +223,7 @@ export default async function SchedulePage({
   // ADMIN's window is Infinity, and "booking open through Infinity days from
   // now" isn't a sentence.
   const bookingOpenThrough = Number.isFinite(viewerWindowDays)
-    ? formatOpensDate(new Date(today.getTime() + viewerWindowDays * 24 * 60 * 60 * 1000))
+    ? formatOpensDate(addDays(today, viewerWindowDays))
     : null;
 
   const prevWeekOffset = Math.max(0, weekOffset - 1);

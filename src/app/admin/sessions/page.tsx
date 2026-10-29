@@ -5,7 +5,7 @@ import { SortableTh } from "@/components/SortableTh";
 import { resolveSort } from "@/lib/sort";
 import { getSettingNumber } from "@/lib/settings";
 import { getSessionManagerCandidates } from "@/lib/sessions/host";
-import { slotFor, startOfDay, dayIndex, toDateOnly, parseDateOnly } from "@/lib/sessions/shared";
+import { slotFor, startOfDay, addDays, dayIndex, toDateOnly, parseDateOnly } from "@/lib/sessions/shared";
 import { SessionCalendarGrid, type OccupiedCell } from "./SessionCalendarGrid";
 import { ORG_TIMEZONE } from "@/lib/org";
 import { memberLabel } from "@/lib/users/memberLabel";
@@ -39,7 +39,6 @@ const SORT_COLUMNS = {
 // across a series' whole run; this one is for at-a-glance near-term
 // scheduling), paginated forward/back the same way.
 const GRID_WINDOW_DAYS = 28;
-const ONE_DAY_MS = 24 * 60 * 60 * 1000;
 
 // "All sessions" is for reporting/lookup across the whole history, so it
 // needs real pagination rather than a flat display cap — this is the first
@@ -88,8 +87,8 @@ export default async function AdminSessionsPage({
 
   const parsedStart = start ? parseDateOnly(start) : new Date();
   const gridStart = startOfDay(Number.isNaN(parsedStart.getTime()) ? new Date() : parsedStart);
-  const gridEnd = new Date(gridStart.getTime() + GRID_WINDOW_DAYS * ONE_DAY_MS);
-  const gridDays = Array.from({ length: GRID_WINDOW_DAYS }, (_, i) => new Date(gridStart.getTime() + i * ONE_DAY_MS));
+  const gridEnd = addDays(gridStart, GRID_WINDOW_DAYS);
+  const gridDays = Array.from({ length: GRID_WINDOW_DAYS }, (_, i) => addDays(gridStart, i));
 
   const [result, gridResult, defaultCapacity, hostCandidates] = await Promise.all([
     pool.query<SessionRow>(
@@ -168,8 +167,8 @@ export default async function AdminSessionsPage({
   }
 
   const gridNavParams = new URLSearchParams({ sort: state.key, dir: state.dir });
-  const prevStart = toDateOnly(new Date(gridStart.getTime() - GRID_WINDOW_DAYS * ONE_DAY_MS));
-  const nextStart = toDateOnly(new Date(gridStart.getTime() + GRID_WINDOW_DAYS * ONE_DAY_MS));
+  const prevStart = toDateOnly(addDays(gridStart, -GRID_WINDOW_DAYS));
+  const nextStart = toDateOnly(addDays(gridStart, GRID_WINDOW_DAYS));
   gridNavParams.set("start", prevStart);
   const prevHref = `/admin/sessions?${gridNavParams}`;
   gridNavParams.set("start", nextStart);

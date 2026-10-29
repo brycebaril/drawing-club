@@ -1,4 +1,4 @@
-import { orgDateParts, orgStartOfDay, orgDayIndex, orgDateOnly, parseOrgDateOnly } from "@/lib/timezone";
+import { orgDateParts, orgStartOfDay, orgAddDays, orgDayIndex, orgDateOnly, parseOrgDateOnly } from "@/lib/timezone";
 
 // Design Doc §3.2.
 export const SESSION_TYPES = ["L", "R", "G", "P", "S", "X", "Gallery", "Party"] as const;
@@ -66,6 +66,11 @@ export function slotFor(date: Date): Slot {
 
 export function startOfDay(date: Date): Date {
   return orgStartOfDay(date);
+}
+
+/** Adds `days` ORG_TIMEZONE calendar days — safe across a DST transition, unlike `+ days * 86400000`. */
+export function addDays(date: Date, days: number): Date {
+  return orgAddDays(date, days);
 }
 
 /**
