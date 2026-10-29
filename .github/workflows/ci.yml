@@ -50,6 +50,16 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version-file: .nvmrc
+          # check-latest: without this, setup-node silently reuses whatever
+          # Node 22 patch happens to be pre-cached on the runner image,
+          # which can carry stale bundled ICU/tzdata. Found for real: a
+          # cached patch's Intl didn't know about the Nov 1, 2026
+          # America/Vancouver DST transition at all (treated it as
+          # perpetually PDT), producing two grid dates that both formatted
+          # to the same calendar day. amplify.yml's own prod install
+          # already documents wanting "the newest patch on every build"
+          # for the same reason (security fixes); this makes CI match that.
+          check-latest: true
           cache: pnpm
 
       - name: Install dependencies

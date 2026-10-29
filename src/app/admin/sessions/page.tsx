@@ -89,16 +89,6 @@ export default async function AdminSessionsPage({
   const gridStart = startOfDay(Number.isNaN(parsedStart.getTime()) ? new Date() : parsedStart);
   const gridEnd = addDays(gridStart, GRID_WINDOW_DAYS);
   const gridDays = Array.from({ length: GRID_WINDOW_DAYS }, (_, i) => addDays(gridStart, i));
-  // TEMP DIAGNOSTIC — remove before merge. Investigating a duplicate-label
-  // report on the Nov 1, 2026 DST date that direct Node verification of
-  // addDays/toDateOnly couldn't reproduce; dumping the real computed array
-  // to the server log (captured by Playwright's webServer output in CI).
-  console.error(
-    "DIAG gridStart",
-    gridStart.toISOString(),
-    "days",
-    gridDays.map((d) => `${d.toISOString()}|${toDateOnly(d)}`),
-  );
 
   const [result, gridResult, defaultCapacity, hostCandidates] = await Promise.all([
     pool.query<SessionRow>(
