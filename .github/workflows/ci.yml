@@ -62,6 +62,18 @@ jobs:
           check-latest: true
           cache: pnpm
 
+      - name: TEMP diagnostic - ICU/timezone data on this runner
+        run: |
+          node -e "
+            console.log('node', process.version, 'icu', process.versions.icu);
+            console.log('TZ env', process.env.TZ);
+            console.log('resolvedOptions', JSON.stringify(new Intl.DateTimeFormat('en-US', { timeZone: 'America/Vancouver' }).resolvedOptions()));
+            const a = new Date('2026-11-01T12:00:00.000Z');
+            const b = new Date('2026-11-02T12:00:00.000Z');
+            console.log('Nov1 12:00Z in Vancouver:', a.toLocaleString('en-US', { timeZone: 'America/Vancouver' }));
+            console.log('Nov2 12:00Z in Vancouver:', b.toLocaleString('en-US', { timeZone: 'America/Vancouver' }));
+          "
+
       - name: Install dependencies
         # --config.node-linker=hoisted, matching amplify.yml's prod install:
         # output: "standalone" (next.config.ts) copies traced node_modules
