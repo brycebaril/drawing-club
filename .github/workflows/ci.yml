@@ -53,7 +53,14 @@ jobs:
           cache: pnpm
 
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        # --config.node-linker=hoisted, matching amplify.yml's prod install:
+        # output: "standalone" (next.config.ts) copies traced node_modules
+        # files, and pnpm's default symlinked store doesn't survive that
+        # copy (symlinks point at absolute install-machine paths) — the
+        # e2e webServer step below builds+serves the real standalone
+        # output, so it hits the exact packaging bug amplify.yml already
+        # works around for the real Amplify deploy.
+        run: pnpm install --frozen-lockfile --config.node-linker=hoisted
 
       - name: Lint
         run: pnpm lint
