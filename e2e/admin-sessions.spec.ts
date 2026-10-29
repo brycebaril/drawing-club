@@ -1,6 +1,17 @@
 import { expect, test } from "@playwright/test";
 import { createTestUser, findOpenSlotBase, loginAsUser, pool, withSlotLock } from "./helpers";
-import { parseDateOnly, SLOT_TIMES, toDateOnly } from "@/lib/sessions/shared";
+import { SLOT_TIMES, startOfDay, addDays } from "@/lib/sessions/shared";
+import { combineOrgDateAndTime } from "@/lib/timezone";
+import { ORG_TIMEZONE } from "@/lib/org";
+
+// Matches SessionCalendarGrid.tsx's own aria-label formatting exactly —
+// plain .toLocaleDateString() with no timeZone option formats in the
+// *process's* local timezone (UTC on CI), which can disagree with the
+// grid's ORG_TIMEZONE-formatted label and make this test look for a button
+// that isn't actually there under that exact string.
+function gridDateLabel(date: Date): string {
+  return date.toLocaleDateString("en-US", { timeZone: ORG_TIMEZONE });
+}
 
 test("admin creates a one-off session via the calendar grid's quick-add modal, choosing a host from the dropdown", async ({
   page,
@@ -20,8 +31,8 @@ test("admin creates a one-off session via the calendar grid's quick-add modal, c
     // GRID_WINDOW_DAYS is 28 (page.tsx) — stay well inside that window so
     // the default (unpaginated) view renders the chosen cell.
     const base = await findOpenSlotBase(now, "Morning", [0], 3, 26);
-    const targetDate = parseDateOnly(toDateOnly(new Date(now.getTime() + base * 86400000)));
-    const label = targetDate.toLocaleDateString();
+    const targetDate = addDays(startOfDay(now), base);
+    const label = gridDateLabel(targetDate);
 
     await page.goto("/admin/sessions");
     await page.getByRole("button", { name: `Add a session on ${label} (Morning)` }).click();
@@ -55,17 +66,17 @@ test("two sessions landing in the same day+slot cell show a collision indicator 
   const second = `collision-test-b-${Date.now()}`;
   const dateLabel = await withSlotLock("Afternoon", async () => {
     const base = await findOpenSlotBase(now, "Afternoon", [0], 3, 26);
-    const targetDate = parseDateOnly(toDateOnly(new Date(now.getTime() + base * 86400000)));
+    const targetDate = addDays(startOfDay(now), base);
     const times = SLOT_TIMES.Afternoon;
-    const startTime = new Date(`${toDateOnly(targetDate)}T${times.start}`);
-    const endTime = new Date(`${toDateOnly(targetDate)}T${times.end}`);
+    const startTime = combineOrgDateAndTime(targetDate, times.start);
+    const endTime = combineOrgDateAndTime(targetDate, times.end);
 
     await pool.query(
       `INSERT INTO sessions (session_type, description, start_time, end_time, max_capacity, is_ticketed)
        VALUES ('R', $1, $2, $3, 5, true), ('R', $4, $2, $3, 5, true)`,
       [first, startTime, endTime, second],
     );
-    return targetDate.toLocaleDateString();
+    return gridDateLabel(targetDate);
   });
 
   const admin = await createTestUser({ username: `e2eadminsessionscollide${Date.now()}`, baseRole: "Admin" });
