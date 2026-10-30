@@ -54,34 +54,9 @@ jobs:
           # patch of .nvmrc's major happens to be pre-cached on the runner
           # image, rather than the actual latest. amplify.yml's own prod
           # install already documents wanting "the newest patch on every
-          # build" (security fixes); this makes CI match that. Kept even
-          # after the real cause of the Nov 1 2026 DST-transition bug
-          # turned out to be Node 22's own bundled ICU, not patch staleness
-          # (fixed by bumping .nvmrc to 24, which has correct ICU data for
-          # this) -- still good practice for picking up patch releases.
+          # build" (security fixes); this makes CI match that.
           check-latest: true
           cache: pnpm
-
-      - name: TEMP diagnostic - ICU/timezone data on this runner
-        run: |
-          date -u
-          date
-          cat /etc/timezone 2>&1 || true
-          ls -la /usr/share/zoneinfo/America/Vancouver 2>&1 || true
-          zdump -v America/Vancouver 2>&1 | grep 2026 || true
-          node -e "
-            console.log('node', process.version, 'icu', process.versions.icu);
-            console.log('TZ env', process.env.TZ);
-            // Straddle the real transition instant (Nov 1 09:00 UTC = 2am Pacific):
-            // one hour before it, one hour after.
-            const before = new Date('2026-11-01T08:00:00.000Z');
-            const after = new Date('2026-11-01T10:00:00.000Z');
-            console.log('08:00Z (should be PDT, 1am):', before.toLocaleString('en-US', { timeZone: 'America/Vancouver' }));
-            console.log('10:00Z (should be PST, 2am):', after.toLocaleString('en-US', { timeZone: 'America/Vancouver' }));
-            // Same check one week later, in case the transition is just offset.
-            const laterBefore = new Date('2026-11-08T08:00:00.000Z');
-            console.log('Nov8 08:00Z (should be PST, midnight):', laterBefore.toLocaleString('en-US', { timeZone: 'America/Vancouver' }));
-          "
 
       - name: Install dependencies
         # --config.node-linker=hoisted, matching amplify.yml's prod install:

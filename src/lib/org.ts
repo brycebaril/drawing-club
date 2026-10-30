@@ -21,4 +21,13 @@ export const ORG_DBA_NAME = process.env.ORG_DBA_NAME ?? ORG_LEGAL_NAME;
 // own Pacific timezone — invisible until the app ran anywhere else for the
 // first time (staging's Amplify deploy), where sessions rendered up to 8
 // hours off, including landing on the wrong calendar day/slot entirely.
-export const ORG_TIMEZONE = process.env.ORG_TIMEZONE ?? "America/Vancouver";
+// America/Los_Angeles, not America/Vancouver: identical DST rules (same
+// Pacific Time transitions), but a far more canonical/commonly-exercised
+// IANA zone. Switched 2026-10-29 after finding a real corrupted tzdata entry
+// for America/Vancouver on a GitHub Actions runner (Nov 1 2026's fall-back
+// transition flipped `isdst` but never changed `gmtoff`, so Pacific time
+// stayed off by an hour after the transition) — confirmed via `zdump`, not
+// a Node/ICU version issue (identical on Node 22 and 24). A CI-only tzdata
+// reinstall would've masked this on GitHub Actions but left the same risk
+// live on Amplify's Lambda runtime; this fixes it everywhere at once.
+export const ORG_TIMEZONE = process.env.ORG_TIMEZONE ?? "America/Los_Angeles";
