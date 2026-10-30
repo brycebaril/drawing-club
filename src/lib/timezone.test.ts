@@ -9,10 +9,10 @@ import {
   zonedWallTimeToInstant,
 } from "./timezone";
 
-// ORG_TIMEZONE defaults to America/Los_Angeles (no override in the test
-// env) — these tests assert against that real IANA zone's actual DST
-// transition dates, not a mock. If ORG_TIMEZONE is ever overridden in the
-// test environment, these specific instants would need updating.
+// ORG_TIMEZONE defaults to America/Vancouver (no override in the test env) —
+// these tests assert against that real IANA zone's actual DST transition
+// dates, not a mock. If ORG_TIMEZONE is ever overridden in the test
+// environment, these specific instants would need updating.
 
 describe("zonedWallTimeToInstant / orgDateParts (round-trip)", () => {
   it("round-trips a winter (PST, UTC-8) wall-clock time", () => {

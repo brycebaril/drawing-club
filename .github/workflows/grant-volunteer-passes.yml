@@ -20,7 +20,7 @@ name: Grant weekly volunteer tickets
 #     public/well-known enough to hardcode safely here.
 on:
   schedule:
-    # 01:00 UTC every Monday ≈ Sunday 5-6pm Pacific (America/Los_Angeles,
+    # 01:00 UTC every Monday ≈ Sunday 5-6pm Pacific (America/Vancouver,
     # this org's ORG_TIMEZONE), matching the weekly cadence
     # scripts/grant-volunteer-passes.ts's own docstring already documents.
     # Cron doesn't shift for DST, so this drifts by an hour across the

@@ -45,6 +45,23 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Refresh tzdata
+        # Worked around a real bug, not a defensive nicety: this runner
+        # image's installed America/Los_Angeles zoneinfo (which
+        # America/Vancouver is itself just a Link/alias to — renaming
+        # ORG_TIMEZONE doesn't touch the underlying file, confirmed by
+        # identical failures either way) computed the Nov 1 2026 DST
+        # fall-back transition wrong: isdst flipped to 0 but gmtoff stayed
+        # at -25200 (should become -28800) and the abbreviation showed MST
+        # instead of PST, so every ORG_TIMEZONE-aware calculation landed an
+        # hour off for the rest of that year. A fresh tzdata install fixes
+        # the actual corrupted data at its source. The zdump line is a
+        # cheap ongoing canary if this ever recurs.
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --reinstall tzdata
+          zdump -v America/Los_Angeles | grep 2026 || true
+
       - uses: pnpm/action-setup@v4
 
       - uses: actions/setup-node@v4
