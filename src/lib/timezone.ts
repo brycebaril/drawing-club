@@ -144,6 +144,27 @@ export function parseOrgDateOnly(dateStr: string): Date {
   return zonedWallTimeToInstant(year, month, day);
 }
 
+/**
+ * Re-anchors a value read back from a Postgres `date` column (not
+ * `timestamptz`) as ORG_TIMEZONE midnight. node-pg's default parser for
+ * `date` builds that Date via the *process's own ambient-local* midnight
+ * (`new Date(year, month - 1, day)`), not UTC and not ORG_TIMEZONE —
+ * invisible on a Pacific-timezone dev machine (ambient happens to equal
+ * ORG_TIMEZONE) but wrong by a day everywhere else (Amplify's UTC Lambda,
+ * a UTC CI runner): reading it straight into `orgStartOfDay`/`orgDateParts`
+ * re-interprets an ambient-local instant through ORG_TIMEZONE, which for a
+ * UTC-ambient process rolls the date back to the *previous* calendar day
+ * every time (found for real: a recurring rule's `end_date` read back this
+ * way on CI dropped the last occurrence of a 26-day rule). Because
+ * `.getFullYear()`/`.getMonth()`/`.getDate()` read back in that same
+ * ambient zone, they always recover the original Y/M/D regardless of what
+ * the ambient zone actually is — this just re-anchors them correctly via
+ * ORG_TIMEZONE instead of trusting the pg-constructed instant directly.
+ */
+export function parsePgDateOnly(pgDate: Date): Date {
+  return zonedWallTimeToInstant(pgDate.getFullYear(), pgDate.getMonth() + 1, pgDate.getDate());
+}
+
 /** Combines an instant's ORG_TIMEZONE calendar day with a "HH:MM:SS" (or "HH:MM") time-of-day. */
 export function combineOrgDateAndTime(date: Date, timeOfDay: string): Date {
   const [hours, minutes, seconds] = timeOfDay.split(":").map(Number);

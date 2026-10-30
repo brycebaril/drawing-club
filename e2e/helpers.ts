@@ -3,6 +3,7 @@ import { Pool } from "pg";
 import { Secret, TOTP } from "otpauth";
 import { hashPassword } from "@/lib/auth/password";
 import { slotFor, startOfDay, addDays, toDateOnly } from "@/lib/sessions/shared";
+import { formatOrgDateTimeLocal } from "@/lib/timezone";
 
 // Module-level singleton shared by every spec file that imports it.
 // Deliberately never closed here or in any spec file's afterAll — Playwright
@@ -251,10 +252,15 @@ export async function loginAsUser(
 }
 
 /** Formats a Date as the local-time string a datetime-local input expects. */
-export function toDatetimeLocal(date: Date): string {
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
-}
+// A plain ambient-local (getFullYear/getHours/etc.) version of this used to
+// live here. It "worked" on a Pacific-timezone dev machine (ambient local
+// happened to equal ORG_TIMEZONE) and silently produced the wrong wall-clock
+// string on CI's UTC runner — the <input type="datetime-local"> field this
+// feeds is parsed server-side via parseOrgDateTimeLocal (ORG_TIMEZONE), so
+// a UTC-read string landed the created session on the wrong calendar
+// day/time entirely. formatOrgDateTimeLocal is the exact ORG_TIMEZONE-aware
+// counterpart already used by the app itself for this same input shape.
+export const toDatetimeLocal = formatOrgDateTimeLocal;
 
 /** Creates a fresh Admin, logs in as them, and creates a one-off session via the real UI. */
 export async function createOneOffSessionAsAdmin(

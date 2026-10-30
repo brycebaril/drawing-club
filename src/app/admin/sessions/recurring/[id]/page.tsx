@@ -4,6 +4,7 @@ import { SiteNav } from "@/components/SiteNav";
 import { getSettingNumber } from "@/lib/settings";
 import { getSessionManagerCandidates } from "@/lib/sessions/host";
 import { toDateOnly } from "@/lib/sessions/shared";
+import { parsePgDateOnly } from "@/lib/timezone";
 import { RecurrenceRuleEditForm } from "./RecurrenceRuleEditForm";
 
 interface RuleDetail {
@@ -59,8 +60,8 @@ export default async function RecurrenceRuleDetailPage({
           endTimeOfDay: rule.end_time_of_day.slice(0, 5),
           maxCapacity: rule.max_capacity !== null ? String(rule.max_capacity) : "",
           hostUsername: rule.host_username ?? "",
-          startDate: toDateOnly(new Date(rule.start_date)),
-          endDate: rule.end_date ? toDateOnly(new Date(rule.end_date)) : "",
+          startDate: toDateOnly(parsePgDateOnly(rule.start_date)),
+          endDate: rule.end_date ? toDateOnly(parsePgDateOnly(rule.end_date)) : "",
         }}
       />
     </main>

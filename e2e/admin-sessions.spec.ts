@@ -149,28 +149,38 @@ test("the All sessions table defaults to current-to-old order and flags a past s
 test("the All sessions table's default (no page param) landing is anchored near today, not the extreme edge of the sort order", async ({
   page,
 }) => {
-  // Deliberately doesn't insert its own competing far-future marker (the
-  // "defaults to current-to-old order" test above already owns that
-  // pattern for its own assertion) — two independent far-future rows
-  // inserted by tests running in the same parallel worker batch would race
-  // on which one actually ranks furthest out, breaking whichever test loses
-  // that race (this bit us for real while developing this test, even with
-  // a "10 years vs. 5 years" offset split meant to avoid it: this test's
-  // temporary row still briefly outranked the other test's while both were
-  // mid-flight in the same run). Instead, ask the DB directly for whatever
-  // its own actual current furthest-future row is, and confirm that one —
-  // whoever it belongs to — isn't visible on the default landing page.
-  const globalMax = await pool.query<{ id: string }>(
-    `SELECT id FROM sessions WHERE status = 'Scheduled' ORDER BY start_time DESC, id ASC LIMIT 1`,
+  // Self-sufficient instead of trusting ambient data volume: the comment
+  // this replaced assumed "the dev DB carries thousands of rows... the true
+  // global max is guaranteed to be many pages away" — true on a
+  // legacy-migrated local dev DB, false on CI's plain `scripts/seed.ts`
+  // (real failure: CI's whole near-future dataset fit on page 1, so the
+  // "global max isn't visible" assertion found 3 matches instead of 0).
+  // Instead of querying for whatever the ambient global max happens to be,
+  // insert our own guaranteed-far row AND enough filler rows ahead of it
+  // (comfortably over PAGE_SIZE, see src/app/admin/sessions/page.tsx) to
+  // force it off the default landing page regardless of how much other
+  // data already exists.
+  const marker = `all-sessions-anchor-${Date.now()}`;
+  const far = `${marker}-far`;
+  const farRow = await pool.query<{ id: string }>(
+    `INSERT INTO sessions (session_type, description, start_time, end_time, max_capacity, is_ticketed)
+     VALUES ('R', $1, now() + interval '100 days', now() + interval '100 days 3 hours', 5, true)
+     RETURNING id`,
+    [far],
   );
-  expect(globalMax.rowCount).toBe(1);
+  const fillerIds = await pool.query<{ id: string }>(
+    `INSERT INTO sessions (session_type, description, start_time, end_time, max_capacity, is_ticketed)
+     SELECT 'R', $1, now() + (n || ' days')::interval, now() + (n || ' days')::interval + interval '3 hours', 5, true
+     FROM generate_series(1, 60) AS n
+     RETURNING id`,
+    [`${marker}-filler`],
+  );
 
   // Near enough to "now" that it should reliably fall on whatever page the
   // anchor logic lands on — real session slots are hour-blocks (SLOT_TIMES),
   // so an arbitrary +10-minute mark is very unlikely to collide with other
-  // scheduled data sitting even closer to "now". This one doesn't compete
-  // with anything else for "most future," so no other test can race it.
-  const near = `all-sessions-anchor-near-${Date.now()}`;
+  // scheduled data sitting even closer to "now".
+  const near = `${marker}-near`;
   const nearRow = await pool.query<{ id: string }>(
     `INSERT INTO sessions (session_type, description, start_time, end_time, max_capacity, is_ticketed)
      VALUES ('R', $1, now() + interval '10 minutes', now() + interval '3 hours 10 minutes', 5, true)
@@ -185,13 +195,9 @@ test("the All sessions table's default (no page param) landing is anchored near 
     await page.goto("/admin/sessions");
 
     const allSessionsTable = page.locator("table").filter({ has: page.getByText("Booked / Capacity") });
-    // Whatever the table's actual most-future row is, it isn't visible on
-    // this default landing page — confirms we're not sitting at page 1's
-    // extreme future edge. (The rollforward horizon is 90 days and the dev
-    // DB carries thousands of rows, so the true global max is guaranteed to
-    // be many pages away from "today" — this doesn't depend on any test
-    // ever having inserted a far-future row at all.)
-    await expect(allSessionsTable.locator(`a[href="/admin/sessions/${globalMax.rows[0].id}"]`)).toHaveCount(0);
+    // Our own far-future row isn't visible on this default landing page —
+    // confirms we're not sitting at page 1's extreme future edge.
+    await expect(allSessionsTable.locator(`a[href="/admin/sessions/${farRow.rows[0].id}"]`)).toHaveCount(0);
     // And the near-"now" row is actually visible without paging anywhere —
     // confirms the landing page is anchored near today, not just "not page 1".
     // .first(): this row has no host/model assigned, so its "Open — needs a
@@ -200,7 +206,9 @@ test("the All sessions table's default (no page param) landing is anchored near 
     // present.
     await expect(allSessionsTable.locator(`a[href="/admin/sessions/${nearRow.rows[0].id}"]`).first()).toBeVisible();
   } finally {
-    await pool.query(`DELETE FROM sessions WHERE id = $1`, [nearRow.rows[0].id]);
+    await pool.query(`DELETE FROM sessions WHERE id = ANY($1)`, [
+      [farRow.rows[0].id, nearRow.rows[0].id, ...fillerIds.rows.map((r) => r.id)],
+    ]);
   }
 });
 

@@ -2,6 +2,7 @@ import { pool } from "@/lib/db/pool";
 import { getSettingNumber } from "@/lib/settings";
 import { clampRangeStart, combineDateAndTime, computeOccurrenceDates, excludeStartedDates } from "./dates";
 import { sessionTypeIsTicketed, sessionTypeNeedsModel } from "@/lib/sessions/shared";
+import { orgAddDays, orgStartOfDay, parsePgDateOnly } from "@/lib/timezone";
 
 /**
  * No scheduler infra exists yet (EventBridge is still unprovisioned AWS
@@ -35,9 +36,9 @@ async function loadRule(ruleId: string): Promise<RuleRow | null> {
 }
 
 function rangeEndFor(rule: RuleRow): Date {
-  const horizon = new Date();
-  horizon.setDate(horizon.getDate() + ROLLFORWARD_HORIZON_DAYS);
-  return rule.end_date && new Date(rule.end_date) < horizon ? new Date(rule.end_date) : horizon;
+  const horizon = orgAddDays(orgStartOfDay(new Date()), ROLLFORWARD_HORIZON_DAYS);
+  const ruleEnd = rule.end_date ? parsePgDateOnly(rule.end_date) : null;
+  return ruleEnd && ruleEnd < horizon ? ruleEnd : horizon;
 }
 
 /** Inserts one `sessions` row per date, using the rule's current parameters, in one transaction. */
@@ -99,10 +100,9 @@ export async function generateSessionsForRule(ruleId: string): Promise<number> {
   );
   const latestGenerated = latestResult.rows[0].max;
 
-  const candidateStart = latestGenerated
-    ? new Date(new Date(latestGenerated).setDate(new Date(latestGenerated).getDate() + 1))
-    : new Date(rule.start_date);
-  const rangeStart = clampRangeStart(candidateStart, new Date(rule.start_date));
+  const ruleStart = parsePgDateOnly(rule.start_date);
+  const candidateStart = latestGenerated ? orgAddDays(new Date(latestGenerated), 1) : ruleStart;
+  const rangeStart = clampRangeStart(candidateStart, ruleStart);
   const rangeEnd = rangeEndFor(rule);
 
   if (rangeStart > rangeEnd) return 0;
@@ -133,7 +133,7 @@ export async function regenerateSessionsForRule(ruleId: string, fromDate: Date):
   const rule = await loadRule(ruleId);
   if (!rule) return 0;
 
-  const rangeStart = clampRangeStart(fromDate, new Date(rule.start_date));
+  const rangeStart = clampRangeStart(fromDate, parsePgDateOnly(rule.start_date));
   const rangeEnd = rangeEndFor(rule);
 
   if (rangeStart > rangeEnd) return 0;
