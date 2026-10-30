@@ -1,6 +1,7 @@
 import { auth } from "@/auth";
 import { getUserAuthContext } from "@/lib/auth/roles";
 import { getEnvStatus } from "@/lib/envStatus";
+import { getLaunchMode } from "@/lib/launchMode";
 
 const ENV_LABELS: Record<string, string> = {
   development: "Development",
@@ -23,7 +24,8 @@ export async function EnvStatusBanner() {
   if (!ctx?.roles.includes("ADMIN")) return null;
 
   const status = getEnvStatus();
-  if (status.appEnv === "production" && !status.isAnomalous) return null;
+  const launchMode = getLaunchMode();
+  if (status.appEnv === "production" && !status.isAnomalous && launchMode === "full") return null;
 
   return (
     <div className={status.isAnomalous ? "notification-banner notification-banner--urgent" : "notification-banner"}>
@@ -31,6 +33,7 @@ export async function EnvStatusBanner() {
         {ctx.username} · {ENV_LABELS[status.appEnv]} · build {status.gitSha} · Stripe: {status.stripeMode} · SES:{" "}
         {status.sesMode} · DB: {status.dbTarget}
         {status.isAnomalous && " — misconfigured for production!"}
+        {launchMode === "static_only" && " · LAUNCH MODE: static-only (booking/registration disabled)"}
       </p>
     </div>
   );

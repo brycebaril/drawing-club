@@ -3,6 +3,7 @@ import { auth } from "@/auth";
 import { getUserAuthContext } from "@/lib/auth/roles";
 import { pool } from "@/lib/db/pool";
 import { toDateOnly } from "@/lib/sessions/shared";
+import { parsePgDateOnly } from "@/lib/timezone";
 
 interface ReportRow {
   model_name: string;
@@ -56,8 +57,8 @@ export async function GET(request: Request): Promise<NextResponse> {
       [
         csvEscape(row.model_name),
         csvEscape(row.contact_info ?? ""),
-        toDateOnly(new Date(row.week_start_date)),
-        toDateOnly(new Date(row.week_end_date)),
+        toDateOnly(parsePgDateOnly(row.week_start_date)),
+        toDateOnly(parsePgDateOnly(row.week_end_date)),
         String(row.sessions_worked),
         row.rate_applied,
         row.total_owed,

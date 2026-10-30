@@ -96,6 +96,31 @@ export function orgStartOfDay(instant: Date): Date {
   return zonedWallTimeToInstant(p.year, p.month, p.day);
 }
 
+/**
+ * Adds `days` ORG_TIMEZONE calendar days to an instant — NOT
+ * `instant.getTime() + days * 86400000`, which drifts by an hour across a
+ * DST transition (ORG_TIMEZONE's fall-back day is 25 real hours, its
+ * spring-forward day 23) and silently produces a duplicate or skipped
+ * calendar day. Found for real in admin/sessions/page.tsx's grid, whose
+ * ms-arithmetic day-stepping rendered Nov 1, 2026 (the US fall-back date)
+ * twice in the same 28-day window.
+ */
+export function orgAddDays(instant: Date, days: number): Date {
+  const p = orgDateParts(instant);
+  // Date.UTC normalizes an out-of-range day (e.g. day 32) into the next
+  // month correctly — reused here as plain calendar-day arithmetic, then
+  // re-anchored to a real ORG_TIMEZONE instant via zonedWallTimeToInstant.
+  const normalized = new Date(Date.UTC(p.year, p.month - 1, p.day + days, p.hour, p.minute, p.second));
+  return zonedWallTimeToInstant(
+    normalized.getUTCFullYear(),
+    normalized.getUTCMonth() + 1,
+    normalized.getUTCDate(),
+    normalized.getUTCHours(),
+    normalized.getUTCMinutes(),
+    normalized.getUTCSeconds(),
+  );
+}
+
 /** ORG_TIMEZONE calendar-day difference between two instants' own ORG_TIMEZONE days (floor). */
 export function orgDayIndex(gridStart: Date, instant: Date): number {
   const msPerDay = 24 * 60 * 60 * 1000;
@@ -119,9 +144,61 @@ export function parseOrgDateOnly(dateStr: string): Date {
   return zonedWallTimeToInstant(year, month, day);
 }
 
+/**
+ * Re-anchors a value read back from a Postgres `date` column (not
+ * `timestamptz`) as ORG_TIMEZONE midnight. node-pg's default parser for
+ * `date` builds that Date via the *process's own ambient-local* midnight
+ * (`new Date(year, month - 1, day)`), not UTC and not ORG_TIMEZONE —
+ * invisible on a Pacific-timezone dev machine (ambient happens to equal
+ * ORG_TIMEZONE) but wrong by a day everywhere else (Amplify's UTC Lambda,
+ * a UTC CI runner): reading it straight into `orgStartOfDay`/`orgDateParts`
+ * re-interprets an ambient-local instant through ORG_TIMEZONE, which for a
+ * UTC-ambient process rolls the date back to the *previous* calendar day
+ * every time (found for real: a recurring rule's `end_date` read back this
+ * way on CI dropped the last occurrence of a 26-day rule). Because
+ * `.getFullYear()`/`.getMonth()`/`.getDate()` read back in that same
+ * ambient zone, they always recover the original Y/M/D regardless of what
+ * the ambient zone actually is — this just re-anchors them correctly via
+ * ORG_TIMEZONE instead of trusting the pg-constructed instant directly.
+ */
+export function parsePgDateOnly(pgDate: Date): Date {
+  return zonedWallTimeToInstant(pgDate.getFullYear(), pgDate.getMonth() + 1, pgDate.getDate());
+}
+
 /** Combines an instant's ORG_TIMEZONE calendar day with a "HH:MM:SS" (or "HH:MM") time-of-day. */
 export function combineOrgDateAndTime(date: Date, timeOfDay: string): Date {
   const [hours, minutes, seconds] = timeOfDay.split(":").map(Number);
   const p = orgDateParts(date);
   return zonedWallTimeToInstant(p.year, p.month, p.day, hours, minutes, seconds ?? 0);
+}
+
+/**
+ * Parses a raw `<input type="datetime-local">` value ("YYYY-MM-DDTHH:MM" or
+ * "...:SS") as ORG_TIMEZONE wall-clock time. This is the exact bug this
+ * file's own header describes, found again for real: `new Date(value)` on
+ * one of these zone-less strings parses it in the *process's* local
+ * timezone, not ORG_TIMEZONE — invisible on a Pacific-timezone dev machine,
+ * wrong by ~7-8 hours on Amplify's UTC-running Lambda (an evening session
+ * landing as morning). Returns an Invalid Date (matching native `new
+ * Date(badInput)`'s own behavior, not a thrown error) for malformed input,
+ * so an existing `Number.isNaN(result.getTime())` validation check still
+ * catches it the same way it caught a native parse failure before.
+ */
+export function parseOrgDateTimeLocal(value: string): Date {
+  const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?$/.exec(value);
+  if (!match) return new Date(NaN);
+  const [, year, month, day, hour, minute, second] = match;
+  return zonedWallTimeToInstant(Number(year), Number(month), Number(day), Number(hour), Number(minute), Number(second ?? 0));
+}
+
+/**
+ * Formats an instant as an ORG_TIMEZONE "YYYY-MM-DDTHH:MM" string, for
+ * pre-filling an <input type="datetime-local">. Inverse of
+ * parseOrgDateTimeLocal (lossy: drops seconds, matching that input's own
+ * minute granularity).
+ */
+export function formatOrgDateTimeLocal(instant: Date): string {
+  const p = orgDateParts(instant);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${p.year}-${pad(p.month)}-${pad(p.day)}T${pad(p.hour)}:${pad(p.minute)}`;
 }

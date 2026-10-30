@@ -1,11 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { createTestUser, findOpenSlotBase, loginAsUser, pool, withSlotLock } from "./helpers";
 import { bookSeriesSeat } from "@/lib/series/actions";
-
-function toDateOnly(date: Date): string {
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
-}
+import { toDateOnly, startOfDay, addDays } from "@/lib/sessions/shared";
 
 test("multi-week series lifecycle: create, partial-date seat booking, seat contention, this-and-future cancel", async ({
   page,
@@ -45,9 +41,10 @@ test("multi-week series lifecycle: create, partial-date seat booking, seat conte
   await withSlotLock("Afternoon", async () => {
     const base = await findOpenSlotBase(now, "Afternoon", [0, 7, 21], 3, 13);
     // Non-consecutive: base and base+7 days, then skip a week and pick base+21.
-    const day1 = toDateOnly(new Date(now.getTime() + base * 86400000));
-    const day2 = toDateOnly(new Date(now.getTime() + (base + 7) * 86400000));
-    const day3 = toDateOnly(new Date(now.getTime() + (base + 21) * 86400000));
+    const dayStart = startOfDay(now);
+    const day1 = toDateOnly(addDays(dayStart, base));
+    const day2 = toDateOnly(addDays(dayStart, base + 7));
+    const day3 = toDateOnly(addDays(dayStart, base + 21));
 
     await page.goto("/admin/sessions/new-series");
     await page.getByLabel("Series name").fill(name);

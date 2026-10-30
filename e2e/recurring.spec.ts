@@ -1,11 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { createTestUser, findOpenWeekday, loginAsUser, pool, withSlotLock } from "./helpers";
 import { generateSessionsForRule } from "@/lib/recurrence/generate";
-
-function toDateInput(date: Date): string {
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
-}
+import { toDateOnly, addDays, startOfDay, dayIndex } from "@/lib/sessions/shared";
 
 test("recurring session lifecycle: create, book, cancel this-and-future, idempotent rollforward", async ({
   page,
@@ -69,8 +65,7 @@ test("recurring session lifecycle: create, book, cancel this-and-future, idempot
     // fixed +30-day end date comfortably covers the latest possible
     // occurrence (day-of-week delta up to 6, plus the +21 week offset) with
     // buffer to spare, regardless of which weekday findOpenWeekday picked.
-    const end = new Date();
-    end.setDate(end.getDate() + 30);
+    const end = addDays(new Date(), 30);
 
     await page.goto("/admin/sessions/new-recurring");
     await page.getByLabel("Description").fill(description);
@@ -78,8 +73,8 @@ test("recurring session lifecycle: create, book, cancel this-and-future, idempot
     await page.getByLabel("Start time").fill("14:00");
     await page.getByLabel("End time").fill("16:00");
     await page.getByLabel(/^Capacity/).fill("5");
-    await page.getByLabel("Start date").fill(toDateInput(new Date()));
-    await page.getByLabel(/^End date/).fill(toDateInput(end));
+    await page.getByLabel("Start date").fill(toDateOnly(new Date()));
+    await page.getByLabel(/^End date/).fill(toDateOnly(end));
     await page.getByRole("button", { name: "Create recurring session" }).click();
     await page.waitForURL("**/admin/sessions/recurring");
   });
@@ -120,11 +115,8 @@ test("recurring session lifecycle: create, book, cancel this-and-future, idempot
   // The grid pages a week at a time now (Design Philosophy.dc.html §04) —
   // the clicked (middle) occurrence can land well past week 0, so request
   // its own week rather than assuming the default view shows it.
-  const todayStart = new Date();
-  todayStart.setHours(0, 0, 0, 0);
-  const clickedDayOffset = Math.floor(
-    (new Date(clickedOccurrence.start_time).getTime() - todayStart.getTime()) / 86400000,
-  );
+  const todayStart = startOfDay(new Date());
+  const clickedDayOffset = dayIndex(todayStart, new Date(clickedOccurrence.start_time));
   await page.goto(`/app/schedule?week=${Math.floor(clickedDayOffset / 7)}`);
   // Scoped to the grid, not the agenda — both carry this session's link at
   // once (CSS-breakpoint-swapped, ScheduleAgenda.tsx), so unscoped matches two.

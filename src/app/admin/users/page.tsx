@@ -5,13 +5,16 @@ import { Badge, roleTone, statusTone, tierTone } from "@/components/Badge";
 import { resolveSort } from "@/lib/sort";
 import { filterUserRows, isMemberTier, mappedRolesFor, type UserRow } from "@/lib/users/filterUsers";
 
-const STATUS_OPTIONS = ["Active", "Suspended", "Banned"] as const;
+const STATUS_OPTIONS = ["Active", "Suspended", "Banned", "Deleted"] as const;
 const TIER_OPTIONS = ["ACCT", "MBR"] as const;
 // VOL_SUPPORT was missing here (and from filterUsers.ts's own VOLUNTEER_ROLE_MAP,
 // fixed alongside this) even though src/lib/auth/roles.ts's copy of the map
 // already had it — a support agent showed as the raw "SupportAgent" DB enum
 // value and couldn't be filtered by role at all until now.
-const ROLE_OPTIONS = ["ADMIN", "VOL_HOST", "VOL_MKT", "VOL_MBR", "VOL_CTRL", "VOL_SUPPORT"] as const;
+// GenericVolunteer has no VOL_* RBAC code (deliberately — see the migration
+// that adds it) so it appears in mappedRolesFor's output as its own literal
+// string, same as this list's other entries appear as their mapped codes.
+const ROLE_OPTIONS = ["ADMIN", "VOL_HOST", "VOL_MKT", "VOL_MBR", "VOL_CTRL", "VOL_SUPPORT", "GenericVolunteer"] as const;
 
 const SORT_COLUMNS = {
   username: "u.username",
@@ -26,13 +29,23 @@ const SORT_COLUMNS = {
 export default async function AdminUsersPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string; tier?: string; role?: string; q?: string; sort?: string; dir?: string }>;
+  searchParams: Promise<{
+    status?: string;
+    tier?: string;
+    role?: string;
+    q?: string;
+    filter?: string;
+    marketingOptIn?: string;
+    sort?: string;
+    dir?: string;
+  }>;
 }) {
-  const { status, tier, role, q, sort, dir } = await searchParams;
+  const { status, tier, role, q, filter, marketingOptIn, sort, dir } = await searchParams;
   const { state, orderBy } = resolveSort(sort, dir, SORT_COLUMNS, "username");
 
   const result = await pool.query<UserRow>(
     `SELECT u.id, u.username, u.display_name, u.email, u.status, u.base_role, u.membership_expires_at,
+            u.cancellation_requested_at, u.marketing_email_opt_in,
             COALESCE(array_agg(vr.role::text) FILTER (WHERE vr.role IS NOT NULL), '{}') AS volunteer_roles
      FROM users u
      LEFT JOIN volunteer_roles vr ON vr.user_id = u.id
@@ -41,13 +54,19 @@ export default async function AdminUsersPage({
   );
 
   const now = new Date();
-  const rows = filterUserRows(result.rows, { status, tier, role, q }, now);
+  const rows = filterUserRows(
+    result.rows,
+    { status, tier, role, q, filter, marketingOptIn: marketingOptIn === "true" },
+    now,
+  );
 
   const csvParams = new URLSearchParams();
   if (status) csvParams.set("status", status);
   if (tier) csvParams.set("tier", tier);
   if (role) csvParams.set("role", role);
   if (q) csvParams.set("q", q);
+  if (filter) csvParams.set("filter", filter);
+  if (marketingOptIn) csvParams.set("marketingOptIn", marketingOptIn);
   const csvHref = `/admin/users/csv${csvParams.size > 0 ? `?${csvParams}` : ""}`;
 
   const currentParams = new URLSearchParams({
@@ -55,6 +74,8 @@ export default async function AdminUsersPage({
     ...(tier ? { tier } : {}),
     ...(role ? { role } : {}),
     ...(q ? { q } : {}),
+    ...(filter ? { filter } : {}),
+    ...(marketingOptIn ? { marketingOptIn } : {}),
     sort: state.key,
     dir: state.dir,
   });
@@ -103,6 +124,14 @@ export default async function AdminUsersPage({
             ))}
           </select>
         </label>
+        <label>
+          <input type="checkbox" name="filter" value="cancellation-requested" defaultChecked={filter === "cancellation-requested"} />{" "}
+          Cancellation requested
+        </label>
+        <label>
+          <input type="checkbox" name="marketingOptIn" value="true" defaultChecked={marketingOptIn === "true"} />{" "}
+          Marketing email opt-in
+        </label>
         <button type="submit">Filter</button>
       </form>
 
@@ -141,7 +170,8 @@ export default async function AdminUsersPage({
                 <td data-label="Display name">{row.display_name ?? "—"}</td>
                 <td data-label="Email">{row.email}</td>
                 <td data-label="Status">
-                  <Badge tone={statusTone(row.status)}>{row.status}</Badge>
+                  <Badge tone={statusTone(row.status)}>{row.status}</Badge>{" "}
+                  {row.cancellation_requested_at && <Badge tone="suspended">Cancellation requested</Badge>}
                 </td>
                 <td data-label="Tier">
                   <Badge tone={tierTone(isMember)}>{isMember ? "MBR" : "ACCT"}</Badge>

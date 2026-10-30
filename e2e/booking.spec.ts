@@ -1,5 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { createOneOffSessionAsAdmin, createTestUser, findOpenSlotBase, loginAsUser, pool, withSlotLock } from "./helpers";
+import { startOfDay, addDays } from "@/lib/sessions/shared";
+import { combineOrgDateAndTime } from "@/lib/timezone";
 
 test("a member books a session, cancels it, and the pass returns to their balance", async ({
   page,
@@ -212,9 +214,13 @@ test("the schedule grid cell's mouseover tooltip carries the detail the compact 
   // across every process sharing this DB, not just this file's own calls.
   const { sessionId, weekOffset } = await withSlotLock("Evening", async () => {
     const base = await findOpenSlotBase(new Date(), "Evening", [0], 3, 27);
-    const todayAt6pm = new Date();
-    todayAt6pm.setHours(18, 0, 0, 0);
-    const startTime = new Date(todayAt6pm.getTime() + base * 86400000);
+    // ORG_TIMEZONE-anchored, not ambient-local setHours+ms-arithmetic — the
+    // old version anchored "today" to the test process's own ambient zone
+    // (UTC on CI), which can be a whole calendar day off from ORG_TIMEZONE's
+    // "today" depending on what UTC hour the suite happens to run at, so
+    // `base` days out could land on a completely different (not
+    // necessarily open) day than findOpenSlotBase actually verified.
+    const startTime = combineOrgDateAndTime(addDays(startOfDay(new Date()), base), "18:00");
     const id = await createOneOffSessionAsAdmin(page, { description, startTime, capacity: 3 });
     return { sessionId: id, weekOffset: Math.floor(base / 7) };
   });
@@ -253,9 +259,13 @@ test("a guest reaches /app/schedule without being redirected, sees capacity, and
   const description = `guest-schedule-test-${Date.now()}`;
   const { sessionId, weekOffset } = await withSlotLock("Evening", async () => {
     const base = await findOpenSlotBase(new Date(), "Evening", [0], 3, 27);
-    const todayAt6pm = new Date();
-    todayAt6pm.setHours(18, 0, 0, 0);
-    const startTime = new Date(todayAt6pm.getTime() + base * 86400000);
+    // ORG_TIMEZONE-anchored, not ambient-local setHours+ms-arithmetic — the
+    // old version anchored "today" to the test process's own ambient zone
+    // (UTC on CI), which can be a whole calendar day off from ORG_TIMEZONE's
+    // "today" depending on what UTC hour the suite happens to run at, so
+    // `base` days out could land on a completely different (not
+    // necessarily open) day than findOpenSlotBase actually verified.
+    const startTime = combineOrgDateAndTime(addDays(startOfDay(new Date()), base), "18:00");
     const id = await createOneOffSessionAsAdmin(page, { description, startTime, capacity: 3 });
     return { sessionId: id, weekOffset: Math.floor(base / 7) };
   });
@@ -317,9 +327,13 @@ test("a guest viewing a full session sees a login-to-waitlist CTA, not the real 
   const description = `guest-full-test-${Date.now()}`;
   const sessionId = await withSlotLock("Evening", async () => {
     const base = await findOpenSlotBase(new Date(), "Evening", [0], 3, 27);
-    const todayAt6pm = new Date();
-    todayAt6pm.setHours(18, 0, 0, 0);
-    const startTime = new Date(todayAt6pm.getTime() + base * 86400000);
+    // ORG_TIMEZONE-anchored, not ambient-local setHours+ms-arithmetic — the
+    // old version anchored "today" to the test process's own ambient zone
+    // (UTC on CI), which can be a whole calendar day off from ORG_TIMEZONE's
+    // "today" depending on what UTC hour the suite happens to run at, so
+    // `base` days out could land on a completely different (not
+    // necessarily open) day than findOpenSlotBase actually verified.
+    const startTime = combineOrgDateAndTime(addDays(startOfDay(new Date()), base), "18:00");
     return createOneOffSessionAsAdmin(page, { description, startTime, capacity: 1 });
   });
 

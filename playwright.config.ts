@@ -39,7 +39,17 @@ export default defineConfig({
     { name: "mobile", use: { ...devices["Pixel 5"] }, testMatch: "**/mobile.spec.ts" },
   ],
   webServer: {
-    command: "pnpm build && pnpm start",
+    // `next start` (pnpm start) doesn't work against an `output: "standalone"`
+    // build (next.config.ts) — it warns and then the server destabilizes
+    // under load (seen for real in CI: a mid-suite stream error cascading
+    // into ~9 unrelated-looking test failures). The standalone build's own
+    // server.js is the supported way to run it, but it doesn't copy
+    // public/ or .next/static on its own (Next's docs say this is
+    // deliberate, meant for a CDN) — copy them in first, via fs.cpSync
+    // (stdlib, no new dependency) rather than a shell `cp` that Windows
+    // local dev doesn't have.
+    command:
+      'pnpm build && node -e "const fs=require(\'fs\');fs.cpSync(\'public\',\'.next/standalone/public\',{recursive:true});fs.cpSync(\'.next/static\',\'.next/standalone/.next/static\',{recursive:true})" && node .next/standalone/server.js',
     url: "http://localhost:3000",
     reuseExistingServer: !process.env.CI,
     timeout: 180_000,

@@ -14,13 +14,16 @@
     "seed": "dotenv -e .env -- tsx scripts/seed.ts",
     "rollforward": "dotenv -e .env -- tsx scripts/rollforward.ts",
     "generate-payouts": "dotenv -e .env -- tsx scripts/generate-payouts.ts",
+    "grant-volunteer-passes": "dotenv -e .env -- tsx scripts/grant-volunteer-passes.ts",
     "migrate-legacy-data": "dotenv -e .env -- tsx scripts/migrate-legacy-data.ts",
+    "bootstrap-admin": "dotenv -e .env -- tsx scripts/bootstrap-admin.ts",
     "test": "dotenv -e .env -- vitest run",
     "test:coverage": "dotenv -e .env -- vitest run --coverage",
     "test:e2e": "dotenv -e .env -- playwright test"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1112.0",
+    "@aws-sdk/client-secrets-manager": "^3.1127.0",
     "@aws-sdk/client-sesv2": "^3.1111.0",
     "@node-rs/argon2": "^2.1.0",
     "@node-rs/bcrypt": "^1.10.8",
@@ -35,6 +38,7 @@
     "react-dom": "19.2.8",
     "react-markdown": "^10.1.0",
     "remark-gfm": "^4.0.1",
+    "sharp": "^0.35.4",
     "stripe": "^22.5.0"
   },
   "devDependencies": {

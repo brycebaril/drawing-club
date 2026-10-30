@@ -3,14 +3,11 @@ import { auth } from "@/auth";
 import { getUserAuthContext, type Role } from "@/lib/auth/roles";
 import { pool } from "@/lib/db/pool";
 import { RESERVED_STATIC_PAGE_SLUGS } from "@/lib/cms/slugify";
+import { isStaticOnlyLaunch, LEGACY_BOOKING_URL } from "@/lib/launchMode";
 import { LogoutForm } from "./LogoutForm";
 import { NotificationBanner } from "./NotificationBanner";
 import { EnvStatusBanner } from "./EnvStatusBanner";
-
-interface StaffLink {
-  href: string;
-  label: string;
-}
+import { StaffMenu, type StaffLink } from "./StaffMenu";
 
 const ADMIN_LINKS: StaffLink[] = [
   { href: "/admin/sessions", label: "Sessions" },
@@ -19,7 +16,6 @@ const ADMIN_LINKS: StaffLink[] = [
   { href: "/admin/passes", label: "Tickets" },
   { href: "/admin/audit-logs", label: "Audit Logs" },
   { href: "/admin/dashboard", label: "Reporting" },
-  { href: "/admin/reports", label: "Reports" },
   { href: "/admin/api-keys", label: "API Keys" },
   { href: "/admin/settings", label: "Settings" },
 ];
@@ -54,16 +50,17 @@ function opsLinksFor(roles: Role[], isAdmin: boolean, supportNeedsReplyCount: nu
  * holding those role-gated links, kept out of the visible list entirely
  * rather than just styled differently, since an admin is a participant
  * first with admin capabilities layered on top, not a different kind of
- * user. Built with <details>/<summary> rather than a client component +
- * useState — a native disclosure needs no JS at all, keeping SiteNav a
- * plain Server Component (this app has no client-side nav interactivity
- * anywhere else). Trade-off: it won't auto-close on an outside click the
- * way a JS-driven dropdown would; toggling the summary again or navigating
- * away (any link click) closes it.
+ * user. Still a native <details>/<summary> under the hood (StaffMenu.tsx),
+ * but that component is now a small client-side island specifically to add
+ * click/tap-outside-to-close — a real reported gap, since a native
+ * disclosure alone only closes by re-toggling its own summary. SiteNav
+ * itself stays a plain async Server Component; only StaffMenu opts into
+ * client rendering.
  */
 export async function SiteNav() {
   const session = await auth();
   const ctx = session?.user?.id ? await getUserAuthContext(session.user.id) : null;
+  const staticOnly = isStaticOnlyLaunch();
 
   // Admin-created pages (src/app/pages/[slug]/page.tsx) have no other way
   // to be reachable except by typing the URL directly, so they're listed
@@ -115,21 +112,37 @@ export async function SiteNav() {
             <Link href="/pricing">Pricing</Link>
           </li>
           <li>
-            {/* /app/schedule is the unified public + member page (src/lib/auth/rbac.ts
-                has a dedicated public rule for it) — no more conditional login redirect. */}
-            <Link href="/app/schedule">Schedule</Link>
+            {staticOnly ? (
+              // Static-only launch mode (src/lib/launchMode.ts): booking
+              // isn't live in this app yet — send visitors to the existing
+              // legacy booking site instead of the (proxy-gated) internal
+              // schedule page.
+              <a href={LEGACY_BOOKING_URL} target="_blank" rel="noopener noreferrer" className="button-link">
+                Schedule
+              </a>
+            ) : (
+              // /app/schedule is the unified public + member page (src/lib/auth/rbac.ts
+              // has a dedicated public rule for it) — no more conditional login redirect.
+              <Link href="/app/schedule" className="button-link">
+                Schedule
+              </Link>
+            )}
           </li>
           {ctx ? (
             <>
-              <li>
-                <Link href="/dashboard">Dashboard</Link>
-              </li>
-              <li>
-                <Link href="/app/wallet">Wallet</Link>
-              </li>
-              <li>
-                <Link href="/app/support">Support</Link>
-              </li>
+              {!staticOnly && (
+                <>
+                  <li>
+                    <Link href="/dashboard">Dashboard</Link>
+                  </li>
+                  <li>
+                    <Link href="/app/wallet">Wallet</Link>
+                  </li>
+                  <li>
+                    <Link href="/app/support">Support</Link>
+                  </li>
+                </>
+              )}
               <li>
                 <LogoutForm />
               </li>
@@ -139,44 +152,14 @@ export async function SiteNav() {
               <li>
                 <Link href="/auth/login">Log in</Link>
               </li>
-              <li>
-                <Link href="/auth/register">Sign up</Link>
-              </li>
+              {!staticOnly && (
+                <li>
+                  <Link href="/auth/register">Sign up</Link>
+                </li>
+              )}
             </>
           )}
-          {showStaffMenu && (
-            <li className="staff-menu">
-              <details>
-                <summary role="button">☰ Staff</summary>
-                <div className="staff-menu-panel">
-                  {isAdmin && (
-                    <>
-                      <p className="nav-group-label">Admin</p>
-                      <ul>
-                        {ADMIN_LINKS.map((link) => (
-                          <li key={link.href}>
-                            <Link href={link.href}>{link.label}</Link>
-                          </li>
-                        ))}
-                      </ul>
-                    </>
-                  )}
-                  {opsLinks.length > 0 && (
-                    <>
-                      <p className="nav-group-label">Ops</p>
-                      <ul>
-                        {opsLinks.map((link) => (
-                          <li key={link.href}>
-                            <Link href={link.href}>{link.label}</Link>
-                          </li>
-                        ))}
-                      </ul>
-                    </>
-                  )}
-                </div>
-              </details>
-            </li>
-          )}
+          {showStaffMenu && <StaffMenu isAdmin={isAdmin} adminLinks={ADMIN_LINKS} opsLinks={opsLinks} />}
         </ul>
       </nav>
       <NotificationBanner />

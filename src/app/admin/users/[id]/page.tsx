@@ -4,8 +4,10 @@ import { SiteNav } from "@/components/SiteNav";
 import { Badge, statusTone, tierTone } from "@/components/Badge";
 import { StatusForm } from "./StatusForm";
 import { GrantPassForm } from "./GrantPassForm";
+import { RevokePassButton } from "./RevokePassButton";
 import { MembershipForm } from "./MembershipForm";
 import { VolunteerRoleForm } from "./VolunteerRoleForm";
+import { AnonymizeAccountForm } from "./AnonymizeAccountForm";
 import { removeVolunteerRoleAction } from "./actions";
 import { ORG_TIMEZONE } from "@/lib/org";
 import { memberLabelWithUsername } from "@/lib/users/memberLabel";
@@ -15,9 +17,11 @@ interface UserDetail {
   username: string;
   display_name: string | null;
   email: string;
-  status: "Active" | "Suspended" | "Banned";
+  status: "Active" | "Suspended" | "Banned" | "Deleted";
   base_role: "AccountHolder" | "Admin";
   membership_expires_at: Date | null;
+  cancellation_requested_at: Date | null;
+  cancellation_reason: string | null;
 }
 
 interface MembershipHistoryRow {
@@ -25,6 +29,14 @@ interface MembershipHistoryRow {
   valid_until: Date;
   granted_by_username: string | null;
   granted_by_display_name: string | null;
+}
+
+interface WalletPassRow {
+  id: string;
+  status: string;
+  is_transferable: boolean;
+  effective_price: string;
+  created_at: Date;
 }
 
 interface BookingRow {
@@ -63,6 +75,12 @@ const VOLUNTEER_ROLE_LABELS: Record<string, string> = {
   // this map, fixed alongside this) — a support agent showed as the raw
   // "SupportAgent" DB enum value on this page until now.
   SupportAgent: "Support Agent (VOL_SUPPORT)",
+  // No corresponding VOL_* RBAC level, same reasoning as Board above — a
+  // generic placeholder for legacy labor-for-pass volunteer categories
+  // (gallery coordinator, cleaner, etc.) this app doesn't yet have a
+  // specific role for. Grants the weekly volunteer free-pass benefit, not
+  // any page access.
+  GenericVolunteer: "General Volunteer",
 };
 
 export default async function AdminUserDetailPage({
@@ -73,15 +91,24 @@ export default async function AdminUserDetailPage({
   const { id } = await params;
 
   const userResult = await pool.query<UserDetail>(
-    `SELECT id, username, display_name, email, status, base_role, membership_expires_at FROM users WHERE id = $1`,
+    `SELECT id, username, display_name, email, status, base_role, membership_expires_at,
+            cancellation_requested_at, cancellation_reason
+     FROM users WHERE id = $1`,
     [id],
   );
   if (userResult.rowCount === 0) notFound();
   const user = userResult.rows[0];
 
-  const [passCountResult, historyResult, volunteerRolesResult, bookingsResult, legacyActivityResult] = await Promise.all([
+  const [passCountResult, walletPassesResult, historyResult, volunteerRolesResult, bookingsResult, legacyActivityResult] =
+    await Promise.all([
     pool.query<{ count: string }>(
       `SELECT count(*) FROM passes WHERE owner_id = $1 AND status = 'Available'`,
+      [id],
+    ),
+    pool.query<WalletPassRow>(
+      `SELECT id, status, is_transferable, effective_price, created_at
+       FROM passes WHERE owner_id = $1 AND status IN ('Available', 'Assigned')
+       ORDER BY created_at DESC`,
       [id],
     ),
     pool.query<MembershipHistoryRow>(
@@ -144,14 +171,62 @@ export default async function AdminUserDetailPage({
         {passCountResult.rows[0].count}
       </p>
 
+      {user.cancellation_requested_at && (
+        <p role="alert">
+          Cancellation requested on{" "}
+          {new Date(user.cancellation_requested_at).toLocaleDateString("en-US", { timeZone: ORG_TIMEZONE })}
+          {user.cancellation_reason && <>: &ldquo;{user.cancellation_reason}&rdquo;</>}
+        </p>
+      )}
+
       <section>
         <h2>Account status</h2>
-        <StatusForm userId={user.id} currentStatus={user.status} />
+        {/* StatusForm's own status list (Active/Suspended/Banned) has no
+            Deleted option — rendering it on an anonymized account would
+            silently default the <select> to Active and let a plain submit
+            reverse the anonymization. Show a plain notice instead, matching
+            the "can't be edited" pattern already used elsewhere (e.g. a
+            canceled session's own instance editor). */}
+        {user.status === "Deleted" ? (
+          <p>This account has been anonymized and can&apos;t be reactivated.</p>
+        ) : (
+          <StatusForm userId={user.id} currentStatus={user.status} />
+        )}
       </section>
 
       <section>
-        <h2>Grant tickets</h2>
+        <h2>Manage tickets</h2>
         <GrantPassForm userId={user.id} />
+        {walletPassesResult.rows.length === 0 ? (
+          <p>No unspent tickets.</p>
+        ) : (
+          <div className="table-scroll">
+            <table data-testid="wallet-passes-table">
+            <thead>
+              <tr>
+                <th>Granted</th>
+                <th>Status</th>
+                <th>Transferable</th>
+                <th>Value</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {walletPassesResult.rows.map((pass) => (
+                <tr key={pass.id}>
+                  <td>{new Date(pass.created_at).toLocaleDateString("en-US", { timeZone: ORG_TIMEZONE })}</td>
+                  <td>{pass.status}</td>
+                  <td>{pass.is_transferable ? "Yes" : "No"}</td>
+                  <td>${Number(pass.effective_price).toFixed(2)}</td>
+                  <td>
+                    <RevokePassButton userId={user.id} passId={pass.id} />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+            </table>
+          </div>
+        )}
       </section>
 
       <section>
@@ -267,6 +342,19 @@ export default async function AdminUserDetailPage({
               </tbody>
             </table>
           </div>
+        </section>
+      )}
+
+      {user.status !== "Deleted" && (
+        <section>
+          <h2>Danger zone</h2>
+          <p className="section-note">
+            GDPR-style erasure — scrubs this account&rsquo;s email/username/display name in place
+            (real deletion isn&rsquo;t possible while it has purchase/booking history). Their
+            transactions, tickets, and audit trail are left untouched. This is irreversible, unlike
+            the status change above.
+          </p>
+          <AnonymizeAccountForm userId={user.id} />
         </section>
       )}
     </main>

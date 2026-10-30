@@ -1,6 +1,8 @@
 import { pool } from "@/lib/db/pool";
 import { getSettingNumber } from "@/lib/settings";
 import { clampRangeStart, combineDateAndTime, computeOccurrenceDates, excludeStartedDates } from "./dates";
+import { sessionTypeIsTicketed, sessionTypeNeedsModel } from "@/lib/sessions/shared";
+import { orgAddDays, orgStartOfDay, parsePgDateOnly } from "@/lib/timezone";
 
 /**
  * No scheduler infra exists yet (EventBridge is still unprovisioned AWS
@@ -34,9 +36,9 @@ async function loadRule(ruleId: string): Promise<RuleRow | null> {
 }
 
 function rangeEndFor(rule: RuleRow): Date {
-  const horizon = new Date();
-  horizon.setDate(horizon.getDate() + ROLLFORWARD_HORIZON_DAYS);
-  return rule.end_date && new Date(rule.end_date) < horizon ? new Date(rule.end_date) : horizon;
+  const horizon = orgAddDays(orgStartOfDay(new Date()), ROLLFORWARD_HORIZON_DAYS);
+  const ruleEnd = rule.end_date ? parsePgDateOnly(rule.end_date) : null;
+  return ruleEnd && ruleEnd < horizon ? ruleEnd : horizon;
 }
 
 /** Inserts one `sessions` row per date, using the rule's current parameters, in one transaction. */
@@ -53,9 +55,19 @@ async function insertSessionsForDates(ruleId: string, rule: RuleRow, dates: Date
       const endTime = combineDateAndTime(date, rule.end_time_of_day);
       await client.query(
         `INSERT INTO sessions
-           (session_type, description, start_time, end_time, max_capacity, host_user_id, is_ticketed, recurrence_rule_id)
-         VALUES ($1, $2, $3, $4, $5, $6, true, $7)`,
-        [rule.session_type, rule.description, startTime, endTime, maxCapacity, rule.default_host_user_id, ruleId],
+           (session_type, description, start_time, end_time, max_capacity, host_user_id, is_ticketed, recurrence_rule_id, model_required)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+        [
+          rule.session_type,
+          rule.description,
+          startTime,
+          endTime,
+          maxCapacity,
+          rule.default_host_user_id,
+          sessionTypeIsTicketed(rule.session_type),
+          ruleId,
+          sessionTypeNeedsModel(rule.session_type),
+        ],
       );
     }
     await client.query("COMMIT");
@@ -88,10 +100,9 @@ export async function generateSessionsForRule(ruleId: string): Promise<number> {
   );
   const latestGenerated = latestResult.rows[0].max;
 
-  const candidateStart = latestGenerated
-    ? new Date(new Date(latestGenerated).setDate(new Date(latestGenerated).getDate() + 1))
-    : new Date(rule.start_date);
-  const rangeStart = clampRangeStart(candidateStart, new Date(rule.start_date));
+  const ruleStart = parsePgDateOnly(rule.start_date);
+  const candidateStart = latestGenerated ? orgAddDays(new Date(latestGenerated), 1) : ruleStart;
+  const rangeStart = clampRangeStart(candidateStart, ruleStart);
   const rangeEnd = rangeEndFor(rule);
 
   if (rangeStart > rangeEnd) return 0;
@@ -122,7 +133,7 @@ export async function regenerateSessionsForRule(ruleId: string, fromDate: Date):
   const rule = await loadRule(ruleId);
   if (!rule) return 0;
 
-  const rangeStart = clampRangeStart(fromDate, new Date(rule.start_date));
+  const rangeStart = clampRangeStart(fromDate, parsePgDateOnly(rule.start_date));
   const rangeEnd = rangeEndFor(rule);
 
   if (rangeStart > rangeEnd) return 0;

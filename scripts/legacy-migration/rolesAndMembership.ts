@@ -15,6 +15,10 @@ interface LegacyOwnedPassRow {
   entitlementNames: string;
 }
 
+interface LegacyAltManagerRow {
+  altManager: number;
+}
+
 // Reads directly as base_role='Admin' — no finer-grained equivalent to
 // dataview_power/bio_view_power's narrower legacy scope exists in this
 // app's role model (docs/MigrationPlan.md §5's volunteer_roles mapping).
@@ -81,8 +85,14 @@ export async function migrateRolesAndMembership(client: PoolClient, cutoverDate:
     if (entitlements.includes("member_status")) {
       const transactionId = legacyPassIdToTransactionId.get(row.id) ?? null;
       await client.query(
-        `INSERT INTO membership_history (user_id, transaction_id, valid_from, valid_until)
-         VALUES ($1, $2, $3, $4)`,
+        // created_at uses the linked transaction's real created_at when
+        // there is one, else falls back to this membership's own
+        // validFrom — never the column's own now() default, which would
+        // make every migrated membership row look like a brand new
+        // signup/renewal on a --reset staging rehearsal (same reasoning as
+        // migrateUsers' created_at fix directly above it).
+        `INSERT INTO membership_history (user_id, transaction_id, valid_from, valid_until, created_at)
+         VALUES ($1, $2, $3, $4, COALESCE((SELECT created_at FROM transactions WHERE id = $2), $3))`,
         [userId, transactionId, row.validFrom, row.validThru],
       );
       report.migrated += 1;
@@ -138,16 +148,60 @@ export async function migrateRolesAndMembership(client: PoolClient, cutoverDate:
     }
 
     if (!assignedSpecificRole && entitlements.includes("volunteer_status")) {
-      // Resolved with the org, not an open question (docs/MigrationPlan.md
-      // §5): most of these categories are volunteer-labor compensation (a
-      // free pass for work — cleaning, supply runs, etc.), not an RBAC
-      // role, and this app has no generic "volunteer, unspecified" role to
-      // assign anyway. Deliberately no volunteer_roles row for any of
-      // these — informational only, not a blocker or pending decision.
-      report.warnings.push(
-        `owned_passes.id ${row.id} ("${row.passName}"): no RBAC role assigned by design — labor-compensation category, not an access role (docs/MigrationPlan.md §5).`,
-      );
+      // These categories (cleaning, supply runs, gallery coordination,
+      // social media, etc.) are real legacy volunteer-labor arrangements
+      // that never mapped to an RBAC role in the legacy system either — but
+      // per the org's direction, they should land as a real, generic
+      // GenericVolunteer role now (to be split into specific roles later as
+      // the org defines them) rather than being silently dropped, since
+      // this app's weekly volunteer free-pass benefit reads eligibility
+      // directly from this role. Same isCurrentlyValid gate as the
+      // specific-role branch above. Caveat: these rows' validThru mostly
+      // carries a 2999-01-01 "indefinite" sentinel rather than a real
+      // expiry, so isCurrentlyValid is true for essentially everyone in
+      // this bucket regardless of whether they're still actively doing that
+      // labor today — expect a real post-migration reconciliation pass, not
+      // a fully automatic result.
+      if (isCurrentlyValid) {
+        await client.query(
+          `INSERT INTO volunteer_roles (user_id, role) VALUES ($1, 'GenericVolunteer') ON CONFLICT (user_id, role) DO NOTHING`,
+          [userId],
+        );
+        report.migrated += 1;
+      } else {
+        report.warnings.push(
+          `owned_passes.id ${row.id} ("${row.passName}"): would grant GenericVolunteer, but this pass expired ${row.validThru} — not assigned.`,
+        );
+      }
     }
+  }
+
+  // session_alt_managers records real people who stood in as a session's
+  // manager for a date range — a real, proven VOL_HOST-equivalent (docs/
+  // MigrationPlan.md's session_notes writeup already found sessions.ts never
+  // reads this table at all). They don't otherwise get SessionManager from
+  // the owned_passes/entitlement loop above unless they *also* separately
+  // hold a currently-valid "Session Manager Pass" — an alt manager fills in
+  // without ever being the *designated* (session_general_schedule) or
+  // pass-holding manager, so this is additive, not redundant, confirmed with
+  // the org. Not date-gated like the grants above: every row here already
+  // describes something that really happened (a real substitution), not a
+  // still-open entitlement window that could be stale — there's no
+  // "isCurrentlyValid" reading of a past event.
+  const altManagerRows = await legacyQuery<(LegacyAltManagerRow & RowDataPacket)[]>(
+    `SELECT DISTINCT altManager FROM session_alt_managers`,
+  );
+  for (const row of altManagerRows) {
+    const userId = legacyAttendeeIdToNewId.get(row.altManager);
+    if (!userId) {
+      report.warnings.push(`session_alt_managers.altManager ${row.altManager} has no migrated user — skipped.`);
+      continue;
+    }
+    await client.query(
+      `INSERT INTO volunteer_roles (user_id, role) VALUES ($1, 'SessionManager') ON CONFLICT (user_id, role) DO NOTHING`,
+      [userId],
+    );
+    report.migrated += 1;
   }
 
   for (const userId of usersToPromoteToAdmin) {

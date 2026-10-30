@@ -5,29 +5,31 @@ import { SortableTh } from "@/components/SortableTh";
 import { resolveSort } from "@/lib/sort";
 import { getSettingNumber } from "@/lib/settings";
 import { getSessionManagerCandidates } from "@/lib/sessions/host";
-import { slotFor, startOfDay, dayIndex, toDateOnly, parseDateOnly } from "@/lib/sessions/shared";
+import { slotFor, startOfDay, addDays, dayIndex, toDateOnly, parseDateOnly } from "@/lib/sessions/shared";
 import { SessionCalendarGrid, type OccupiedCell } from "./SessionCalendarGrid";
 import { ORG_TIMEZONE } from "@/lib/org";
 import { memberLabel } from "@/lib/users/memberLabel";
+import { truncateModelName } from "@/lib/models/modelName";
 
 interface SessionRow {
   id: string;
   session_type: string;
   description: string | null;
   start_time: Date;
-  end_time: Date;
   max_capacity: number;
   host_username: string | null;
   host_display_name: string | null;
   booked_count: string;
   recurrence_rule_id: string | null;
   series_id: string | null;
+  model_required: boolean;
+  model_names: string[];
+  total_count: string;
 }
 
 const SORT_COLUMNS = {
   type: "s.session_type",
   start: "s.start_time",
-  end: "s.end_time",
   booked: "booked_count",
   host: "u.username",
 } as const;
@@ -37,31 +39,73 @@ const SORT_COLUMNS = {
 // across a series' whole run; this one is for at-a-glance near-term
 // scheduling), paginated forward/back the same way.
 const GRID_WINDOW_DAYS = 28;
-const ONE_DAY_MS = 24 * 60 * 60 * 1000;
+
+// "All sessions" is for reporting/lookup across the whole history, so it
+// needs real pagination rather than a flat display cap — this is the first
+// page in the app to have one; the page-param convention here (1-indexed,
+// preserved alongside sort/dir the same way SortableTh already preserves
+// currentParams) is worth reusing if another list page needs it later.
+const PAGE_SIZE = 50;
 
 export default async function AdminSessionsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ sort?: string; dir?: string; start?: string }>;
+  searchParams: Promise<{ sort?: string; dir?: string; start?: string; page?: string }>;
 }) {
-  const { sort, dir, start } = await searchParams;
-  const { state, orderBy } = resolveSort(sort, dir, SORT_COLUMNS, "start");
+  const { sort, dir, start, page: pageParam } = await searchParams;
+  // Defaults to descending ("current to old") — the most recent/soonest
+  // sessions first, oldest last — rather than resolveSort's own ascending
+  // default, since the natural reading order for "all sessions" is
+  // recent-first, not "start of history first."
+  const { state, orderBy } = resolveSort(sort, dir, SORT_COLUMNS, "start", "desc");
   const currentParams = new URLSearchParams({ sort: state.key, dir: state.dir });
+
+  const requestedPage = Number(pageParam);
+  let page: number;
+  if (Number.isInteger(requestedPage) && requestedPage > 0) {
+    page = requestedPage;
+  } else if (state.key === "start") {
+    // No explicit page requested while sorted by date: land on the page
+    // containing "now" instead of page 1, which under a plain start_time
+    // sort would be the extreme edge of the table (the furthest-future
+    // rollforward-generated occurrence under the default "desc" direction,
+    // or the oldest legacy-migrated session under "asc") — mirrors
+    // /app/schedule's own default of opening at today's date rather than
+    // one end of its full booking window.
+    const anchorResult = await pool.query<{ count: string }>(
+      `SELECT count(*) FROM sessions WHERE status = 'Scheduled' AND start_time ${state.dir === "desc" ? ">" : "<"} now()`,
+    );
+    // Rows on the "now" side of the boundary occupy ranks 1..anchorCount;
+    // ceil (not floor) lands on the page holding the last of those ranks,
+    // i.e. the row closest to "now" — floor would overshoot by one page
+    // whenever anchorCount is an exact multiple of PAGE_SIZE.
+    page = Math.max(1, Math.ceil(Number(anchorResult.rows[0].count) / PAGE_SIZE));
+  } else {
+    page = 1;
+  }
+  const offset = (page - 1) * PAGE_SIZE;
 
   const parsedStart = start ? parseDateOnly(start) : new Date();
   const gridStart = startOfDay(Number.isNaN(parsedStart.getTime()) ? new Date() : parsedStart);
-  const gridEnd = new Date(gridStart.getTime() + GRID_WINDOW_DAYS * ONE_DAY_MS);
-  const gridDays = Array.from({ length: GRID_WINDOW_DAYS }, (_, i) => new Date(gridStart.getTime() + i * ONE_DAY_MS));
+  const gridEnd = addDays(gridStart, GRID_WINDOW_DAYS);
+  const gridDays = Array.from({ length: GRID_WINDOW_DAYS }, (_, i) => addDays(gridStart, i));
 
   const [result, gridResult, defaultCapacity, hostCandidates] = await Promise.all([
     pool.query<SessionRow>(
-      `SELECT s.id, s.session_type, s.description, s.start_time, s.end_time, s.max_capacity,
+      `SELECT s.id, s.session_type, s.description, s.start_time, s.max_capacity,
               u.username AS host_username, u.display_name AS host_display_name, s.recurrence_rule_id, s.series_id,
-              (SELECT count(*) FROM passes p WHERE p.session_id = s.id AND p.status = 'Used') AS booked_count
+              s.model_required,
+              (SELECT count(*) FROM passes p WHERE p.session_id = s.id AND p.status = 'Used') AS booked_count,
+              (SELECT COALESCE(json_agg(m.name ORDER BY m.name), '[]'::json)
+                 FROM session_model_mapping smm JOIN models m ON m.id = smm.model_id
+                 WHERE smm.session_id = s.id) AS model_names,
+              count(*) OVER() AS total_count
        FROM sessions s
        LEFT JOIN users u ON u.id = s.host_user_id
        WHERE s.status = 'Scheduled'
-       ORDER BY ${orderBy}, s.id ASC`,
+       ORDER BY ${orderBy}, s.id ASC
+       LIMIT $1 OFFSET $2`,
+      [PAGE_SIZE, offset],
     ),
     pool.query<{
       id: string;
@@ -108,12 +152,13 @@ export default async function AdminSessionsPage({
     const key = `${dayIndex(gridStart, date)}:${slotFor(date)}`;
     const existing = gridOccupied[key];
     if (existing) {
-      existing.extraCount = (existing.extraCount ?? 0) + 1;
+      (existing.others ??= []).push({ sessionId: row.id, sessionType: row.session_type, startTime: row.start_time.toISOString() });
       continue;
     }
     gridOccupied[key] = {
       sessionId: row.id,
       sessionType: row.session_type,
+      startTime: row.start_time.toISOString(),
       needsHost: row.needs_host,
       needsModel: row.needs_model,
       bookedCount: Number(row.booked_count),
@@ -122,12 +167,20 @@ export default async function AdminSessionsPage({
   }
 
   const gridNavParams = new URLSearchParams({ sort: state.key, dir: state.dir });
-  const prevStart = toDateOnly(new Date(gridStart.getTime() - GRID_WINDOW_DAYS * ONE_DAY_MS));
-  const nextStart = toDateOnly(new Date(gridStart.getTime() + GRID_WINDOW_DAYS * ONE_DAY_MS));
+  const prevStart = toDateOnly(addDays(gridStart, -GRID_WINDOW_DAYS));
+  const nextStart = toDateOnly(addDays(gridStart, GRID_WINDOW_DAYS));
   gridNavParams.set("start", prevStart);
   const prevHref = `/admin/sessions?${gridNavParams}`;
   gridNavParams.set("start", nextStart);
   const nextHref = `/admin/sessions?${gridNavParams}`;
+
+  const totalCount = result.rows[0] ? Number(result.rows[0].total_count) : 0;
+  const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
+  const tablePageHref = (p: number) => {
+    const params = new URLSearchParams({ sort: state.key, dir: state.dir, page: String(p) });
+    return `/admin/sessions?${params}`;
+  };
+  const now = new Date();
 
   return (
     <>
@@ -164,13 +217,20 @@ export default async function AdminSessionsPage({
 
       <h2>All sessions</h2>
       <p className="section-note">Every scheduled session, past and future — for reporting/lookup, not day-to-day scheduling.</p>
+      <p>
+        Page {page} of {totalPages} ({totalCount} session{totalCount === 1 ? "" : "s"})
+        {" · "}
+        {page > 1 ? <Link href={tablePageHref(page - 1)}>&larr; Previous page</Link> : <span>&larr; Previous page</span>}
+        {" · "}
+        {page < totalPages ? <Link href={tablePageHref(page + 1)}>Next page &rarr;</Link> : <span>Next page &rarr;</span>}
+      </p>
       <div className="table-scroll">
         <table>
         <thead>
           <tr>
             <SortableTh label="Type" columnKey="type" pathname="/admin/sessions" currentParams={currentParams} current={state} />
-            <SortableTh label="Start" columnKey="start" pathname="/admin/sessions" currentParams={currentParams} current={state} />
-            <SortableTh label="End" columnKey="end" pathname="/admin/sessions" currentParams={currentParams} current={state} />
+            <SortableTh label="Date" columnKey="start" pathname="/admin/sessions" currentParams={currentParams} current={state} />
+            <th>Time</th>
             <SortableTh
               label="Booked / Capacity"
               columnKey="booked"
@@ -179,6 +239,7 @@ export default async function AdminSessionsPage({
               current={state}
             />
             <SortableTh label="Host" columnKey="host" pathname="/admin/sessions" currentParams={currentParams} current={state} />
+            <th>Model</th>
             <th></th>
           </tr>
         </thead>
@@ -186,16 +247,37 @@ export default async function AdminSessionsPage({
           {result.rows.map((row) => (
             <tr key={row.id}>
               <td>{row.session_type}</td>
-              <td>{new Date(row.start_time).toLocaleString("en-US", { timeZone: ORG_TIMEZONE })}</td>
-              <td>{new Date(row.end_time).toLocaleString("en-US", { timeZone: ORG_TIMEZONE })}</td>
+              <td>{new Date(row.start_time).toLocaleDateString("en-US", { timeZone: ORG_TIMEZONE })}</td>
+              <td>{slotFor(new Date(row.start_time))}</td>
               <td>
                 {row.booked_count} / {row.max_capacity}
               </td>
-              <td>{row.host_username ? memberLabel(row.host_display_name, row.host_username) : "Open — needs a host"}</td>
+              <td>
+                {row.host_username ? (
+                  memberLabel(row.host_display_name, row.host_username)
+                ) : (
+                  <Link href={`/admin/sessions/${row.id}`}>Open — needs a host</Link>
+                )}
+              </td>
+              <td>
+                {!row.model_required ? (
+                  "Not required"
+                ) : row.model_names.length > 0 ? (
+                  row.model_names.map(truncateModelName).join(", ")
+                ) : (
+                  <Link href={`/admin/sessions/${row.id}`}>Needs a model</Link>
+                )}
+              </td>
               <td>
                 {row.recurrence_rule_id && "Recurring · "}
                 {row.series_id && "Series · "}
-                <Link href={`/admin/sessions/${row.id}`}>Manage</Link>
+                {new Date(row.start_time) < now ? (
+                  <Link href={`/admin/sessions/${row.id}`} title="This session already happened — editing it is a retroactive correction to historical records.">
+                    Edit (past)
+                  </Link>
+                ) : (
+                  <Link href={`/admin/sessions/${row.id}`}>Manage</Link>
+                )}
               </td>
             </tr>
           ))}

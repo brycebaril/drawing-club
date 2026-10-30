@@ -31,3 +31,21 @@ export async function confirmMfaEnrollment(userId: string, code: string): Promis
   await pool.query(`UPDATE users SET mfa_enabled = true WHERE id = $1`, [userId]);
   return true;
 }
+
+/**
+ * Turns MFA back off for a voluntary (non-mandatory-role) enrollment.
+ * Callers must check `!ctx.mfaRequired` before calling this — refusing here
+ * too (rather than trusting the caller) so a role check never gets
+ * accidentally dropped from just one call site. Without it, an ADMIN/
+ * VOL_CTRL could disable MFA and immediately get bounced back to
+ * /auth/mfa-setup by src/proxy.ts's forced-enrollment redirect on their very
+ * next request — same end state, just a confusing enable/disable/re-enable
+ * loop instead of a clear "your role requires this" message up front.
+ */
+export async function disableMfa(userId: string, mfaRequired: boolean): Promise<{ ok: boolean; error?: string }> {
+  if (mfaRequired) {
+    return { ok: false, error: "Your role requires two-factor authentication — it can't be disabled." };
+  }
+  await pool.query(`UPDATE users SET mfa_enabled = false, mfa_secret = NULL WHERE id = $1`, [userId]);
+  return { ok: true };
+}

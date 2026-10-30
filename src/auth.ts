@@ -81,7 +81,16 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           return null;
         }
 
-        if (ctx.mfaRequired && ctx.mfaEnabled) {
+        // Any ENABLED MFA is honored at login, regardless of role — not
+        // gated on mfaRequired, which is a separate concept (whether
+        // enrollment is *mandatory*, used only by src/proxy.ts's forced-
+        // enrollment redirect). The old "mfaRequired && mfaEnabled" gate
+        // meant a non-admin who voluntarily completed TOTP enrollment was
+        // never actually challenged for a code at login — mfaRequired is
+        // false for them, so the whole block was skipped regardless of
+        // mfaEnabled. Confirmed as a real, previously-shipped-but-inert
+        // bug: the enrollment mechanism worked, but had no effect.
+        if (ctx.mfaEnabled) {
           if (typeof totpCode !== "string" || !totpCode) {
             await recordLoginAttempt(username, ip, false);
             return null;

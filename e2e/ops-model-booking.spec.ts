@@ -82,3 +82,23 @@ test("VOL_MBR can mark a session as not requiring a model", async ({ page }) => 
   await page.goto("/ops/model-booking?filter=unassigned");
   await expect(page.getByText(host.username)).toHaveCount(0);
 });
+
+test("a non-VOL_MBR hitting /ops/model-booking is denied", async ({ page }) => {
+  // Unlike /ops/check-in (resource-scoped per session, so its denial can
+  // only be enforced inside the page via notFound() — proxy.ts has no way
+  // to know which session a request is about), /ops/model-booking has no
+  // per-instance ownership concept at all, so it's gated entirely at the
+  // route level by src/lib/auth/rbac.ts's own explicit
+  // { pattern: "/ops/model-booking", allow: ["VOL_MBR"] } rule — src/proxy.ts
+  // redirects to /dashboard before the page's own requireOpsRole/notFound()
+  // fallback is ever reached, same as /ops/financials' own denial shape.
+  // Verified directly (not just inferred): a manual repro landed on
+  // /dashboard, not a 404, confirming the page-level notFound() here is an
+  // unreachable defense-in-depth backstop, not the actual enforcement path.
+  const host = await createTestUser({ username: `e2emodelbookingdenied${Date.now()}` });
+  await pool.query(`INSERT INTO volunteer_roles (user_id, role) VALUES ($1, 'SessionManager')`, [host.id]);
+
+  await loginAsUser(page, host);
+  await page.goto("/ops/model-booking");
+  await expect(page).toHaveURL(/\/dashboard$/);
+});
