@@ -11,6 +11,12 @@ frontend:
   phases:
     preBuild:
       commands:
+        # Pin Node to .nvmrc's major (24) instead of the build image's default.
+        # `nvm install` resolves the newest patch on every build, so
+        # redeploying is enough to pick up a Node security release, and SSR
+        # compute's runtime follows the build's Node major.
+        - nvm install
+        - node --version
         - corepack enable
         # node-linker=hoisted (flat node_modules, no .pnpm virtual store /
         # symlinks) is scoped to this build only — Amplify Hosting's SSR
