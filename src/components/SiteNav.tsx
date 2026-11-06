@@ -7,6 +7,7 @@ import { isStaticOnlyLaunch, LEGACY_BOOKING_URL } from "@/lib/launchMode";
 import { LogoutForm } from "./LogoutForm";
 import { NotificationBanner } from "./NotificationBanner";
 import { EnvStatusBanner } from "./EnvStatusBanner";
+import { LaunchModeBanner } from "./LaunchModeBanner";
 import { StaffMenu, type StaffLink } from "./StaffMenu";
 
 const ADMIN_LINKS: StaffLink[] = [
@@ -88,6 +89,7 @@ export async function SiteNav() {
 
   return (
     <>
+      <LaunchModeBanner />
       <EnvStatusBanner />
       <nav>
         <ul>
