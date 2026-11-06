@@ -4,6 +4,7 @@ import { pool } from "@/lib/db/pool";
 import { requireOpsRole } from "@/lib/auth/requireOpsRole";
 import { SiteNav } from "@/components/SiteNav";
 import { toDateOnly } from "@/lib/sessions/shared";
+import { parsePgDateOnly } from "@/lib/timezone";
 import { describeTransactionItemType } from "@/lib/payments/pricing";
 import { GenerateReportForm } from "./GenerateReportForm";
 
@@ -111,11 +112,11 @@ export default async function FinancialsPage({
           </thead>
           <tbody>
             {weeksResult.rows.map((week) => {
-              const weekStartStr = toDateOnly(new Date(week.week_start_date));
+              const weekStartStr = toDateOnly(parsePgDateOnly(week.week_start_date));
               return (
                 <tr key={weekStartStr}>
                   <td>
-                    {weekStartStr} – {toDateOnly(new Date(week.week_end_date))}
+                    {weekStartStr} – {toDateOnly(parsePgDateOnly(week.week_end_date))}
                   </td>
                   <td>{week.models_paid}</td>
                   <td>${week.total_owed}</td>

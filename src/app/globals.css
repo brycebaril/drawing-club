@@ -133,6 +133,20 @@ img {
   height: auto;
 }
 
+/* The universal reset above zeroes ul/ol's default padding-left, but the
+   browser's default list-style-position (outside) still renders the bullet
+   marker in that now-zero-width gutter — poking left of the shared edge
+   every heading/paragraph in a card actually sits on (confirmed for real on
+   /dashboard: "Member benefits"' bullets sat left of "Membership"'s "M").
+   `inside` moves the marker into the text flow instead, as the first glyph
+   of the line, so it starts flush with everything else. Harmless for every
+   `list-style: none` list elsewhere (nav, chip lists, dropdowns, etc.) —
+   position only matters when a marker is actually rendered. */
+ul,
+ol {
+  list-style-position: inside;
+}
+
 /* ---- Layout ---- */
 
 main {
@@ -250,6 +264,59 @@ nav a {
 }
 
 nav a:hover {
+  color: var(--color-link);
+}
+
+/* The Log out button is wrapped in a <form> (LogoutForm.tsx) so it can post
+   to the signOut server action — that <form> inherits the global `form {
+   margin-bottom: var(--space-5) }` rule below, making its <li> ~24px taller
+   than its plain-<a> siblings. nav ul's `align-items: center` then centers
+   that taller box, shifting the visible button text upward relative to the
+   rest of the row (confirmed for real on staging — a separate, earlier fix
+   to .plain-button itself, still correct on its own terms, didn't touch this
+   because the offset comes from the <form> ancestor, not the button). */
+nav form {
+  margin: 0;
+  display: inline;
+}
+
+/* The Schedule link's own .button-link styling (see "---- Buttons ----"
+   below) carries a `margin-top` meant for its other use as a standalone CTA
+   below a paragraph (e.g. the dashboard's "Buy tickets" prompt) — inside the
+   nav, that top-only margin makes the flex item taller from the top than its
+   plain-<a> siblings, so `nav ul`'s `align-items: center` shifts the pill's
+   visible text down relative to the rest of the row (confirmed for real on
+   staging: "Schedule" sat ~6px lower than "Home"). Zeroing it here doesn't
+   touch the CTA usage, which isn't inside a `nav`. */
+nav .button-link {
+  margin-top: 0;
+}
+
+/* Resets the generic filled-pill <button> styling (see "---- Buttons ----"
+   below) back down to a plain nav link's look — used on the Log out button
+   so it reads as one more item in the list rather than a second primary CTA
+   competing with the Schedule link's own .button-link treatment. */
+nav .plain-button {
+  all: unset;
+  /* all: unset resets `display` to its CSS-spec-initial value (inline) and
+     `vertical-align` to its own initial value (baseline) — on paper that
+     should already match the plain <a> tags around it, but a <button>
+     retains native OS/browser form-control chrome that `all` doesn't fully
+     strip in every engine, throwing its baseline off from surrounding text
+     (confirmed for real on staging — "Log out" sat visibly higher than its
+     neighbors). appearance: none removes that native widget rendering;
+     the explicit display/vertical-align below make the two properties
+     `all: unset` already sets no longer implicit, so this doesn't silently
+     regress the same way again if `all: unset` is ever narrowed. */
+  appearance: none;
+  display: inline;
+  vertical-align: baseline;
+  cursor: pointer;
+  font-weight: 500;
+  color: var(--color-text);
+}
+
+nav .plain-button:hover {
   color: var(--color-link);
 }
 
@@ -607,6 +674,93 @@ button:disabled {
   cursor: not-allowed;
 }
 
+/* A <Link>/<a> styled to match the plain <button> above — for a primary
+   navigational CTA (e.g. the dashboard/schedule "Buy tickets" prompt) that
+   needs button-level visual weight without being a form submit itself. */
+.button-link {
+  display: inline-block;
+  padding: var(--space-2) var(--space-4);
+  margin-top: var(--space-3);
+  border: 1px solid var(--color-accent);
+  border-radius: var(--radius);
+  background: var(--color-accent);
+  color: #fff;
+  font-family: var(--font-heading);
+  font-weight: var(--font-heading-weight);
+  font-size: 0.9375rem;
+  text-decoration: none;
+  transition: background 0.15s ease;
+}
+
+.button-link:hover {
+  background: var(--color-accent-hover);
+  border-color: var(--color-accent-hover);
+}
+
+/* A prominent count + CTA card — the dashboard's top-matter "you have N
+   tickets" prompt, and the schedule page's "you have none yet" nudge. */
+.stat-callout {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+  padding: var(--space-4) var(--space-5);
+  margin-bottom: var(--space-5);
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+}
+
+.stat-callout-count {
+  margin: 0;
+  font-family: var(--font-heading);
+  font-size: 2rem;
+  line-height: 1;
+}
+
+.stat-callout-count span {
+  display: block;
+  margin-top: var(--space-1);
+  font-family: var(--font-body);
+  font-size: 0.8125rem;
+  font-weight: 400;
+  color: var(--color-text-muted);
+}
+
+/* A grid of small metric cards — the admin dashboard's account-class,
+   new-this-week, and ticket-circulation sections. Distinct from
+   .stat-callout, which is shaped for one big count + CTA, not several
+   small numbers side by side. */
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr));
+  gap: var(--space-4);
+  margin-bottom: var(--space-5);
+}
+
+.stat-card {
+  padding: var(--space-4);
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+}
+
+.stat-card-value {
+  margin: 0;
+  font-family: var(--font-heading);
+  font-weight: var(--font-heading-weight);
+  font-size: 1.75rem;
+  line-height: 1;
+}
+
+.stat-card-label,
+.stat-card-sub {
+  margin-top: var(--space-1);
+  font-size: 0.8125rem;
+  color: var(--color-text-muted);
+}
+
 /* ---- Alerts & status messages ---- */
 /* role="alert" is used for validation errors; role="status" for
    success/confirmation messages (e.g. "your message has been sent") — both
@@ -672,7 +826,8 @@ button:disabled {
   color: var(--color-danger-text);
 }
 
-.badge--neutral {
+.badge--neutral,
+.badge--deleted {
   background: var(--color-bg);
   border: 1px solid var(--color-border);
   color: var(--color-text-muted);
@@ -902,6 +1057,105 @@ button:disabled {
 
 .link-button:hover {
   color: var(--color-link-hover);
+}
+
+/* ---- Photography (.washed) ----
+   Every content photograph is wrapped in .washed, never a raw <img>/<Image>
+   without it. Cuts saturation and contrast and lifts brightness so a photo
+   sits INTO the warm --color-bg paper ground rather than as a separate
+   rectangle on top of it — does NOT grayscale or neutralise hue, the
+   palette is deliberately warm. .washed--warm applies a touch more
+   desaturation for the two source frames (studio-room, exhibition-wall)
+   that run noticeably more orange than the others. No --radius-lg token:
+   this system only has one generous radius (--radius, see above), so
+   these reuse it directly rather than implying a second value exists. */
+.washed {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: var(--radius);
+  filter: saturate(0.55) contrast(0.88) brightness(1.06);
+}
+
+.washed--warm {
+  filter: saturate(0.42) contrast(0.85) brightness(1.08);
+}
+
+/* A rounded, bordered frame around an inset/accent photo (About page,
+   News header, empty states) — matches the border/shadow language every
+   other card-like element in this system already carries. */
+.photo-frame {
+  overflow: hidden;
+  border-radius: var(--radius);
+  border: 1px solid var(--color-border);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  margin-bottom: var(--space-4);
+}
+
+/* Full-bleed hero (homepage) — the photo fills a positioned ancestor via
+   next/image's `fill` prop, so .washed's own width/height/border-radius
+   are overridden here rather than fighting `fill`'s absolute positioning. */
+.hero-photo {
+  position: relative;
+  width: 100%;
+  min-height: 22rem;
+  border-radius: var(--radius);
+  overflow: hidden;
+  margin-bottom: var(--space-5);
+}
+
+.hero-photo .washed {
+  border-radius: 0;
+}
+
+/* The wash alone (see the .washed comment above) didn't leave reliable
+   contrast for text over a real photo — confirmed by the user against the
+   live page, not just anticipated. A bottom-weighted scrim (transparent at
+   the top, opaque near the text) fixes this without flattening the whole
+   photo the way a uniform tint would, and it's built from --color-text
+   (the same warm near-black already used for body copy everywhere else)
+   rather than pure black, so it stays inside the warm palette. Text
+   switches to --color-bg (the paper tone) for the same reason white text
+   would otherwise clash with the "warm, not neutral" rule. */
+.hero-photo-content {
+  position: relative;
+  z-index: 1;
+  padding: var(--space-6) var(--space-5) var(--space-5);
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  min-height: 22rem;
+  background: linear-gradient(
+    to bottom,
+    transparent 0%,
+    color-mix(in srgb, var(--color-text) 25%, transparent) 55%,
+    color-mix(in srgb, var(--color-text) 80%, transparent) 100%
+  );
+  color: var(--color-bg);
+}
+
+.hero-photo-content h1 {
+  font-size: 2.75rem;
+  color: var(--color-bg);
+}
+
+.hero-photo-content p.tagline {
+  color: color-mix(in srgb, var(--color-bg) 75%, transparent);
+}
+
+.hero-photo-content p a {
+  color: var(--color-bg);
+  text-decoration-color: color-mix(in srgb, var(--color-bg) 55%, transparent);
+}
+
+.hero-photo-content p a:hover {
+  color: var(--color-accent-bg);
+}
+
+@media (max-width: 640px) {
+  .hero-photo-content h1 {
+    font-size: 2rem;
+  }
 }
 
 /* ---- Media picker (src/components/cms/MediaPickerModal.tsx) ---- */

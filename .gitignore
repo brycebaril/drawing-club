@@ -53,3 +53,13 @@ next-env.d.ts
 # legacy Robostrar DB backups for the eventual MigrationPlan.md cutover —
 # large, likely contains real member data, never belongs in git history
 /legacy_data/
+
+# design/planning/legacy-analysis docs — kept locally for reference (CLAUDE.md
+# and various code comments cite them by section, e.g. "Design Doc §7.1"),
+# but not published going forward per explicit user direction. Operational/
+# API-reference docs (ArchitectureDocument.md, SecurityDocument.md,
+# StagingEnvironment.md, ImplementationNotesArchive.md) stay tracked.
+/docs/DesignDocument.md
+/docs/SiteOutline.md
+/docs/MigrationPlan.md
+/docs/LegacyDataAnalysis.md

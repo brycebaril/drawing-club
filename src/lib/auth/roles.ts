@@ -25,7 +25,7 @@ export interface UserAuthContext {
   id: string;
   username: string;
   displayName: string | null;
-  status: "Active" | "Suspended" | "Banned";
+  status: "Active" | "Suspended" | "Banned" | "Deleted";
   emailVerified: boolean;
   mfaEnabled: boolean;
   /** Design Doc §5.1 / SecurityDocument.md §2: ADMIN and VOL_CTRL require MFA. */

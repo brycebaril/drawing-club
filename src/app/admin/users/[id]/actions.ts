@@ -1,18 +1,33 @@
 "use server";
 
+import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { pool } from "@/lib/db/pool";
 import { requireAdmin } from "@/lib/auth/requireAdmin";
 import { writeAuditLog } from "@/lib/audit/log";
 import { releaseAllFutureBookingsForUser } from "@/lib/booking/actions";
+import { hashPassword } from "@/lib/auth/password";
 
 export interface ActionState {
   error?: string;
 }
 
 const STATUSES = ["Active", "Suspended", "Banned"] as const;
-const VOLUNTEER_ROLES = ["SessionManager", "ContentEditor", "ModelBooker", "Controller", "Board"] as const;
+// SupportAgent was missing here even though it's a real, assignable DB enum
+// value with its own display label below (VOLUNTEER_ROLE_LABELS in
+// page.tsx) — the dropdown offered it, but assignVolunteerRoleAction's own
+// validation against this array silently rejected it with "Choose a valid
+// role." Found and fixed while adding GenericVolunteer alongside it.
+const VOLUNTEER_ROLES = [
+  "SessionManager",
+  "ContentEditor",
+  "ModelBooker",
+  "Controller",
+  "Board",
+  "SupportAgent",
+  "GenericVolunteer",
+] as const;
 
 /**
  * Every mutation here is reachable via a prefetched <Link> in SiteNav's
@@ -49,6 +64,14 @@ export async function setAccountStatusAction(
   if (userRow.rowCount === 0) return { error: "User not found." };
   const previousStatus = userRow.rows[0].status;
 
+  // Anonymization is irreversible (docs/SecurityDocument.md §6) — the UI
+  // already hides this form on a Deleted account, but a direct POST
+  // bypassing it must be rejected server-side too, not just silently
+  // reactivate an erased account.
+  if (previousStatus === "Deleted") {
+    return { error: "This account has been anonymized and can't be reactivated." };
+  }
+
   await pool.query(`UPDATE users SET status = $1 WHERE id = $2`, [newStatus, userId]);
 
   // Suspended and Banned both block all app access already (src/proxy.ts) —
@@ -64,6 +87,82 @@ export async function setAccountStatusAction(
     actionType: "ACCOUNT_STATUS_CHANGED",
     targetUserId: userId,
     metadata: { previousStatus, newStatus, reason },
+  });
+
+  revalidateUserPages(userId);
+  redirect(`/admin/users/${userId}`);
+}
+
+/**
+ * GDPR-style erasure — anonymizes PII in place rather than a real row
+ * delete, which isn't viable regardless: transactions.user_id,
+ * waitlist_entries.user_id, session_notes.author_user_id, and
+ * recurrence_rules.created_by are all ON DELETE RESTRICT. Matches
+ * docs/SecurityDocument.md §6's own stated approach ("a policy for
+ * anonymizing — rather than deleting — personal identifiers... so
+ * accounting integrity is preserved"). Everything FK-linked to this user
+ * (transactions, passes, membership_history, audit logs, session notes)
+ * is deliberately left untouched — anonymized-but-linked.
+ */
+export async function anonymizeAccountAction(
+  _prevState: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const ctx = await requireAdmin();
+  if (!ctx) return { error: "Not authorized." };
+
+  const userId = String(formData.get("userId") ?? "");
+  const reason = String(formData.get("reason") ?? "").trim();
+  if (!reason) return { error: "A reason is required." };
+  if (formData.get("confirm") !== "on") {
+    return { error: "Check the confirmation box to proceed — this can't be undone." };
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+
+    const userRow = await client.query<{ status: string }>(
+      `SELECT status FROM users WHERE id = $1 FOR UPDATE`,
+      [userId],
+    );
+    if (userRow.rowCount === 0) {
+      await client.query("ROLLBACK");
+      return { error: "User not found." };
+    }
+    if (userRow.rows[0].status === "Deleted") {
+      await client.query("ROLLBACK");
+      return { error: "This account has already been anonymized." };
+    }
+
+    const unusablePasswordHash = await hashPassword(randomUUID());
+    await client.query(
+      `UPDATE users
+       SET email = $1, username = $2, display_name = NULL, password_hash = $3,
+           mfa_secret = NULL, mfa_enabled = false,
+           cancellation_requested_at = NULL, cancellation_reason = NULL,
+           status = 'Deleted'
+       WHERE id = $4`,
+      [`deleted-${userId}@deleted.invalid`, `deleted-${userId}`, unusablePasswordHash, userId],
+    );
+
+    await client.query("COMMIT");
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
+
+  // Outside the transaction, same as setAccountStatusAction above — this
+  // touches sessions/passes tables of its own via its own connection.
+  await releaseAllFutureBookingsForUser(userId);
+
+  await writeAuditLog({
+    actorId: ctx.id,
+    actionType: "ACCOUNT_ANONYMIZED",
+    targetUserId: userId,
+    metadata: { reason },
   });
 
   revalidateUserPages(userId);
@@ -112,6 +211,51 @@ export async function grantPassAction(
     actionType: "PASS_GRANTED",
     targetUserId: userId,
     metadata: { quantity, isTransferable, reason },
+  });
+
+  revalidateUserPages(userId);
+  redirect(`/admin/users/${userId}`);
+}
+
+/**
+ * The one place a standard (non-transferable) ticket can be manually
+ * removed from a specific member's own wallet — src/app/admin/passes'
+ * revokePassAction only ever touches is_transferable = true passes and is
+ * only reachable from the global batch-management table, so most members'
+ * actual tickets were never revocable anywhere. Reuses the existing
+ * 'Revoked' status (already means "org reclaims value," exactly what a
+ * manual admin removal is) rather than inventing a new concept — scoped by
+ * owner_id here since this acts on one member's own wallet, not batch
+ * inventory, so unlike the global action there's no is_transferable
+ * restriction.
+ */
+export async function revokeUserPassAction(
+  _prevState: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const ctx = await requireAdmin();
+  if (!ctx) return { error: "Not authorized." };
+
+  const userId = String(formData.get("userId") ?? "");
+  const passId = String(formData.get("passId") ?? "");
+  const reason = String(formData.get("reason") ?? "").trim();
+  if (!reason) {
+    return { error: "A reason is required." };
+  }
+
+  const updated = await pool.query(
+    `UPDATE passes SET status = 'Revoked' WHERE id = $1 AND owner_id = $2 AND status IN ('Available', 'Assigned')`,
+    [passId, userId],
+  );
+  if (updated.rowCount === 0) {
+    return { error: "That ticket isn't eligible for revocation." };
+  }
+
+  await writeAuditLog({
+    actorId: ctx.id,
+    actionType: "PASS_REVOKED",
+    targetUserId: userId,
+    metadata: { passId, reason },
   });
 
   revalidateUserPages(userId);

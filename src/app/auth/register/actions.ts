@@ -6,6 +6,7 @@ import { hashPassword } from "@/lib/auth/password";
 import { sendVerificationEmail } from "@/lib/email/verification";
 import { signIn } from "@/auth";
 import { isValidEmail } from "@/lib/validation/email";
+import { isStaticOnlyLaunch } from "@/lib/launchMode";
 
 export interface RegisterState {
   error?: string;
@@ -21,10 +22,19 @@ export async function registerAction(
   _prevState: RegisterState,
   formData: FormData,
 ): Promise<RegisterState> {
+  // Defense-in-depth: /auth/register is already proxy-gated to /auth/login
+  // during static-only launch mode (src/lib/launchMode.ts), which also
+  // covers this Server Action per Next's Proxy execution order — this is
+  // belt-and-suspenders against a future refactor moving the form elsewhere.
+  if (isStaticOnlyLaunch()) {
+    return { error: "Registration isn't open yet." };
+  }
+
   const displayName = String(formData.get("displayName") ?? "").trim();
   const username = String(formData.get("username") ?? "").trim();
   const email = String(formData.get("email") ?? "").trim();
   const password = String(formData.get("password") ?? "");
+  const marketingOptIn = formData.get("marketingOptIn") === "on";
 
   if (!displayName) {
     return { error: "Enter your name." };
@@ -52,10 +62,10 @@ export async function registerAction(
   let user: { id: string; username: string; email: string };
   try {
     const result = await pool.query<{ id: string; username: string; email: string }>(
-      `INSERT INTO users (username, password_hash, email, display_name, base_role, status)
-       VALUES ($1, $2, $3, $4, 'AccountHolder', 'Active')
+      `INSERT INTO users (username, password_hash, email, display_name, base_role, status, marketing_email_opt_in)
+       VALUES ($1, $2, $3, $4, 'AccountHolder', 'Active', $5)
        RETURNING id, username, email`,
-      [username, passwordHash, email, displayName],
+      [username, passwordHash, email, displayName, marketingOptIn],
     );
     user = result.rows[0];
   } catch (error) {

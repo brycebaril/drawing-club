@@ -1,6 +1,6 @@
 import { pool } from "@/lib/db/pool";
 import { getSettingNumber, getSettingString } from "@/lib/settings";
-import { toDateOnly } from "@/lib/sessions/shared";
+import { toDateOnly, addDays } from "@/lib/sessions/shared";
 import { sendEmail } from "@/lib/email/sender";
 
 export interface ModelSessionsWorked {
@@ -65,10 +65,8 @@ export interface GeneratePayoutReportsResult {
  * duplicate reports or double-counts a model's pay.
  */
 export async function generatePayoutReports(weekStart: Date): Promise<GeneratePayoutReportsResult> {
-  const weekEnd = new Date(weekStart);
-  weekEnd.setDate(weekEnd.getDate() + 6);
-  const rangeEndExclusive = new Date(weekStart);
-  rangeEndExclusive.setDate(rangeEndExclusive.getDate() + 7);
+  const weekEnd = addDays(weekStart, 6);
+  const rangeEndExclusive = addDays(weekStart, 7);
 
   const rate = await getSettingNumber("MODEL_FLAT_PAY_RATE");
 

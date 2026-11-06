@@ -5,18 +5,29 @@ import { SLOTS, toDateOnly, type Slot } from "@/lib/sessions/shared";
 import type { HostCandidate } from "@/lib/sessions/host";
 import { AddSessionModal } from "./AddSessionModal";
 import { EditSessionModal } from "./EditSessionModal";
+import { PickSessionModal } from "./PickSessionModal";
 import { ORG_TIMEZONE } from "@/lib/org";
 import { orgDateParts } from "@/lib/timezone";
+
+export interface SessionCollisionOption {
+  sessionId: string;
+  sessionType: string;
+  startTime: string;
+}
 
 export interface OccupiedCell {
   sessionId: string;
   sessionType: string;
+  startTime: string;
   needsHost: boolean;
   needsModel: boolean;
   bookedCount: number;
   maxCapacity: number;
-  /** Count of additional sessions also landing in this day+slot cell (see page.tsx) — undefined/0 means just the one shown. */
-  extraCount?: number;
+  /** Other sessions also landing in this day+slot cell (see page.tsx) — a
+   * data-integrity anomaly (createSessionAction has no slot-conflict check
+   * for one-off sessions), not a normal state. undefined/empty means just
+   * the one shown. */
+  others?: SessionCollisionOption[];
 }
 
 /**
@@ -41,7 +52,11 @@ function captionFor(cell: OccupiedCell): string {
   return `${cell.bookedCount}/${cell.maxCapacity}`;
 }
 
-type ModalState = { kind: "add"; date: Date; slot: Slot } | { kind: "edit"; sessionId: string } | null;
+type ModalState =
+  | { kind: "add"; date: Date; slot: Slot }
+  | { kind: "edit"; sessionId: string }
+  | { kind: "pick"; options: SessionCollisionOption[] }
+  | null;
 
 const WEEKDAY_FORMAT = new Intl.DateTimeFormat("en-US", { weekday: "short", timeZone: ORG_TIMEZONE });
 const DAY_FORMAT = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", timeZone: ORG_TIMEZONE });
@@ -111,17 +126,27 @@ export function SessionCalendarGrid({
                         <button
                           type="button"
                           className={`grid-cell grid-cell--filled${incomplete ? " grid-cell--incomplete" : ""}`}
-                          aria-label={`Edit ${cell.sessionType} session on ${d.toLocaleDateString("en-US", { timeZone: ORG_TIMEZONE })} (${slot})${cell.extraCount ? ` — ${cell.extraCount} more session(s) also scheduled in this slot` : ""}`}
-                          onClick={() => setModal({ kind: "edit", sessionId: cell.sessionId })}
+                          aria-label={`Edit ${cell.sessionType} session on ${d.toLocaleDateString("en-US", { timeZone: ORG_TIMEZONE })} (${slot})${cell.others?.length ? ` — ${cell.others.length} more session(s) also scheduled in this slot` : ""}`}
+                          onClick={() =>
+                            cell.others?.length
+                              ? setModal({
+                                  kind: "pick",
+                                  options: [
+                                    { sessionId: cell.sessionId, sessionType: cell.sessionType, startTime: cell.startTime },
+                                    ...cell.others,
+                                  ],
+                                })
+                              : setModal({ kind: "edit", sessionId: cell.sessionId })
+                          }
                         >
                           <span className="grid-cell-glyph">{cell.sessionType}</span>
                           <span className="grid-cell-caption">{captionFor(cell)}</span>
-                          {!!cell.extraCount && (
+                          {!!cell.others?.length && (
                             <span
                               className="grid-cell-collision-badge"
-                              title={`${cell.extraCount} more session(s) also scheduled in this slot`}
+                              title={`${cell.others.length} more session(s) also scheduled in this slot`}
                             >
-                              +{cell.extraCount}
+                              +{cell.others.length}
                             </span>
                           )}
                         </button>
@@ -157,6 +182,14 @@ export function SessionCalendarGrid({
 
       {modal?.kind === "edit" && (
         <EditSessionModal sessionId={modal.sessionId} hostCandidates={hostCandidates} onClose={() => setModal(null)} />
+      )}
+
+      {modal?.kind === "pick" && (
+        <PickSessionModal
+          options={modal.options}
+          onPick={(sessionId) => setModal({ kind: "edit", sessionId })}
+          onClose={() => setModal(null)}
+        />
       )}
     </>
   );

@@ -114,6 +114,43 @@ test("granting passes increases the target user's balance and is audit-logged", 
   ).toHaveCount(1);
 });
 
+test("an admin can revoke one of a member's own standard (non-transferable) tickets", async ({ page }) => {
+  // revokePassAction (src/app/admin/passes/actions.ts) only ever touches
+  // is_transferable = true passes and is only reachable from the global
+  // /admin/passes table — a standard ticket, which is what most members
+  // actually hold, was never revocable anywhere before revokeUserPassAction.
+  const admin = await createTestUser({ username: `e2eadminrevoke${Date.now()}`, baseRole: "Admin" });
+  await loginAsUser(page, admin);
+
+  const target = await createTestUser({ username: `e2erevokee${Date.now()}` });
+  const passResult = await pool.query<{ id: string }>(
+    `INSERT INTO passes (owner_id, status, is_transferable, effective_price) VALUES ($1, 'Available', false, 25) RETURNING id`,
+    [target.id],
+  );
+  const passId = passResult.rows[0].id;
+
+  await page.goto(`/admin/users/${target.id}`);
+  await expect(page.getByText("Available tickets: 1")).toBeVisible();
+
+  const row = page.locator("tr", { has: page.locator(`button:has-text("Revoke")`) }).first();
+  await row.getByRole("button", { name: "Revoke" }).click();
+  await row.getByLabel("Reason").fill("Issued in error");
+  await row.getByRole("button", { name: "Confirm revoke" }).click();
+  await page.waitForURL(`**/admin/users/${target.id}`);
+
+  await expect(page.getByText("Available tickets: 0")).toBeVisible();
+
+  await expect(async () => {
+    const pass = await pool.query<{ status: string }>(`SELECT status FROM passes WHERE id = $1`, [passId]);
+    expect(pass.rows[0].status).toBe("Revoked");
+  }).toPass({ timeout: 5000 });
+
+  await page.goto("/admin/audit-logs");
+  await expect(
+    page.getByRole("row").filter({ hasText: target.username }).filter({ hasText: "PASS_REVOKED" }),
+  ).toHaveCount(1);
+});
+
 test("assigning and removing a volunteer role updates the user and is audit-logged", async ({
   page,
 }) => {

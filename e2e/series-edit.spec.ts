@@ -1,11 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { createTestUser, findOpenSlotBase, loginAsUser, pool, withSlotLock } from "./helpers";
 import { bookSeriesSeat } from "@/lib/series/actions";
-
-function toDateOnly(date: Date): string {
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
-}
+import { toDateOnly, startOfDay, addDays } from "@/lib/sessions/shared";
 
 test("series editing: seat-count guard, add more dates, instance editor", async ({ page }) => {
   test.setTimeout(60_000);
@@ -30,9 +26,10 @@ test("series editing: seat-count guard, add more dates, instance editor", async 
   // "add more dates" step below, which gets its own separate lock.
   const day3 = await withSlotLock("Morning", async () => {
     const base = await findOpenSlotBase(now, "Morning", [0, 7, 14], 3, 22);
-    const day1 = toDateOnly(new Date(now.getTime() + base * 86400000));
-    const day2 = toDateOnly(new Date(now.getTime() + (base + 7) * 86400000));
-    const day3 = toDateOnly(new Date(now.getTime() + (base + 14) * 86400000));
+    const dayStart = startOfDay(now);
+    const day1 = toDateOnly(addDays(dayStart, base));
+    const day2 = toDateOnly(addDays(dayStart, base + 7));
+    const day3 = toDateOnly(addDays(dayStart, base + 14));
 
     await page.goto("/admin/sessions/new-series");
     await page.getByLabel("Series name").fill(name);

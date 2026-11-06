@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { pool } from "@/lib/db/pool";
 import { requireAdmin } from "@/lib/auth/requireAdmin";
 import { writeAuditLog } from "@/lib/audit/log";
-import { SESSION_TYPES } from "@/lib/sessions/shared";
+import { SESSION_TYPES, sessionTypeNeedsModel } from "@/lib/sessions/shared";
 import { resolveHostUsername } from "@/lib/sessions/host";
 import { parseSlotValues, checkSlotConflicts } from "@/lib/sessions/slots";
 
@@ -130,10 +130,19 @@ export async function addSeriesSlotsAction(
     for (const slot of parsedSlots) {
       const inserted = await client.query<{ id: string }>(
         `INSERT INTO sessions
-           (session_type, description, start_time, end_time, max_capacity, host_user_id, is_ticketed, series_id)
-         VALUES ($1, $2, $3, $4, $5, $6, true, $7)
+           (session_type, description, start_time, end_time, max_capacity, host_user_id, is_ticketed, series_id, model_required)
+         VALUES ($1, $2, $3, $4, $5, $6, true, $7, $8)
          RETURNING id`,
-        [sessionType, description || null, slot.startTime, slot.endTime, seatCount, hostResult.hostUserId, seriesId],
+        [
+          sessionType,
+          description || null,
+          slot.startTime,
+          slot.endTime,
+          seatCount,
+          hostResult.hostUserId,
+          seriesId,
+          sessionTypeNeedsModel(sessionType),
+        ],
       );
       sessionIds.push(inserted.rows[0].id);
     }

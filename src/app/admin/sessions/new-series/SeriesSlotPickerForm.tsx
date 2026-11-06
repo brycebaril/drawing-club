@@ -14,9 +14,20 @@ interface Props {
   occupied: Record<string, string>;
   defaultSeatCount: number;
   hostCandidates: HostCandidate[];
+  prevHref: string;
+  nextHref: string;
+  windowWeeks: number;
 }
 
-export function SeriesSlotPickerForm({ days, occupied, defaultSeatCount, hostCandidates }: Props) {
+export function SeriesSlotPickerForm({
+  days,
+  occupied,
+  defaultSeatCount,
+  hostCandidates,
+  prevHref,
+  nextHref,
+  windowWeeks,
+}: Props) {
   const [state, formAction, pending] = useActionState(createSeriesAction, initialState);
 
   return (
@@ -55,6 +66,11 @@ export function SeriesSlotPickerForm({ days, occupied, defaultSeatCount, hostCan
         <HostSelect id="series-hostUsername" candidates={hostCandidates} />
       </div>
 
+      <p>
+        <a href={prevHref}>&larr; Previous {windowWeeks} weeks</a>
+        {" · "}
+        <a href={nextHref}>Next {windowWeeks} weeks &rarr;</a>
+      </p>
       <div style={{ overflowX: "auto" }}>
         <table border={1} cellPadding={4}>
           <thead>

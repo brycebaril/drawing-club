@@ -1,4 +1,4 @@
-import { orgStartOfDay, orgDateParts, zonedWallTimeToInstant, combineOrgDateAndTime } from "@/lib/timezone";
+import { orgStartOfDay, orgDateParts, orgAddDays, combineOrgDateAndTime } from "@/lib/timezone";
 
 /**
  * Every date matching `dayOfWeek` (0=Sunday..6=Saturday, matching
@@ -26,28 +26,14 @@ export function computeOccurrenceDates(
 
   // Advance to the first matching day of week, then step by exactly a week.
   const daysUntilFirstMatch = (dayOfWeek - orgDateParts(cursor).weekday + 7) % 7;
-  cursor = addOrgDays(cursor, daysUntilFirstMatch);
+  cursor = orgAddDays(cursor, daysUntilFirstMatch);
 
   while (cursor <= end) {
     dates.push(cursor);
-    cursor = addOrgDays(cursor, 7);
+    cursor = orgAddDays(cursor, 7);
   }
 
   return dates;
-}
-
-/** Adds `days` ORG_TIMEZONE calendar days to an ORG_TIMEZONE-midnight instant. */
-function addOrgDays(orgMidnight: Date, days: number): Date {
-  const p = orgDateParts(orgMidnight);
-  // Date.UTC normalizes an out-of-range day (e.g. day 32) into the next
-  // month correctly — reused here as plain calendar-day arithmetic, then
-  // re-anchored to a real ORG_TIMEZONE midnight via zonedWallTimeToInstant.
-  const normalized = new Date(Date.UTC(p.year, p.month - 1, p.day + days));
-  return zonedWallTimeToInstant(
-    normalized.getUTCFullYear(),
-    normalized.getUTCMonth() + 1,
-    normalized.getUTCDate(),
-  );
 }
 
 /** Combines a calendar date's ORG_TIMEZONE day with a "HH:MM:SS" time-of-day into one instant. */

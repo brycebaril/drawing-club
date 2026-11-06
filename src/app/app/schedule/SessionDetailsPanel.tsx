@@ -15,6 +15,11 @@ interface SessionInfo {
   host_username: string | null;
   host_display_name: string | null;
   booked_count: number;
+  is_ticketed: boolean;
+  /** Already privacy-truncated to first name(s) via displayModelNames() —
+   * this modal isn't the model-booking or payment screen, so it must never
+   * receive/render a full last name. */
+  model_names: string | null;
 }
 
 export function SessionDetailsPanel({
@@ -59,7 +64,10 @@ export function SessionDetailsPanel({
             {info.display}
           </div>
           <div>
-            <h2 className="text-xl font-bold text-ink">{info.label}</h2>
+            <h2 className="text-xl font-bold text-ink">
+              {info.label}
+              {session.model_names && <span className="text-brand"> · {session.model_names}</span>}
+            </h2>
             <p className="text-sm font-medium text-ink-soft">
               {dateStr} · {timeStr}
             </p>
@@ -100,76 +108,87 @@ export function SessionDetailsPanel({
         {session.description && <p className="text-sm leading-relaxed text-ink-soft">{session.description}</p>}
 
         <p className="text-sm text-ink-soft">
-          Host: {session.host_username ? memberLabel(session.host_display_name, session.host_username) : "Open — needs a host"} · Capacity: {session.booked_count}/
-          {session.max_capacity}
+          Host: {session.host_username ? memberLabel(session.host_display_name, session.host_username) : "Open — needs a host"}
+          {session.is_ticketed && (
+            <>
+              {" "}
+              · Capacity: {session.booked_count}/{session.max_capacity}
+            </>
+          )}
         </p>
 
-        {status === "Available" && loggedIn && (
-          <form action={bookSessionAction}>
-            <input type="hidden" name="sessionId" value={session.id} />
-            <button
-              type="submit"
-              className="w-full rounded-lg bg-brand py-3.5 font-bold text-white shadow-sm transition-all hover:bg-brand-strong hover:shadow-md"
-            >
-              Book (uses 1 ticket)
-            </button>
-          </form>
-        )}
-        {status === "Available" && !loggedIn && (
-          <a
-            href={loginHref}
-            className="block w-full rounded-lg bg-brand py-3.5 text-center font-bold text-white shadow-sm transition-all hover:bg-brand-strong hover:shadow-md"
-          >
-            Log in to book
-          </a>
-        )}
-        {status === "Registered" && (
-          <form action={cancelBookingAction}>
-            <input type="hidden" name="sessionId" value={session.id} />
-            <button
-              type="submit"
-              className="w-full rounded-lg bg-brand py-3.5 font-bold text-white shadow-sm transition-all hover:bg-brand-strong hover:shadow-md"
-            >
-              Cancel registration
-            </button>
-          </form>
-        )}
-        {status === "CancelableNoRefund" && (
-          <form action={cancelBookingAction} className="space-y-3">
-            <input type="hidden" name="sessionId" value={session.id} />
-            <label className="flex items-start gap-2 text-sm text-ink-soft">
-              <input type="checkbox" required className="mt-1" />
-              <span>I understand I won&rsquo;t get my ticket back if I cancel now.</span>
-            </label>
-            <button
-              type="submit"
-              className="w-full rounded-lg bg-brand py-3.5 font-bold text-white shadow-sm transition-all hover:bg-brand-strong hover:shadow-md"
-            >
-              Cancel without refund
-            </button>
-          </form>
-        )}
-        {status === "Full" && loggedIn && (
-          <form action={joinWaitlistAction}>
-            <input type="hidden" name="sessionId" value={session.id} />
-            <button
-              type="submit"
-              className="w-full rounded-lg bg-brand py-3.5 font-bold text-white shadow-sm transition-all hover:bg-brand-strong hover:shadow-md"
-            >
-              Join waitlist
-            </button>
-          </form>
-        )}
-        {status === "Full" && !loggedIn && (
-          <a
-            href={loginHref}
-            className="block w-full rounded-lg bg-brand py-3.5 text-center font-bold text-white shadow-sm transition-all hover:bg-brand-strong hover:shadow-md"
-          >
-            Log in to join the waitlist
-          </a>
-        )}
-        {status === "OnWaitlist" && (
-          <p className="text-sm text-ink-soft">You&rsquo;re on the waitlist — we&rsquo;ll email you if a spot opens.</p>
+        {!session.is_ticketed ? (
+          <p className="text-sm text-ink-soft">Drop in — no ticket needed, just show up.</p>
+        ) : (
+          <>
+            {status === "Available" && loggedIn && (
+              <form action={bookSessionAction}>
+                <input type="hidden" name="sessionId" value={session.id} />
+                <button
+                  type="submit"
+                  className="w-full rounded-lg bg-brand py-3.5 font-bold text-white shadow-sm transition-all hover:bg-brand-strong hover:shadow-md"
+                >
+                  Book (uses 1 ticket)
+                </button>
+              </form>
+            )}
+            {status === "Available" && !loggedIn && (
+              <a
+                href={loginHref}
+                className="block w-full rounded-lg bg-brand py-3.5 text-center font-bold text-white shadow-sm transition-all hover:bg-brand-strong hover:shadow-md"
+              >
+                Log in to book
+              </a>
+            )}
+            {status === "Registered" && (
+              <form action={cancelBookingAction}>
+                <input type="hidden" name="sessionId" value={session.id} />
+                <button
+                  type="submit"
+                  className="w-full rounded-lg bg-brand py-3.5 font-bold text-white shadow-sm transition-all hover:bg-brand-strong hover:shadow-md"
+                >
+                  Cancel registration
+                </button>
+              </form>
+            )}
+            {status === "CancelableNoRefund" && (
+              <form action={cancelBookingAction} className="space-y-3">
+                <input type="hidden" name="sessionId" value={session.id} />
+                <label className="flex items-start gap-2 text-sm text-ink-soft">
+                  <input type="checkbox" required className="mt-1" />
+                  <span>I understand I won&rsquo;t get my ticket back if I cancel now.</span>
+                </label>
+                <button
+                  type="submit"
+                  className="w-full rounded-lg bg-brand py-3.5 font-bold text-white shadow-sm transition-all hover:bg-brand-strong hover:shadow-md"
+                >
+                  Cancel without refund
+                </button>
+              </form>
+            )}
+            {status === "Full" && loggedIn && (
+              <form action={joinWaitlistAction}>
+                <input type="hidden" name="sessionId" value={session.id} />
+                <button
+                  type="submit"
+                  className="w-full rounded-lg bg-brand py-3.5 font-bold text-white shadow-sm transition-all hover:bg-brand-strong hover:shadow-md"
+                >
+                  Join waitlist
+                </button>
+              </form>
+            )}
+            {status === "Full" && !loggedIn && (
+              <a
+                href={loginHref}
+                className="block w-full rounded-lg bg-brand py-3.5 text-center font-bold text-white shadow-sm transition-all hover:bg-brand-strong hover:shadow-md"
+              >
+                Log in to join the waitlist
+              </a>
+            )}
+            {status === "OnWaitlist" && (
+              <p className="text-sm text-ink-soft">You&rsquo;re on the waitlist — we&rsquo;ll email you if a spot opens.</p>
+            )}
+          </>
         )}
       </div>
     </>

@@ -3,6 +3,7 @@
 import { pool } from "@/lib/db/pool";
 import { requireOpsRole } from "@/lib/auth/requireOpsRole";
 import { requireCheckInAccess } from "./access";
+import { displayModelNames } from "@/lib/models/modelName";
 
 export interface CheckInSessionSummary {
   id: string;
@@ -23,6 +24,7 @@ export interface RosterRow {
   userId: string;
   username: string;
   displayName: string | null;
+  email: string;
   seatNumber: number | null;
   checkedIn: boolean;
   isMember: boolean;
@@ -41,9 +43,13 @@ export interface CheckInNote {
 
 export interface CheckInRoster {
   session: CheckInSessionSummary;
-  modelName: string | null;
+  modelNames: string | null;
   roster: RosterRow[];
   notes: CheckInNote[];
+  /** The viewer's own email — used as the mailto "to" address for the
+   * "Email attendees" button, matching the legacy tool's shape (host in
+   * "to", the class in "bcc" so attendees can't see each other's address). */
+  viewerEmail: string;
 }
 
 /**
@@ -62,9 +68,14 @@ export async function getCheckInRoster(sessionId: string): Promise<CheckInRoster
   const sessionRow = ctx.session;
   const isSeries = sessionRow.seriesId !== null;
 
-  const [modelResult, rosterBaseResult, notesResult] = await Promise.all([
-    pool.query<{ name: string }>(
-      `SELECT m.name FROM session_model_mapping smm JOIN models m ON m.id = smm.model_id WHERE smm.session_id = $1 LIMIT 1`,
+  const [modelResult, rosterBaseResult, notesResult, viewerResult] = await Promise.all([
+    // string_agg, not LIMIT 1 — a session can have more than one model
+    // assigned (src/app/ops/model-booking's own assign/unassign UI already
+    // supports it, and the schedule page's own tooltip already aggregates
+    // every assigned model this same way), and check-in previously silently
+    // dropped every model past the first from view.
+    pool.query<{ names: string | null }>(
+      `SELECT string_agg(m.name, ', ' ORDER BY m.name) AS names FROM session_model_mapping smm JOIN models m ON m.id = smm.model_id WHERE smm.session_id = $1`,
       [sessionId],
     ),
     isSeries
@@ -73,10 +84,11 @@ export async function getCheckInRoster(sessionId: string): Promise<CheckInRoster
           user_id: string;
           username: string;
           display_name: string | null;
+          email: string;
           seat_number: number | null;
           checked_in: boolean;
         }>(
-          `SELECT sr.id, sr.user_id, u.username, u.display_name, sr.seat_number, sr.checked_in
+          `SELECT sr.id, sr.user_id, u.username, u.display_name, u.email, sr.seat_number, sr.checked_in
            FROM seat_reservations sr
            JOIN users u ON u.id = sr.user_id
            WHERE sr.session_id = $1
@@ -88,10 +100,11 @@ export async function getCheckInRoster(sessionId: string): Promise<CheckInRoster
           user_id: string;
           username: string;
           display_name: string | null;
+          email: string;
           seat_number: number | null;
           checked_in: boolean;
         }>(
-          `SELECT p.id, p.owner_id AS user_id, u.username, u.display_name, NULL::integer AS seat_number, p.checked_in
+          `SELECT p.id, p.owner_id AS user_id, u.username, u.display_name, u.email, NULL::integer AS seat_number, p.checked_in
            FROM passes p
            JOIN users u ON u.id = p.owner_id
            WHERE p.session_id = $1 AND p.status = 'Used'
@@ -117,6 +130,10 @@ export async function getCheckInRoster(sessionId: string): Promise<CheckInRoster
        ORDER BY sn.created_at DESC`,
       [sessionId],
     ),
+    // The viewer's own email, for the "Email attendees" mailto "to" address
+    // — not part of UserAuthContext (see access.ts), so it's fetched here
+    // rather than widening that shared interface for one niche feature.
+    pool.query<{ email: string }>(`SELECT email FROM users WHERE id = $1`, [ctx.id]),
   ]);
 
   const userIds = rosterBaseResult.rows.map((r) => r.user_id);
@@ -164,6 +181,7 @@ export async function getCheckInRoster(sessionId: string): Promise<CheckInRoster
     userId: r.user_id,
     username: r.username,
     displayName: r.display_name,
+    email: r.email,
     seatNumber: r.seat_number,
     checkedIn: r.checked_in,
     isMember: memberIds.has(r.user_id),
@@ -183,8 +201,9 @@ export async function getCheckInRoster(sessionId: string): Promise<CheckInRoster
       hostDisplayName: sessionRow.hostDisplayName,
       isSeries,
     },
-    modelName: modelResult.rows[0]?.name ?? null,
+    modelNames: displayModelNames(modelResult.rows[0]?.names ?? null),
     roster,
+    viewerEmail: viewerResult.rows[0]?.email ?? "",
     notes: notesResult.rows.map((n) => ({
       id: n.id,
       content: n.content,

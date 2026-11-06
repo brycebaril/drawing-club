@@ -5,10 +5,11 @@ import { redirect } from "next/navigation";
 import { pool } from "@/lib/db/pool";
 import { requireAdmin } from "@/lib/auth/requireAdmin";
 import { writeAuditLog } from "@/lib/audit/log";
-import { SESSION_TYPES, parseDateOnly } from "@/lib/sessions/shared";
+import { SESSION_TYPES, parseDateOnly, sessionTypeIsTicketed, sessionTypeNeedsModel } from "@/lib/sessions/shared";
 import { resolveHostUsername } from "@/lib/sessions/host";
 import { generateSessionsForRule } from "@/lib/recurrence/generate";
 import { parseSlotValues, checkSlotConflicts } from "@/lib/sessions/slots";
+import { parseOrgDateTimeLocal } from "@/lib/timezone";
 
 export interface CreateSessionState {
   error?: string;
@@ -28,8 +29,13 @@ export async function createSessionAction(
 
   const description = String(formData.get("description") ?? "").trim();
 
-  const startTime = new Date(String(formData.get("startTime") ?? ""));
-  const endTime = new Date(String(formData.get("endTime") ?? ""));
+  // parseOrgDateTimeLocal, not `new Date(string)` — the raw <input
+  // type="datetime-local"> value has no timezone/offset, so native Date
+  // parsing would read it in the *process's* local timezone rather than
+  // ORG_TIMEZONE (fine on a Pacific-timezone dev machine, wrong by ~7-8
+  // hours on Amplify's UTC-running Lambda). See src/lib/timezone.ts.
+  const startTime = parseOrgDateTimeLocal(String(formData.get("startTime") ?? ""));
+  const endTime = parseOrgDateTimeLocal(String(formData.get("endTime") ?? ""));
   if (Number.isNaN(startTime.getTime()) || Number.isNaN(endTime.getTime())) {
     return { error: "Enter valid start and end times." };
   }
@@ -47,10 +53,19 @@ export async function createSessionAction(
   const hostUserId = hostResult.hostUserId;
 
   const inserted = await pool.query<{ id: string }>(
-    `INSERT INTO sessions (session_type, description, start_time, end_time, max_capacity, host_user_id, is_ticketed)
-     VALUES ($1, $2, $3, $4, $5, $6, true)
+    `INSERT INTO sessions (session_type, description, start_time, end_time, max_capacity, host_user_id, is_ticketed, model_required)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
      RETURNING id`,
-    [sessionType, description || null, startTime, endTime, maxCapacity, hostUserId],
+    [
+      sessionType,
+      description || null,
+      startTime,
+      endTime,
+      maxCapacity,
+      hostUserId,
+      sessionTypeIsTicketed(sessionType),
+      sessionTypeNeedsModel(sessionType),
+    ],
   );
 
   await writeAuditLog({
@@ -222,10 +237,19 @@ export async function createSeriesAction(
     for (const slot of parsedSlots) {
       const inserted = await client.query<{ id: string }>(
         `INSERT INTO sessions
-           (session_type, description, start_time, end_time, max_capacity, host_user_id, is_ticketed, series_id)
-         VALUES ($1, $2, $3, $4, $5, $6, true, $7)
+           (session_type, description, start_time, end_time, max_capacity, host_user_id, is_ticketed, series_id, model_required)
+         VALUES ($1, $2, $3, $4, $5, $6, true, $7, $8)
          RETURNING id`,
-        [sessionType, description || null, slot.startTime, slot.endTime, seatCount, hostResult.hostUserId, seriesId],
+        [
+          sessionType,
+          description || null,
+          slot.startTime,
+          slot.endTime,
+          seatCount,
+          hostResult.hostUserId,
+          seriesId,
+          sessionTypeNeedsModel(sessionType),
+        ],
       );
       sessionIds.push(inserted.rows[0].id);
     }

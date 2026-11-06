@@ -2,12 +2,11 @@ import { pool } from "@/lib/db/pool";
 import { SiteNav } from "@/components/SiteNav";
 import { getSettingNumber } from "@/lib/settings";
 import { getSessionManagerCandidates } from "@/lib/sessions/host";
-import { slotFor, startOfDay, dayIndex, toDateOnly, parseDateOnly } from "@/lib/sessions/shared";
+import { slotFor, startOfDay, addDays, dayIndex, toDateOnly, parseDateOnly } from "@/lib/sessions/shared";
 import { SeriesSlotPickerForm } from "./SeriesSlotPickerForm";
 import { AddSeriesSlotsForm } from "./AddSeriesSlotsForm";
 
 const WINDOW_DAYS = 56;
-const ONE_DAY_MS = 24 * 60 * 60 * 1000;
 
 interface OccupiedRow {
   start_time: Date;
@@ -22,7 +21,7 @@ export default async function NewSeriesPage({
   const { start, seriesId } = await searchParams;
   const parsedStart = start ? parseDateOnly(start) : new Date();
   const gridStart = startOfDay(Number.isNaN(parsedStart.getTime()) ? new Date() : parsedStart);
-  const gridEnd = new Date(gridStart.getTime() + WINDOW_DAYS * ONE_DAY_MS);
+  const gridEnd = addDays(gridStart, WINDOW_DAYS);
 
   const result = await pool.query<OccupiedRow>(
     `SELECT start_time, session_type FROM sessions
@@ -36,7 +35,7 @@ export default async function NewSeriesPage({
     occupied[`${dayIndex(gridStart, date)}:${slotFor(date)}`] = row.session_type;
   }
 
-  const days = Array.from({ length: WINDOW_DAYS }, (_, i) => new Date(gridStart.getTime() + i * ONE_DAY_MS));
+  const days = Array.from({ length: WINDOW_DAYS }, (_, i) => addDays(gridStart, i));
 
   const [defaultSeatCount, hostCandidates] = await Promise.all([
     getSettingNumber("SESSION_DEFAULT_CAPACITY"),
@@ -44,8 +43,8 @@ export default async function NewSeriesPage({
   ]);
 
   const seriesIdParam = seriesId ? `&seriesId=${seriesId}` : "";
-  const prevStart = toDateOnly(new Date(gridStart.getTime() - WINDOW_DAYS * ONE_DAY_MS));
-  const nextStart = toDateOnly(new Date(gridStart.getTime() + WINDOW_DAYS * ONE_DAY_MS));
+  const prevStart = toDateOnly(addDays(gridStart, -WINDOW_DAYS));
+  const nextStart = toDateOnly(addDays(gridStart, WINDOW_DAYS));
 
   let existingSeriesName: string | null = null;
   if (seriesId) {
@@ -68,19 +67,25 @@ export default async function NewSeriesPage({
         becomes one session{existingSeriesName ? "" : ", sharing the numbered seat map you set below"}.
         Already-booked slots are shown but can&apos;t be picked.
       </p>
-      <p>
-        <a href={`?start=${prevStart}${seriesIdParam}`}>&larr; Previous {WINDOW_DAYS / 7} weeks</a>
-        {" · "}
-        <a href={`?start=${nextStart}${seriesIdParam}`}>Next {WINDOW_DAYS / 7} weeks &rarr;</a>
-      </p>
       {seriesId && existingSeriesName ? (
-        <AddSeriesSlotsForm seriesId={seriesId} days={days} occupied={occupied} hostCandidates={hostCandidates} />
+        <AddSeriesSlotsForm
+          seriesId={seriesId}
+          days={days}
+          occupied={occupied}
+          hostCandidates={hostCandidates}
+          prevHref={`?start=${prevStart}${seriesIdParam}`}
+          nextHref={`?start=${nextStart}${seriesIdParam}`}
+          windowWeeks={WINDOW_DAYS / 7}
+        />
       ) : (
         <SeriesSlotPickerForm
           days={days}
           occupied={occupied}
           defaultSeatCount={defaultSeatCount}
           hostCandidates={hostCandidates}
+          prevHref={`?start=${prevStart}${seriesIdParam}`}
+          nextHref={`?start=${nextStart}${seriesIdParam}`}
+          windowWeeks={WINDOW_DAYS / 7}
         />
       )}
     </main>

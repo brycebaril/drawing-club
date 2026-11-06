@@ -23,8 +23,9 @@ export default async function MfaSetupPage() {
     <main>
       <h1>Set up two-factor authentication</h1>
       <p>
-        Your role ({ctx.roles.join(", ")}) requires multi-factor authentication before you can
-        continue (docs/SecurityDocument.md §2).
+        {ctx.mfaRequired
+          ? `Your role (${ctx.roles.join(", ")}) requires multi-factor authentication before you can continue (docs/SecurityDocument.md §2).`
+          : "Add an extra layer of security to your account with an authenticator app."}
       </p>
       <p>Scan this QR code with an authenticator app (e.g. Google Authenticator, 1Password):</p>
       {/* eslint-disable-next-line @next/next/no-img-element -- data URI, not an optimizable asset */}

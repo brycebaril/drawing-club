@@ -1,0 +1,52 @@
+name: Grant weekly volunteer tickets
+
+# The real trigger for the weekly volunteer free-ticket grant
+# (docs/ArchitectureDocument.md §8) — calls the app's own protected
+# POST /api/jobs/grant-volunteer-passes route with a shared secret, the same
+# "scheduled trigger hits a protected internal API route" design §8 already
+# specifies for the rollforward/payout-report jobs. Uses a GitHub Actions
+# cron instead of EventBridge Scheduler only because EventBridge isn't
+# provisioned yet (docs/StagingEnvironment.md) — the app-side route doesn't
+# care who calls it, so swapping the trigger later needs no code change.
+#
+# Requires two repo secrets (Settings → Secrets and variables → Actions),
+# neither of which this workflow file can supply on its own:
+#   - JOB_TRIGGER_SECRET: must match the target environment's own
+#     JOB_TRIGGER_SECRET (Amplify Console → App settings → Environment
+#     variables for that environment) — this file can't read Amplify's
+#     config, so these two have to be kept in sync by hand.
+#   - APP_BASE_URL: the deployed app's base URL to call
+#     (e.g. https://staging.<app-id>.amplifyapp.com) — no origin URL is
+#     public/well-known enough to hardcode safely here.
+on:
+  schedule:
+    # 01:00 UTC every Monday ≈ Sunday 5-6pm Pacific (America/Vancouver,
+    # this org's ORG_TIMEZONE), matching the weekly cadence
+    # scripts/grant-volunteer-passes.ts's own docstring already documents.
+    # Cron doesn't shift for DST, so this drifts by an hour across the
+    # year — acceptable for a once-a-week benefit grant.
+    - cron: "0 1 * * 1"
+  workflow_dispatch: {}
+
+jobs:
+  grant:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call the grant-volunteer-passes job route
+        run: |
+          if [ -z "${APP_BASE_URL}" ] || [ -z "${JOB_TRIGGER_SECRET}" ]; then
+            echo "::error::APP_BASE_URL and/or JOB_TRIGGER_SECRET repo secrets are not set — see this workflow file's own header comment."
+            exit 1
+          fi
+          http_status=$(curl -sS -o response.json -w "%{http_code}" -X POST \
+            "${APP_BASE_URL}/api/jobs/grant-volunteer-passes" \
+            -H "Authorization: Bearer ${JOB_TRIGGER_SECRET}")
+          echo "Response body:"
+          cat response.json
+          if [ "$http_status" -ge 300 ]; then
+            echo "::error::grant-volunteer-passes job route returned HTTP ${http_status}"
+            exit 1
+          fi
+        env:
+          APP_BASE_URL: ${{ secrets.APP_BASE_URL }}
+          JOB_TRIGGER_SECRET: ${{ secrets.JOB_TRIGGER_SECRET }}

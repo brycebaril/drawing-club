@@ -1,10 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { createTestUser, loginAsUser, pool } from "./helpers";
-
-function toDateInput(date: Date): string {
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
-}
+import { toDateOnly, addDays } from "@/lib/sessions/shared";
+import { orgDateParts } from "@/lib/timezone";
 
 test("recurring rule edit: this-date-forward cancels+regenerates, earlier booking untouched", async ({
   page,
@@ -18,9 +15,8 @@ test("recurring rule edit: this-date-forward cancels+regenerates, earlier bookin
   // +5 rather than recurring.spec.ts's +3 — both files' rules run weekly
   // from today, so sharing an offset would put them on the exact same
   // weekday and collide in the schedule grid's one-session-per-cell display.
-  const targetDow = (new Date().getDay() + 5) % 7;
-  const endDate = new Date();
-  endDate.setDate(endDate.getDate() + 26);
+  const targetDow = (orgDateParts(new Date()).weekday + 5) % 7;
+  const endDate = addDays(new Date(), 26);
 
   await page.goto("/admin/sessions/new-recurring");
   await page.getByLabel("Description").fill(description);
@@ -28,8 +24,8 @@ test("recurring rule edit: this-date-forward cancels+regenerates, earlier bookin
   await page.getByLabel("Start time").fill("18:00");
   await page.getByLabel("End time").fill("20:00");
   await page.getByLabel(/^Capacity/).fill("5");
-  await page.getByLabel("Start date").fill(toDateInput(new Date()));
-  await page.getByLabel(/^End date/).fill(toDateInput(endDate));
+  await page.getByLabel("Start date").fill(toDateOnly(new Date()));
+  await page.getByLabel(/^End date/).fill(toDateOnly(endDate));
   await page.getByRole("button", { name: "Create recurring session" }).click();
   await page.waitForURL("**/admin/sessions/recurring");
 
@@ -84,7 +80,7 @@ test("recurring rule edit: this-date-forward cancels+regenerates, earlier bookin
   await page.getByLabel("Start time").fill("19:00");
   await page.getByLabel("End time").fill("21:00");
   await page.getByLabel("From this date forward").check();
-  await page.getByLabel("Date", { exact: true }).fill(toDateInput(new Date(editFromOccurrence.start_time)));
+  await page.getByLabel("Date", { exact: true }).fill(toDateOnly(new Date(editFromOccurrence.start_time)));
   await page.getByRole("button", { name: "Save changes" }).click();
   await page.waitForURL(`**/admin/sessions/recurring/${ruleId}`);
 
@@ -121,8 +117,8 @@ test("recurring rule edit: this-date-forward cancels+regenerates, earlier bookin
       [ruleId, editFromOccurrence.start_time],
     );
     expect(regenerated.rowCount!).toBeGreaterThan(0);
-    const firstNew = new Date(regenerated.rows[0].start_time);
-    expect(firstNew.getDay()).toBe(newDow);
-    expect(firstNew.getHours()).toBe(19);
+    const firstNew = orgDateParts(new Date(regenerated.rows[0].start_time));
+    expect(firstNew.weekday).toBe(newDow);
+    expect(firstNew.hour).toBe(19);
   }).toPass({ timeout: 5000 });
 });

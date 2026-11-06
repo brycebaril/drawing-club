@@ -72,11 +72,24 @@ export async function refundTransactionAction(
     return { error: `Amount can't exceed the $${remaining.toFixed(2)} still refundable.` };
   }
 
+  const amountCents = amount !== null ? Math.round(amount * 100) : Math.round(remaining * 100);
   try {
-    await stripe.refunds.create({
-      payment_intent: transaction.gateway_ref_id,
-      amount: amount !== null ? Math.round(amount * 100) : undefined,
-    });
+    await stripe.refunds.create(
+      {
+        payment_intent: transaction.gateway_ref_id,
+        amount: amount !== null ? amountCents : undefined,
+      },
+      // Deterministic, not random: a double-click or a retried request after
+      // a dropped response for this exact transaction+amount reuses the same
+      // key, so Stripe returns the original refund instead of creating a
+      // second one. A genuinely new partial refund almost always has a
+      // different amount anyway, since `remaining` (and so the form's own
+      // max) shrinks after each successful refund — the same
+      // transaction+amount pair recurring within Stripe's 24h idempotency
+      // window is itself a signal this is a duplicate submission, not a
+      // deliberate second refund.
+      { idempotencyKey: `refund:${transactionId}:${amountCents}` },
+    );
   } catch {
     return { error: "Stripe rejected the refund. Try again or check the Stripe Dashboard." };
   }

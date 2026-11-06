@@ -45,6 +45,7 @@ export interface GridCellData {
   modelNames: string | null;
   bookedCount: number;
   maxCapacity: number;
+  isTicketed: boolean;
 }
 
 const TOOLTIP_TIME_FORMAT = new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit", timeZone: ORG_TIMEZONE });
@@ -60,6 +61,22 @@ export function formatCellTime(date: Date): string {
  * "booking open through" date. */
 export function formatOpensDate(date: Date): string {
   return OPENS_DATE_FORMAT.format(date);
+}
+
+const FULL_DATETIME_FORMAT = new Intl.DateTimeFormat("en-US", {
+  weekday: "long",
+  month: "short",
+  day: "numeric",
+  hour: "numeric",
+  minute: "2-digit",
+  timeZone: ORG_TIMEZONE,
+});
+
+/** "Thursday, Sep 4, 10:00 AM" — used by the schedule page's ephemeral
+ * "book your next session" callout, which names a specific session outside
+ * the grid's own compact cell. */
+export function formatFullDateTime(date: Date): string {
+  return FULL_DATETIME_FORMAT.format(date);
 }
 
 const WEEK_RANGE_DAY_FORMAT = new Intl.DateTimeFormat("en-US", { day: "numeric", timeZone: ORG_TIMEZONE });
@@ -98,7 +115,7 @@ export function describeCellTooltip(cell: GridCellData): string {
     `${name} · ${timeRange}`,
     `Model: ${describeModel(cell)}`,
     `Host: ${cell.hostUsername ? memberLabel(cell.hostDisplayName, cell.hostUsername) : "Open — needs a host"}`,
-    `${cell.bookedCount}/${cell.maxCapacity} booked`,
+    cell.isTicketed ? `${cell.bookedCount}/${cell.maxCapacity} booked` : "Drop in — no ticket needed",
   ].join("\n");
 }
 
@@ -170,6 +187,7 @@ const BOOKING_ERROR_REASONS: Record<string, string> = {
   "seat-taken": "That seat was just taken — pick another.",
   "different-seat-already-held": "You already hold a different seat in this series.",
   "no-dates": "Pick at least one date.",
+  "not-ticketed": "This is a drop-in event — no ticket needed.",
 };
 
 export function describeBookingErrorReason(reason: string): string {

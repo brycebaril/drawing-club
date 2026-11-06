@@ -60,6 +60,14 @@ export async function POST(request: Request) {
     return NextResponse.json({ valid: false });
   }
 
-  const totpRequired = ctx.mfaRequired && ctx.mfaEnabled;
+  // Same fix as src/auth.ts's authorize(): any ENABLED MFA prompts for a
+  // code, not just a mandatory-role one — this route is what actually
+  // drives the login UI's decision to show the TOTP step at all
+  // (src/app/auth/login/page.tsx), so the old "mfaRequired && mfaEnabled"
+  // conflation here meant a voluntarily-enrolled non-admin's second login
+  // never even reached authorize()'s own (already-fixed) TOTP check — the
+  // UI would sign them in with no code prompt at all, silently bypassing
+  // MFA they'd explicitly turned on.
+  const totpRequired = ctx.mfaEnabled;
   return NextResponse.json({ valid: true, totpRequired });
 }

@@ -15,6 +15,7 @@ const BASE: GridCellData = {
   modelNames: null,
   bookedCount: 3,
   maxCapacity: 25,
+  isTicketed: true,
 };
 
 describe("describeCellTooltip", () => {
@@ -55,5 +56,11 @@ describe("describeCellTooltip", () => {
 
   it("shows booked/capacity", () => {
     expect(describeCellTooltip(BASE)).toContain("3/25 booked");
+  });
+
+  it("shows a drop-in note instead of booked/capacity for a non-ticketed session", () => {
+    const tooltip = describeCellTooltip({ ...BASE, isTicketed: false });
+    expect(tooltip).toContain("Drop in — no ticket needed");
+    expect(tooltip).not.toContain("booked");
   });
 });

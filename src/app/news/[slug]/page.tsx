@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import Image from "next/image";
 import { pool } from "@/lib/db/pool";
 import { Markdown } from "@/components/Markdown";
 import { SiteNav } from "@/components/SiteNav";
@@ -25,6 +26,15 @@ export default async function NewsPostPage({ params }: { params: Promise<{ slug:
     <>
       <SiteNav />
       <main>
+        <div className="photo-frame">
+          <Image
+            src="/photos/exhibition-wall.jpg"
+            alt="The studio's exhibition wall: framed paintings and drawings hung salon-style beside the studio door, with a FIGURATIVE ART EXHIBITION poster."
+            width={1200}
+            height={1544}
+            className="washed washed--warm"
+          />
+        </div>
         <h1>{post.title}</h1>
         <p>{new Date(post.publish_date).toLocaleDateString("en-US", { timeZone: ORG_TIMEZONE })}</p>
         {/* eslint-disable-next-line @next/next/no-img-element -- arbitrary external URL (CMS images decision: URL field only, no next/image remotePatterns to configure) */}

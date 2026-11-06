@@ -1,7 +1,28 @@
-import { orgDateParts, orgStartOfDay, orgDayIndex, orgDateOnly, parseOrgDateOnly } from "@/lib/timezone";
+import { orgDateParts, orgStartOfDay, orgAddDays, orgDayIndex, orgDateOnly, parseOrgDateOnly } from "@/lib/timezone";
 
 // Design Doc §3.2.
 export const SESSION_TYPES = ["L", "R", "G", "P", "S", "X", "Gallery", "Party"] as const;
+
+// Gallery Hours and Party are the two "drop-in" types (SESSION_TYPE_INFO's
+// own sage-vs-terracotta split in the schedule grid) — no live model posing
+// happens at either, unlike every other type. Every session-creation path
+// (one-off, recurring, series) should call this rather than leaving
+// model_required to its DB default (always true) regardless of type, which
+// used to mean a newly created Party/Gallery Hours session always showed as
+// "needs a model" until a Model Booker manually cleared it by hand.
+export function sessionTypeNeedsModel(sessionType: string): boolean {
+  return sessionType !== "Gallery" && sessionType !== "Party";
+}
+
+// Gallery Hours and Party are announcements — a reserved calendar block
+// with details, not a bookable session: no ticket, no RSVP, no capacity
+// tracking. Only the general-admission creation paths (one-off, recurring)
+// should call this; multi-week series sessions are deliberately excluded
+// (a numbered-seat series is inherently a ticketed concept by
+// construction) — those creation paths keep is_ticketed hardcoded true.
+export function sessionTypeIsTicketed(sessionType: string): boolean {
+  return sessionType !== "Gallery" && sessionType !== "Party";
+}
 
 // Matches JS Date.getDay() (0=Sunday..6=Saturday).
 export const DAYS_OF_WEEK = [
@@ -45,6 +66,30 @@ export function slotFor(date: Date): Slot {
 
 export function startOfDay(date: Date): Date {
   return orgStartOfDay(date);
+}
+
+/** Adds `days` ORG_TIMEZONE calendar days — safe across a DST transition, unlike `+ days * 86400000`. */
+export function addDays(date: Date, days: number): Date {
+  return orgAddDays(date, days);
+}
+
+/**
+ * ORG_TIMEZONE midnight of the most recent Monday on or before `now` — the
+ * Monday-through-Sunday week convention this app's weekly reports/grants
+ * already use (model payout reports, volunteer pass grants). Was
+ * previously duplicated in src/app/admin/passes/actions.ts and
+ * scripts/grant-volunteer-passes.ts using native Date getters/setters,
+ * which reason in the *process's own* local timezone rather than
+ * ORG_TIMEZONE — the exact bug class src/lib/timezone.ts's own doc comment
+ * says already broke this app once on a UTC-default runtime. Fixed by
+ * building on orgStartOfDay/orgDateParts instead, same as every other date
+ * helper here.
+ */
+export function currentWeekStart(now: Date): Date {
+  const startOfToday = orgStartOfDay(now);
+  const day = orgDateParts(now).weekday; // 0=Sunday..6=Saturday
+  const daysSinceMonday = day === 0 ? 6 : day - 1;
+  return new Date(startOfToday.getTime() - daysSinceMonday * 24 * 60 * 60 * 1000);
 }
 
 export function dayIndex(gridStart: Date, date: Date): number {

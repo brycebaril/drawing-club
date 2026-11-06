@@ -5,19 +5,40 @@ import { getAttendanceTrend } from "@/lib/reporting/attendance";
 import { getRevenueTrend } from "@/lib/reporting/revenue";
 import { getRecentAuditLogs } from "@/lib/reporting/auditLogs";
 import { getOpenFlags } from "@/lib/reporting/flags";
+import { getAccountClassStats, type AccountClassSummary } from "@/lib/reporting/accountClasses";
+import { getAccountActivityStats } from "@/lib/reporting/accountActivity";
+import { getTicketCirculationStats } from "@/lib/reporting/ticketCirculation";
 import { ORG_TIMEZONE } from "@/lib/org";
 import { memberLabelWithUsername } from "@/lib/users/memberLabel";
 
 const FLAG_LABELS = { needs_model: "Needs a model", full: "Full" } as const;
 
+function formatPct(pct: number | null): string {
+  return pct === null ? "no data" : `${Math.round(pct * 100)}%`;
+}
+
+function AccountClassCard({ label, summary }: { label: string; summary: AccountClassSummary }) {
+  return (
+    <div className="stat-card">
+      <p className="stat-card-value">{summary.total}</p>
+      <p className="stat-card-label">{label}</p>
+      <p className="stat-card-sub">{formatPct(summary.activePct)} active this week</p>
+    </div>
+  );
+}
+
 export default async function AdminDashboardPage() {
-  const [userStats, attendanceTrend, revenueTrend, recentAuditLogs, openFlags] = await Promise.all([
-    getUserStats(),
-    getAttendanceTrend(),
-    getRevenueTrend(),
-    getRecentAuditLogs(),
-    getOpenFlags(),
-  ]);
+  const [userStats, attendanceStats, revenueTrend, recentAuditLogs, openFlags, accountClasses, accountActivity, ticketCirculation] =
+    await Promise.all([
+      getUserStats(),
+      getAttendanceTrend(),
+      getRevenueTrend(),
+      getRecentAuditLogs(),
+      getOpenFlags(),
+      getAccountClassStats(),
+      getAccountActivityStats(),
+      getTicketCirculationStats(),
+    ]);
 
   return (
     <>
@@ -27,42 +48,60 @@ export default async function AdminDashboardPage() {
 
       <h2>Accounts</h2>
       <p>{userStats.totalUsers} total users, {userStats.activeMembers} with an active membership.</p>
-      <div className="table-scroll">
-        <table>
-        <thead>
-          <tr>
-            <th>Base role</th>
-            <th>Count</th>
-          </tr>
-        </thead>
-        <tbody>
-          {Object.entries(userStats.byBaseRole).map(([role, count]) => (
-            <tr key={role}>
-              <td>{role}</td>
-              <td>{count}</td>
-            </tr>
-          ))}
-        </tbody>
-        </table>
+
+      <h3>Account classes</h3>
+      {/* Admin/Volunteer/Member overlap with each other and are not a
+          partition — an account can count in more than one card. Only
+          Member and Account Holder are complements of each other. */}
+      <div className="stat-grid">
+        <AccountClassCard label="Admin" summary={accountClasses.admin} />
+        <AccountClassCard label="Volunteer" summary={accountClasses.volunteer} />
+        <AccountClassCard label="Member" summary={accountClasses.member} />
+        <AccountClassCard label="Account Holder" summary={accountClasses.accountHolder} />
       </div>
-      <div className="table-scroll">
-        <table>
-        <thead>
-          <tr>
-            <th>Status</th>
-            <th>Count</th>
-          </tr>
-        </thead>
-        <tbody>
-          {Object.entries(userStats.byStatus).map(([status, count]) => (
-            <tr key={status}>
-              <td>{status}</td>
-              <td>{count}</td>
-            </tr>
-          ))}
-        </tbody>
-        </table>
+
+      <h3>New this week</h3>
+      <div className="stat-grid">
+        <div className="stat-card">
+          <p className="stat-card-value">{accountActivity.newAccounts}</p>
+          <p className="stat-card-label">New accounts</p>
+        </div>
+        <div className="stat-card">
+          <p className="stat-card-value">{accountActivity.newMembershipSignups}</p>
+          <p className="stat-card-label">New memberships</p>
+        </div>
+        <div className="stat-card">
+          <p className="stat-card-value">{accountActivity.renewals}</p>
+          <p className="stat-card-label">Renewals</p>
+        </div>
+        <div className="stat-card">
+          <p className="stat-card-value">{accountActivity.membershipExpirations}</p>
+          <p className="stat-card-label">Expirations</p>
+        </div>
       </div>
+
+      <h2>Ticket circulation</h2>
+      <div className="stat-grid">
+        <div className="stat-card">
+          <p className="stat-card-value">{ticketCirculation.outstandingCount}</p>
+          <p className="stat-card-label">Outstanding tickets</p>
+        </div>
+        <div className="stat-card">
+          <p className="stat-card-value">{ticketCirculation.transferableCount}</p>
+          <p className="stat-card-label">Transferable tickets</p>
+        </div>
+        <div className="stat-card">
+          <p className="stat-card-value">
+            {ticketCirculation.avgCostBasis === null ? "—" : `$${ticketCirculation.avgCostBasis.toFixed(2)}`}
+          </p>
+          <p className="stat-card-label">Avg. cost basis</p>
+        </div>
+        <div className="stat-card">
+          <p className="stat-card-value">${ticketCirculation.totalLiability.toFixed(2)}</p>
+          <p className="stat-card-label">Total liability</p>
+        </div>
+      </div>
+
       <h2>Open flags (next 14 days)</h2>
       {openFlags.length === 0 ? (
         <p>Nothing flagged.</p>
@@ -90,7 +129,17 @@ export default async function AdminDashboardPage() {
       )}
 
       <h2>Attendance — trailing 12 weeks</h2>
-      {attendanceTrend.length === 0 ? (
+      <div className="stat-grid">
+        <div className="stat-card">
+          <p className="stat-card-value">{attendanceStats.totalNoShows}</p>
+          <p className="stat-card-label">No-shows (12 weeks)</p>
+        </div>
+        <div className="stat-card">
+          <p className="stat-card-value">{formatPct(attendanceStats.noShowRate)}</p>
+          <p className="stat-card-label">No-show rate</p>
+        </div>
+      </div>
+      {attendanceStats.trend.length === 0 ? (
         <p>No completed sessions in this window.</p>
       ) : (
         <div className="table-scroll">
@@ -101,16 +150,18 @@ export default async function AdminDashboardPage() {
               <th>Sessions run</th>
               <th>Bookings</th>
               <th>Checked in</th>
+              <th>No-shows</th>
               <th>Attendance rate</th>
             </tr>
           </thead>
           <tbody>
-            {attendanceTrend.map((week) => (
+            {attendanceStats.trend.map((week) => (
               <tr key={week.weekStart.toISOString()}>
                 <td>{new Date(week.weekStart).toLocaleDateString("en-US", { timeZone: ORG_TIMEZONE })}</td>
                 <td>{week.sessionsRun}</td>
                 <td>{week.totalBookings}</td>
                 <td>{week.checkedInBookings}</td>
+                <td>{week.noShows}</td>
                 <td>{week.attendanceRate === null ? "—" : `${Math.round(week.attendanceRate * 100)}%`}</td>
               </tr>
             ))}

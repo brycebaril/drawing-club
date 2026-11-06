@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import { pool } from "@/lib/db/pool";
 import { SiteNav } from "@/components/SiteNav";
@@ -28,6 +29,15 @@ export default async function NewsListPage() {
     <>
       <SiteNav />
       <main>
+        <div className="photo-frame">
+          <Image
+            src="/photos/exhibition-wall.jpg"
+            alt="The studio's exhibition wall: framed paintings and drawings hung salon-style beside the studio door, with a FIGURATIVE ART EXHIBITION poster."
+            width={1200}
+            height={1544}
+            className="washed washed--warm"
+          />
+        </div>
         <h1>News</h1>
         {result.rowCount === 0 ? (
           <p>No news yet.</p>
