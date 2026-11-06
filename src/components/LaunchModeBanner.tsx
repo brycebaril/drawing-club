@@ -17,7 +17,7 @@ export function LaunchModeBanner() {
   return (
     <div className="notification-banner">
       <p>
-        We're building a new look for this site, along with a new registration & booking system. For now, booking
+        We&apos;re building a new look for this site, along with a new registration & booking system. For now, booking
         continues on our current system —{" "}
         <a href={LEGACY_BOOKING_URL} target="_blank" rel="noopener noreferrer">
           click here to schedule
