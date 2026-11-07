@@ -44,9 +44,9 @@ async function main() {
   const passwordHash = await hashPassword(password);
   const result = await pool.query<{ id: string; username: string }>(
     `INSERT INTO users (username, password_hash, email, display_name, base_role, status, email_verified_at)
-     VALUES ($1, $2, $3, $1, 'Admin', 'Active', now())
+     VALUES ($1, $2, $3, $4, 'Admin', 'Active', now())
      RETURNING id, username`,
-    [username, passwordHash, email],
+    [username, passwordHash, email, username],
   );
 
   console.log("Created ADMIN account:", result.rows[0]);
