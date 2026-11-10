@@ -108,16 +108,15 @@ describe("parseNumberParam", () => {
 });
 
 describe("parseDateParam", () => {
-  it("parses as LOCAL midnight, not new Date(value)'s UTC midnight", () => {
-    // new Date("2026-01-01") is UTC midnight, which is a different instant
-    // (and on a positive-UTC-offset server, a different calendar day) from
-    // local midnight — this is the exact distinction the fix is for.
+  it("parses as ORG_TIMEZONE midnight, not new Date(value)'s UTC midnight or the process's ambient-local midnight", () => {
+    // new Date("2026-01-01") is UTC midnight, a different instant from
+    // ORG_TIMEZONE midnight — this is the exact distinction the fix is for.
+    // Asserting against `new Date(2026, 0, 1)` (ambient process-local
+    // midnight) would pass on a Pacific-timezone dev machine but fail on a
+    // UTC CI runner, since parseDateParam fixes the zone to ORG_TIMEZONE
+    // regardless of the process's own — assert the fixed instant instead.
     const result = parseDateParam("2026-01-01");
-    expect(result).toEqual(new Date(2026, 0, 1));
-    expect(result?.getFullYear()).toBe(2026);
-    expect(result?.getMonth()).toBe(0);
-    expect(result?.getDate()).toBe(1);
-    expect(result?.getHours()).toBe(0);
+    expect(result?.toISOString()).toBe("2026-01-01T08:00:00.000Z");
   });
 
   it("rejects junk, missing, or non-YYYY-MM-DD input", () => {

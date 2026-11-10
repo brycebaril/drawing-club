@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { SiteNav } from "@/components/SiteNav";
-import { startOfDay } from "@/lib/sessions/shared";
+import { startOfDay, addDays } from "@/lib/sessions/shared";
 import { getCheckInRoster, getUpcomingCheckInSessions, type CheckInRoster } from "@/lib/checkin/roster";
 import { SessionRosterCard } from "./SessionRosterCard";
 import { StudioGuidelines } from "./StudioGuidelines";
@@ -14,7 +14,7 @@ export default async function CheckInOverviewPage() {
   );
 
   const today = startOfDay(new Date());
-  const tomorrow = new Date(today.getTime() + 24 * 60 * 60 * 1000);
+  const tomorrow = addDays(today, 1);
 
   return (
     <>

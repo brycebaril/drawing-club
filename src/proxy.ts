@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { getUserAuthContext } from "@/lib/auth/roles";
 import { isAllowed } from "@/lib/auth/rbac";
+import { staticOnlyRedirectFor } from "@/lib/launchMode";
 
 // Next.js Proxy (the current name for the former "middleware" convention,
 // see node_modules/next/dist/docs/.../proxy.md) defaults to the Node.js
@@ -12,6 +13,18 @@ import { isAllowed } from "@/lib/auth/rbac";
 // (docs/SecurityDocument.md §2).
 export default auth(async (req) => {
   const { pathname } = req.nextUrl;
+
+  // Static-only launch mode (src/lib/launchMode.ts): checked first,
+  // pathname-only, before any DB round trip — a temporary deployment-state
+  // gate closing member-facing routes regardless of role, separate from
+  // the permanent RBAC matrix below. Also closes the Server Actions
+  // defined on these same pages, since Proxy's matcher doesn't exclude
+  // them (see node_modules/next/dist/docs/.../proxy.md's execution order).
+  const gateRedirect = staticOnlyRedirectFor(pathname);
+  if (gateRedirect) {
+    return NextResponse.redirect(new URL(gateRedirect, req.url));
+  }
+
   const userId = req.auth?.user?.id;
 
   const ctx = userId ? await getUserAuthContext(userId) : null;

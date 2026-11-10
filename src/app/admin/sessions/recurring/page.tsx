@@ -1,9 +1,10 @@
 import Link from "next/link";
 import { pool } from "@/lib/db/pool";
 import { SiteNav } from "@/components/SiteNav";
-import { DAYS_OF_WEEK } from "@/lib/sessions/shared";
+import { DAYS_OF_WEEK, toDateOnly } from "@/lib/sessions/shared";
 import { cancelSeriesFromListAction, generateMoreSessionsAction } from "./actions";
 import { ORG_TIMEZONE } from "@/lib/org";
+import { parsePgDateOnly } from "@/lib/timezone";
 import { memberLabel } from "@/lib/users/memberLabel";
 
 interface RuleRow {
@@ -31,7 +32,7 @@ export default async function RecurringRulesPage() {
      ORDER BY r.start_date DESC`,
   );
 
-  const today = new Date().toISOString().slice(0, 10);
+  const today = toDateOnly(new Date());
 
   return (
     <>
@@ -58,7 +59,7 @@ export default async function RecurringRulesPage() {
         <tbody>
           {result.rows.map((rule) => {
             const dayLabel = DAYS_OF_WEEK.find((d) => d.value === rule.day_of_week)?.label ?? rule.day_of_week;
-            const endDateStr = rule.end_date ? new Date(rule.end_date).toISOString().slice(0, 10) : null;
+            const endDateStr = rule.end_date ? toDateOnly(parsePgDateOnly(rule.end_date)) : null;
             const isEnded = endDateStr !== null && endDateStr < today;
 
             return (
@@ -67,8 +68,8 @@ export default async function RecurringRulesPage() {
                 <td>
                   {dayLabel} {rule.start_time_of_day}–{rule.end_time_of_day}
                 </td>
-                <td>{new Date(rule.start_date).toLocaleDateString("en-US", { timeZone: ORG_TIMEZONE })}</td>
-                <td>{rule.end_date ? new Date(rule.end_date).toLocaleDateString("en-US", { timeZone: ORG_TIMEZONE }) : "Perpetual"}</td>
+                <td>{parsePgDateOnly(rule.start_date).toLocaleDateString("en-US", { timeZone: ORG_TIMEZONE })}</td>
+                <td>{rule.end_date ? parsePgDateOnly(rule.end_date).toLocaleDateString("en-US", { timeZone: ORG_TIMEZONE }) : "Perpetual"}</td>
                 <td>{rule.host_username ? memberLabel(rule.host_display_name, rule.host_username) : "Open — needs a host"}</td>
                 <td>{rule.upcoming_count}</td>
                 <td>{isEnded ? "Ended" : "Active"}</td>

@@ -5,6 +5,7 @@ import { SortableTh } from "@/components/SortableTh";
 import { resolveSort } from "@/lib/sort";
 import { PassRowActions } from "./PassRowActions";
 import { ORG_TIMEZONE } from "@/lib/org";
+import { parsePgDateOnly } from "@/lib/timezone";
 import { memberLabelWithUsername } from "@/lib/users/memberLabel";
 
 const SORT_COLUMNS = {
@@ -150,7 +151,7 @@ export default async function AdminPassesPage({
                   <tr key={grant.id}>
                     <td>{new Date(grant.created_at).toLocaleString("en-US", { timeZone: ORG_TIMEZONE })}</td>
                     <td>{memberLabelWithUsername(grant.display_name, grant.username)}</td>
-                    <td>{new Date(grant.week_start_date).toLocaleDateString("en-US", { timeZone: ORG_TIMEZONE })}</td>
+                    <td>{parsePgDateOnly(grant.week_start_date).toLocaleDateString("en-US", { timeZone: ORG_TIMEZONE })}</td>
                     <td>{grant.granted_count}</td>
                   </tr>
                 ))}

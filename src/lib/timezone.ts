@@ -96,6 +96,31 @@ export function orgStartOfDay(instant: Date): Date {
   return zonedWallTimeToInstant(p.year, p.month, p.day);
 }
 
+/**
+ * Adds `days` ORG_TIMEZONE calendar days to an instant — NOT
+ * `instant.getTime() + days * 86400000`, which drifts by an hour across a
+ * DST transition (ORG_TIMEZONE's fall-back day is 25 real hours, its
+ * spring-forward day 23) and silently produces a duplicate or skipped
+ * calendar day. Found for real in admin/sessions/page.tsx's grid, whose
+ * ms-arithmetic day-stepping rendered Nov 1, 2026 (the US fall-back date)
+ * twice in the same 28-day window.
+ */
+export function orgAddDays(instant: Date, days: number): Date {
+  const p = orgDateParts(instant);
+  // Date.UTC normalizes an out-of-range day (e.g. day 32) into the next
+  // month correctly — reused here as plain calendar-day arithmetic, then
+  // re-anchored to a real ORG_TIMEZONE instant via zonedWallTimeToInstant.
+  const normalized = new Date(Date.UTC(p.year, p.month - 1, p.day + days, p.hour, p.minute, p.second));
+  return zonedWallTimeToInstant(
+    normalized.getUTCFullYear(),
+    normalized.getUTCMonth() + 1,
+    normalized.getUTCDate(),
+    normalized.getUTCHours(),
+    normalized.getUTCMinutes(),
+    normalized.getUTCSeconds(),
+  );
+}
+
 /** ORG_TIMEZONE calendar-day difference between two instants' own ORG_TIMEZONE days (floor). */
 export function orgDayIndex(gridStart: Date, instant: Date): number {
   const msPerDay = 24 * 60 * 60 * 1000;
@@ -117,6 +142,27 @@ export function orgDateOnly(instant: Date): string {
 export function parseOrgDateOnly(dateStr: string): Date {
   const [year, month, day] = dateStr.split("-").map(Number);
   return zonedWallTimeToInstant(year, month, day);
+}
+
+/**
+ * Re-anchors a value read back from a Postgres `date` column (not
+ * `timestamptz`) as ORG_TIMEZONE midnight. node-pg's default parser for
+ * `date` builds that Date via the *process's own ambient-local* midnight
+ * (`new Date(year, month - 1, day)`), not UTC and not ORG_TIMEZONE —
+ * invisible on a Pacific-timezone dev machine (ambient happens to equal
+ * ORG_TIMEZONE) but wrong by a day everywhere else (Amplify's UTC Lambda,
+ * a UTC CI runner): reading it straight into `orgStartOfDay`/`orgDateParts`
+ * re-interprets an ambient-local instant through ORG_TIMEZONE, which for a
+ * UTC-ambient process rolls the date back to the *previous* calendar day
+ * every time (found for real: a recurring rule's `end_date` read back this
+ * way on CI dropped the last occurrence of a 26-day rule). Because
+ * `.getFullYear()`/`.getMonth()`/`.getDate()` read back in that same
+ * ambient zone, they always recover the original Y/M/D regardless of what
+ * the ambient zone actually is — this just re-anchors them correctly via
+ * ORG_TIMEZONE instead of trusting the pg-constructed instant directly.
+ */
+export function parsePgDateOnly(pgDate: Date): Date {
+  return zonedWallTimeToInstant(pgDate.getFullYear(), pgDate.getMonth() + 1, pgDate.getDate());
 }
 
 /** Combines an instant's ORG_TIMEZONE calendar day with a "HH:MM:SS" (or "HH:MM") time-of-day. */

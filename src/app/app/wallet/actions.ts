@@ -11,6 +11,7 @@ import { writeAuditLog } from "@/lib/audit/log";
 import { sendEmail } from "@/lib/email/sender";
 import { isValidEmail } from "@/lib/validation/email";
 import { isInviteRateLimited, recordInviteAttempt } from "@/lib/auth/rateLimit";
+import { isStaticOnlyLaunch } from "@/lib/launchMode";
 import { randomUUID } from "node:crypto";
 
 export interface CreateCheckoutSessionState {
@@ -44,6 +45,13 @@ export async function createCheckoutSessionAction(
   _prevState: CreateCheckoutSessionState,
   formData: FormData,
 ): Promise<CreateCheckoutSessionState> {
+  // Defense-in-depth: /app/wallet is already proxy-gated during static-only
+  // launch mode (src/lib/launchMode.ts) — see the registerAction comment
+  // for why this check is still here anyway.
+  if (isStaticOnlyLaunch()) {
+    return { error: "Ticket purchases aren't available yet." };
+  }
+
   const session = await auth();
   if (!session?.user?.id) redirect("/auth/login?redirect=/app/wallet");
 
