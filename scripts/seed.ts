@@ -46,10 +46,10 @@ async function grantVolunteerRole(userId: string, role: string) {
   );
 }
 
-async function upsertModel(name: string, contactInfo: string) {
+async function upsertModel(name: string, email: string) {
   const result = await pool.query(
-    `INSERT INTO models (name, contact_info) VALUES ($1, $2) RETURNING id, name`,
-    [name, contactInfo],
+    `INSERT INTO models (name, email) VALUES ($1, $2) RETURNING id, name`,
+    [name, email],
   );
   return result.rows[0];
 }

@@ -76,7 +76,7 @@ export async function generatePayoutReports(weekStart: Date): Promise<GeneratePa
     model_contact_info: string | null;
     session_date: Date;
   }>(
-    `SELECT m.id AS model_id, m.name AS model_name, m.contact_info AS model_contact_info, s.start_time AS session_date
+    `SELECT m.id AS model_id, m.name AS model_name, NULLIF(concat_ws(' / ', m.email, m.phone), '') AS model_contact_info, s.start_time AS session_date
      FROM session_model_mapping smm
      JOIN sessions s ON s.id = smm.session_id
      JOIN models m ON m.id = smm.model_id

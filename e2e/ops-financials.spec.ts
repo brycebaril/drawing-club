@@ -23,7 +23,7 @@ test("Controller generates a payout report, downloads its CSV, and regenerating 
 
   const modelName = `E2E Payout Model ${Date.now()}`;
   const modelResult = await pool.query<{ id: string }>(
-    `INSERT INTO models (name, contact_info) VALUES ($1, $2) RETURNING id`,
+    `INSERT INTO models (name, email) VALUES ($1, $2) RETURNING id`,
     [modelName, "payout-model@example.test"],
   );
   const modelId = modelResult.rows[0].id;
