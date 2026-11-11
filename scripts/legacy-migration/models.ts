@@ -47,11 +47,10 @@ export async function migrateModels(client: PoolClient): Promise<MigrationReport
     }
 
     const name = [row.FirstName, row.LastName].filter(Boolean).join(" ").trim() || row.LastName;
-    const contactInfo = [row.EMail, row.Phone].filter(Boolean).join(" / ");
 
     const result = await client.query<{ id: string }>(
-      `INSERT INTO models (legacy_id, name, contact_info) VALUES ($1, $2, $3) RETURNING id`,
-      [String(row.id), name, contactInfo],
+      `INSERT INTO models (legacy_id, name, email, phone) VALUES ($1, $2, $3, $4) RETURNING id`,
+      [String(row.id), name, row.EMail.trim() || null, row.Phone?.trim() || null],
     );
     legacyModelIdToNewId.set(row.id, result.rows[0].id);
     report.migrated += 1;

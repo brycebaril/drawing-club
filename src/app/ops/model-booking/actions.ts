@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { requireOpsRole } from "@/lib/auth/requireOpsRole";
 import { pool } from "@/lib/db/pool";
 import { writeAuditLog } from "@/lib/audit/log";
-import { sendEmail } from "@/lib/email/sender";
+import { assignModel, unassignModel, type AssignResult } from "@/lib/models/assignments";
 
 export interface AssignModelState {
   error?: string;
@@ -29,47 +29,24 @@ export async function assignModelAction(
     return { error: "Choose a model." };
   }
 
-  try {
-    await pool.query(`INSERT INTO session_model_mapping (session_id, model_id) VALUES ($1, $2)`, [
-      sessionId,
-      modelId,
-    ]);
-  } catch (error) {
-    if ((error as { code?: string }).code === "23505") {
-      return { error: "That model is already assigned to this session." };
-    }
-    throw error;
+  const result = await assignModel(sessionId, modelId, { kind: "user", userId: ctx.id }, { note });
+  if (!result.ok) {
+    return { error: ASSIGN_ERRORS[result.reason] };
   }
-
-  if (note) {
-    await pool.query(
-      `INSERT INTO session_notes (session_id, author_user_id, content) VALUES ($1, $2, $3)`,
-      [sessionId, ctx.id, note],
-    );
-  }
-
-  await writeAuditLog({
-    actorId: ctx.id,
-    actionType: "MODEL_ASSIGNMENT_RECORDED",
-    metadata: { sessionId, modelId, note: note || null },
-  });
-
-  const hostRow = await pool.query<{ email: string; username: string }>(
-    `SELECT u.email, u.username FROM sessions s JOIN users u ON u.id = s.host_user_id WHERE s.id = $1`,
-    [sessionId],
-  );
-  if (hostRow.rowCount! > 0) {
-    const modelRow = await pool.query<{ name: string }>(`SELECT name FROM models WHERE id = $1`, [modelId]);
-    await sendEmail({
-      to: hostRow.rows[0].email,
-      subject: "Model assigned to your session",
-      body: `Hi ${hostRow.rows[0].username},\n\n${modelRow.rows[0]?.name ?? "A model"} has been assigned to your upcoming session.${note ? `\n\nNote from the Model Booker: "${note}"` : ""}`,
-    });
+  if (!result.created) {
+    return { error: "That model is already assigned to this session." };
   }
 
   revalidatePath("/ops/model-booking");
   return {};
 }
+
+const ASSIGN_ERRORS: Record<Extract<AssignResult, { ok: false }>["reason"], string> = {
+  "model-retired": "That model is retired.",
+  "session-canceled": "That session is canceled.",
+  "session-not-found": "Session or model not found.",
+  "model-not-found": "Session or model not found.",
+};
 
 export async function unassignModelAction(formData: FormData): Promise<void> {
   const ctx = await requireOpsRole(["VOL_MBR"]);
@@ -77,18 +54,7 @@ export async function unassignModelAction(formData: FormData): Promise<void> {
 
   const sessionId = String(formData.get("sessionId") ?? "");
   const modelId = String(formData.get("modelId") ?? "");
-
-  const deleted = await pool.query(
-    `DELETE FROM session_model_mapping WHERE session_id = $1 AND model_id = $2`,
-    [sessionId, modelId],
-  );
-  if (deleted.rowCount! > 0) {
-    await writeAuditLog({
-      actorId: ctx.id,
-      actionType: "MODEL_ASSIGNMENT_REMOVED",
-      metadata: { sessionId, modelId },
-    });
-  }
+  await unassignModel(sessionId, modelId, { kind: "user", userId: ctx.id });
 
   revalidatePath("/ops/model-booking");
 }

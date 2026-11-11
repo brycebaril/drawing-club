@@ -8,7 +8,7 @@ test("VOL_MBR assigns a model to an unassigned session and notifies the host", a
   ]);
 
   const modelName = `E2E Model ${Date.now()}`;
-  await pool.query(`INSERT INTO models (name, contact_info) VALUES ($1, $2)`, [
+  await pool.query(`INSERT INTO models (name, email) VALUES ($1, $2)`, [
     modelName,
     "model@example.test",
   ]);
@@ -81,6 +81,77 @@ test("VOL_MBR can mark a session as not requiring a model", async ({ page }) => 
 
   await page.goto("/ops/model-booking?filter=unassigned");
   await expect(page.getByText(host.username)).toHaveCount(0);
+});
+
+test("a retired model isn't offered in the assign dropdown", async ({ page }) => {
+  const modelBooker = await createTestUser({ username: `e2emodelbookerret${Date.now()}` });
+  await pool.query(`INSERT INTO volunteer_roles (user_id, role) VALUES ($1, 'ModelBooker')`, [
+    modelBooker.id,
+  ]);
+
+  const activeName = `E2E Active Model ${Date.now()}`;
+  const retiredName = `E2E Retired Model ${Date.now()}`;
+  await pool.query(`INSERT INTO models (name, email) VALUES ($1, 'active@example.test')`, [activeName]);
+  await pool.query(
+    `INSERT INTO models (name, email, retired_at) VALUES ($1, 'retired@example.test', now())`,
+    [retiredName],
+  );
+
+  const startTime = new Date(Date.now() + 76 * 60 * 60 * 1000);
+  const sessionId = await createOneOffSessionAsAdmin(page, {
+    description: `model-retired-dropdown-test-${Date.now()}`,
+    startTime,
+    capacity: 10,
+  });
+  const host = await createTestUser({ username: `e2emodelrethost${Date.now()}` });
+  await pool.query(`UPDATE sessions SET host_user_id = $1 WHERE id = $2`, [host.id, sessionId]);
+
+  await loginAsUser(page, modelBooker);
+  await page.goto("/ops/model-booking");
+
+  const row = page.locator("tr", { hasText: host.username });
+  await expect(row.locator("option", { hasText: activeName })).toHaveCount(1);
+  await expect(row.locator("option", { hasText: retiredName })).toHaveCount(0);
+});
+
+test("a model assigned to a session that doesn't require one is still shown and can be unassigned", async ({
+  page,
+}) => {
+  // The UI can't create this state, but the Model Booking API can (it doesn't
+  // gate on model_required) — the Model Booker must still see and undo it.
+  const modelBooker = await createTestUser({ username: `e2emodelbookernrq${Date.now()}` });
+  await pool.query(`INSERT INTO volunteer_roles (user_id, role) VALUES ($1, 'ModelBooker')`, [
+    modelBooker.id,
+  ]);
+
+  const modelName = `E2E Not-Required Model ${Date.now()}`;
+  const model = await pool.query<{ id: string }>(
+    `INSERT INTO models (name, email) VALUES ($1, 'nrq@example.test') RETURNING id`,
+    [modelName],
+  );
+
+  const startTime = new Date(Date.now() + 78 * 60 * 60 * 1000);
+  const sessionId = await createOneOffSessionAsAdmin(page, {
+    description: `model-not-required-assigned-test-${Date.now()}`,
+    startTime,
+    capacity: 10,
+  });
+  const host = await createTestUser({ username: `e2emodelnrqhost${Date.now()}` });
+  await pool.query(`UPDATE sessions SET host_user_id = $1, model_required = false WHERE id = $2`, [
+    host.id,
+    sessionId,
+  ]);
+  await pool.query(`INSERT INTO session_model_mapping (session_id, model_id) VALUES ($1, $2)`, [
+    sessionId,
+    model.rows[0].id,
+  ]);
+
+  await loginAsUser(page, modelBooker);
+  await page.goto("/ops/model-booking?filter=all");
+
+  const row = page.locator("tr", { hasText: host.username });
+  await expect(row.getByText(modelName)).toBeVisible();
+  await expect(row.getByRole("button", { name: "Unassign" })).toBeVisible();
 });
 
 test("a non-VOL_MBR hitting /ops/model-booking is denied", async ({ page }) => {
