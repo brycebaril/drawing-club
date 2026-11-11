@@ -30,6 +30,15 @@ test("requests without a key get 401, keys without model_booking get 403", async
   expect((await request.get("/api/model-booking/models", { headers: auth(usersOnly.raw) })).status()).toBe(403);
 });
 
+test("the committed dev Stats key can never use the model booking API", async ({ request }) => {
+  // That key's raw value is in the repo and it's seeded by migration in every
+  // environment, so it must never be granted the one write scope.
+  const response = await request.get("/api/model-booking/models", {
+    headers: auth("dev-stats-api-key-do-not-use-in-production"),
+  });
+  expect([401, 403]).toContain(response.status());
+});
+
 test("creates, lists, updates and retires a model, audit-logged against the key", async ({ request }) => {
   const key = await createKey(["model_booking"]);
   const created = await request.post("/api/model-booking/models", {
@@ -115,9 +124,16 @@ test("bad ids and bad bodies are 404/400, never 500", async ({ request }) => {
 
 /**
  * Inserts a session at 10:00 org time. Scheduled ones take an open Morning day
- * 35-58 days out under the shared slot lock (same collision avoidance as every
- * other dated spec); a canceled one occupies no slot, so it needs no lock.
+ * 37-58 days out under the shared slot lock (same collision avoidance as every
+ * other dated spec, starting past series-edit.spec.ts's furthest day); a
+ * canceled one occupies no slot, so it needs no lock. Every inserted session is
+ * deleted after its test, so none drift into other specs' search windows later.
  */
+const insertedSessionIds: string[] = [];
+test.afterEach(async () => {
+  await pool.query(`DELETE FROM sessions WHERE id = ANY($1)`, [insertedSessionIds.splice(0)]);
+});
+
 async function insertSession(opts: { status?: "Scheduled" | "Canceled"; legacyId?: string; dayOffset?: number } = {}) {
   const insert = async (day: number) => {
     const start = new Date(addDays(startOfDay(new Date()), day).getTime() + 10 * 60 * 60 * 1000);
@@ -127,10 +143,11 @@ async function insertSession(opts: { status?: "Scheduled" | "Canceled"; legacyId
        VALUES ('R', $1, $2, $3, $4, $5) RETURNING id`,
       [start, end, opts.status ?? "Scheduled", opts.legacyId ?? null, `e2e-model-booking-api-${Date.now()}`],
     );
+    insertedSessionIds.push(result.rows[0].id);
     return result.rows[0].id;
   };
   if (opts.status === "Canceled") return insert(opts.dayOffset ?? 45);
-  return withSlotLock("Morning", async () => insert(await findOpenSlotBase(new Date(), "Morning", [0], 35, 58)));
+  return withSlotLock("Morning", async () => insert(await findOpenSlotBase(new Date(), "Morning", [0], 37, 58)));
 }
 
 interface FeedSession {

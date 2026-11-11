@@ -76,25 +76,33 @@ export async function createModel(
   input: ModelInput & { name: string },
   actor: ModelActor,
 ): Promise<{ ok: true; model: ModelRecord } | { ok: false; reason: "duplicate-legacy-id" }> {
-  let row: ModelRow;
+  // Audit shares the insert's transaction, so a failed audit leaves no model behind.
+  const client = await pool.connect();
   try {
-    const result = await pool.query<ModelRow>(
+    await client.query("BEGIN");
+    const result = await client.query<ModelRow>(
       `INSERT INTO models (legacy_id, name, email, phone) VALUES ($1, $2, $3, $4) RETURNING ${MODEL_COLUMNS}`,
       [input.legacyId ?? null, input.name, input.email ?? null, input.phone ?? null],
     );
-    row = result.rows[0];
+    const row = result.rows[0];
+    const { actorId, metadata } = auditActor(actor);
+    await writeAuditLog(
+      {
+        actorId,
+        actionType: "MODEL_CREATED",
+        metadata: { ...metadata, modelId: row.id, legacyId: row.legacy_id, name: row.name },
+      },
+      client,
+    );
+    await client.query("COMMIT");
+    return { ok: true, model: toRecord(row) };
   } catch (error) {
+    await client.query("ROLLBACK");
     if (isUniqueViolation(error)) return { ok: false, reason: "duplicate-legacy-id" };
     throw error;
+  } finally {
+    client.release();
   }
-
-  const { actorId, metadata } = auditActor(actor);
-  await writeAuditLog({
-    actorId,
-    actionType: "MODEL_CREATED",
-    metadata: { ...metadata, modelId: row.id, legacyId: row.legacy_id, name: row.name },
-  });
-  return { ok: true, model: toRecord(row) };
 }
 
 /**

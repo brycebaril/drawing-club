@@ -53,6 +53,13 @@ export async function assignModel(
         note,
       ]);
     }
+    // Audit inside the transaction: a failed audit rolls the assignment back,
+    // so a retry redoes everything instead of no-oping past a lost entry.
+    const { actorId, metadata } = auditActor(actor);
+    await writeAuditLog(
+      { actorId, actionType: "MODEL_ASSIGNMENT_RECORDED", metadata: { ...metadata, sessionId, modelId, note } },
+      client,
+    );
     await client.query("COMMIT");
   } catch (error) {
     await client.query("ROLLBACK");
@@ -60,13 +67,6 @@ export async function assignModel(
   } finally {
     client.release();
   }
-
-  const { actorId, metadata } = auditActor(actor);
-  await writeAuditLog({
-    actorId,
-    actionType: "MODEL_ASSIGNMENT_RECORDED",
-    metadata: { ...metadata, sessionId, modelId, note },
-  });
 
   const hostRow = await pool.query<{ email: string; username: string }>(
     `SELECT u.email, u.username FROM sessions s JOIN users u ON u.id = s.host_user_id WHERE s.id = $1`,
@@ -95,17 +95,28 @@ export async function unassignModel(
   if (session.rowCount === 0) return { ok: false, reason: "session-not-found" };
   if (model.rowCount === 0) return { ok: false, reason: "model-not-found" };
 
-  const deleted = await pool.query(`DELETE FROM session_model_mapping WHERE session_id = $1 AND model_id = $2`, [
-    sessionId,
-    modelId,
-  ]);
-  if (deleted.rowCount === 0) return { ok: true, removed: false };
-
-  const { actorId, metadata } = auditActor(actor);
-  await writeAuditLog({
-    actorId,
-    actionType: "MODEL_ASSIGNMENT_REMOVED",
-    metadata: { ...metadata, sessionId, modelId },
-  });
-  return { ok: true, removed: true };
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const deleted = await client.query(`DELETE FROM session_model_mapping WHERE session_id = $1 AND model_id = $2`, [
+      sessionId,
+      modelId,
+    ]);
+    if (deleted.rowCount === 0) {
+      await client.query("ROLLBACK");
+      return { ok: true, removed: false };
+    }
+    const { actorId, metadata } = auditActor(actor);
+    await writeAuditLog(
+      { actorId, actionType: "MODEL_ASSIGNMENT_REMOVED", metadata: { ...metadata, sessionId, modelId } },
+      client,
+    );
+    await client.query("COMMIT");
+    return { ok: true, removed: true };
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
 }

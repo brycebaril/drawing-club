@@ -91,10 +91,9 @@ export default async function ModelBookingPage({
               <td>{session.session_type}</td>
               <td>{session.host_username ? memberLabel(session.host_display_name, session.host_username) : "Open"}</td>
               <td>
-                {!session.model_required ? (
-                  "Not required"
-                ) : session.assigned_models.length === 0 ? (
-                  "No model assigned"
+                {/* Assigned models always show, even on a not-required session — the Model Booking API can create that state. */}
+                {session.assigned_models.length === 0 ? (
+                  session.model_required ? "No model assigned" : "Not required"
                 ) : (
                   <ul>
                     {session.assigned_models.map((model) => (
