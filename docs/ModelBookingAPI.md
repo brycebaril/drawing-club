@@ -207,7 +207,191 @@ curl -s -X DELETE "$BASE/sessions/$SESSION_ID/models/$MODEL_ID" -H "Authorizatio
 
 ### Replacing a model
 
-To replace a model, `DELETE` the old assignment, then `PUT` the new one. There's no single "replace" call, so your updates and the Model Booker's manual changes in the new app can't overwrite each other.
+To replace a model, `PUT` the new one, then `DELETE` the old one. Assigning first means that if the new assignment fails (the model is retired, say), the session keeps its current model. There's no single "replace" call, so your updates and the Model Booker's manual changes in the new app can't overwrite each other.
+
+## PHP
+
+A minimal client for PHP 7.4 and later, using only the standard `curl` and `json` extensions. It was tested end to end against the API on PHP 7.4 and 8.3. Save it as `model-booking-client.php` and set `MODEL_BOOKING_API_KEY` in the environment; `MODEL_BOOKING_API_BASE` is optional and defaults to staging.
+
+Each function returns data on success and throws a `RuntimeException` otherwise, with the HTTP status as the exception code: `404` unknown id, `409` conflict, `401`/`403` key problem.
+
+```php
+<?php
+/**
+ * Minimal Model Booking API client. PHP 7.4+, using the standard curl and json extensions.
+ * Set MODEL_BOOKING_API_KEY in the environment and keep the key out of source control.
+ */
+
+function mb_base_url(): string
+{
+    return getenv('MODEL_BOOKING_API_BASE')
+        ?: 'https://staging.d27yg9hidehduf.amplifyapp.com/api/model-booking';
+}
+
+/**
+ * Sends one request and returns [HTTP status, decoded JSON body or null].
+ * Throws on a network failure, on 401/403 (bad or under-scoped key) and on 5xx,
+ * so callers only handle the statuses each endpoint documents.
+ */
+function mb_request(string $method, string $path, ?array $body = null): array
+{
+    $headers = [
+        'Authorization: Bearer ' . getenv('MODEL_BOOKING_API_KEY'),
+        'Accept: application/json',
+    ];
+    $ch = curl_init(mb_base_url() . $path);
+    curl_setopt($ch, CURLOPT_CUSTOMREQUEST, $method);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 30);
+    if ($body !== null) {
+        // (object) so an empty array is sent as {} rather than [].
+        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode((object) $body));
+        $headers[] = 'Content-Type: application/json';
+    }
+    curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+
+    $raw = curl_exec($ch);
+    if ($raw === false) {
+        throw new RuntimeException("$method $path failed: " . curl_error($ch));
+    }
+    $status = (int) curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
+    $decoded = $raw === '' ? null : json_decode($raw, true);
+    if ($status === 401 || $status === 403 || $status >= 500) {
+        throw new RuntimeException("$method $path: HTTP $status " . mb_error($decoded), $status);
+    }
+    return [$status, $decoded];
+}
+
+/** The "error" message from an error response, or '' if there isn't one. */
+function mb_error($decoded): string
+{
+    return is_array($decoded) && isset($decoded['error']) ? $decoded['error'] : '';
+}
+
+function mb_fail(string $what, int $status, $body): RuntimeException
+{
+    return new RuntimeException("$what: HTTP $status " . mb_error($body), $status);
+}
+
+/**
+ * Upcoming sessions keyed by id. A session missing from a later call has moved
+ * out of the window; it was not canceled (canceled ones stay, with status "Canceled").
+ */
+function mb_upcoming_sessions(int $days = 60): array
+{
+    [$status, $body] = mb_request('GET', "/sessions?days=$days");
+    if ($status !== 200) {
+        throw mb_fail('Listing sessions', $status, $body);
+    }
+    return array_column($body, null, 'id');
+}
+
+/** The full roster, retired models included. */
+function mb_models(): array
+{
+    [$status, $body] = mb_request('GET', '/models');
+    if ($status !== 200) {
+        throw mb_fail('Listing models', $status, $body);
+    }
+    return $body;
+}
+
+/** Finds a model by your merdels.id. */
+function mb_find_model_by_legacy_id($legacyId): ?array
+{
+    foreach (mb_models() as $model) {
+        if ($model['legacyId'] === (string) $legacyId) {
+            return $model;
+        }
+    }
+    return null;
+}
+
+/**
+ * Hires a model. Pass your merdels.id as $legacyId: then a retried call returns
+ * the model the first call created instead of making a duplicate.
+ */
+function mb_hire_model($legacyId, string $name, ?string $email = null, ?string $phone = null): array
+{
+    [$status, $body] = mb_request('POST', '/models', [
+        'legacyId' => (string) $legacyId,
+        'name' => $name,
+        'email' => $email,
+        'phone' => $phone,
+    ]);
+    if ($status === 201) {
+        return $body;
+    }
+    if ($status === 409) {
+        // Already hired, e.g. this is a retry of a request that timed out.
+        return mb_find_model_by_legacy_id($legacyId);
+    }
+    throw mb_fail("Hiring $name", $status, $body);
+}
+
+/**
+ * Updates a model. $changes holds any of name, email, phone, legacyId, retired,
+ * e.g. ['email' => 'new@example.com'] or ['retired' => true]. Returns the updated model.
+ */
+function mb_update_model(string $modelId, array $changes): array
+{
+    [$status, $body] = mb_request('PATCH', "/models/$modelId", $changes);
+    if ($status !== 200) {
+        throw mb_fail('Updating model', $status, $body);
+    }
+    return $body;
+}
+
+/**
+ * Assigns a model to a session. Returns true if newly assigned, false if it already was.
+ * Throws on 404 (unknown id) and 409 (retired model or canceled session).
+ */
+function mb_assign(string $sessionId, string $modelId): bool
+{
+    [$status, $body] = mb_request('PUT', "/sessions/$sessionId/models/$modelId");
+    if ($status !== 200) {
+        throw mb_fail('Assigning model', $status, $body);
+    }
+    return $body['created'];
+}
+
+/** Removes a model from a session. Succeeds whether or not it was assigned. */
+function mb_unassign(string $sessionId, string $modelId): void
+{
+    [$status, $body] = mb_request('DELETE', "/sessions/$sessionId/models/$modelId");
+    if ($status !== 204) {
+        throw mb_fail('Unassigning model', $status, $body);
+    }
+}
+
+/** Swaps one model for another. Assigns first, so if that fails the session keeps its model. */
+function mb_replace(string $sessionId, string $oldModelId, string $newModelId): void
+{
+    mb_assign($sessionId, $newModelId);
+    mb_unassign($sessionId, $oldModelId);
+}
+```
+
+Using it:
+
+```php
+<?php
+require 'model-booking-client.php';
+
+// Mirror upcoming sessions into your own table.
+foreach (mb_upcoming_sessions(60) as $id => $session) {
+    // $session['legacyId'] is your sessions.id for sessions that came from Robobooker,
+    // null for sessions created in the new app. Upsert your copy keyed by $id.
+    $canceled = $session['status'] === 'Canceled';
+    $assignedModelIds = array_column($session['models'], 'id');
+}
+
+// Hire (212 is your merdels.id), book, swap and retire.
+$jane = mb_hire_model(212, 'Jane Doe', 'jane@example.com', '604-555-0100');
+mb_assign($sessionId, $jane['id']);
+mb_replace($sessionId, $jane['id'], $otherModelId);
+mb_update_model($jane['id'], ['retired' => true]);
+```
 
 ## Audit trail
 
