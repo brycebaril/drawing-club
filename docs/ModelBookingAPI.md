@@ -52,7 +52,7 @@ Keys are created by an admin of the new app at `/admin/api-keys`, and the full k
 | Hire, update and retire models | Change a session's type, capacity or `modelRequired` |
 | Assign and unassign models | |
 
-That's roughly the new app's Model Booker role plus roster management. The API doesn't check user roles, because a key isn't tied to a person; access comes only from the key's `model_booking` scope. An admin can revoke a key at any time at `/admin/api-keys`.
+That's roughly the new app's Model Booker role plus roster management. Access comes only from the key's `model_booking` scope. Each key records the admin who created it, but the API doesn't re-check that person's roles or account status on each request: removing their Admin role or suspending their account leaves keys they already made working. To cut off access, an admin revokes the key at `/admin/api-keys`.
 
 ### Seeing your changes in the app
 
