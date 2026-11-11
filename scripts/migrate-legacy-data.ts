@@ -172,7 +172,9 @@ async function main() {
 }
 
 main()
-  .catch(() => {
+  .catch((error) => {
+    // Print it: a bare exit code 1 left a failed staging run undiagnosable.
+    console.error(error);
     process.exitCode = 1;
   })
   .finally(async () => {
