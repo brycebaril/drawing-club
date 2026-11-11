@@ -107,3 +107,14 @@ against a genuinely empty database before any content exists.
   launch, not an oversight. See `docs/ImplementationNotesArchive.md`'s
   static-only launch notes for the full mechanism and the cutover sequence
   back to full mode.
+- **Before issuing any real API key here (e.g. the Model Booking API for
+  the legacy system's developer), tie keys to their creator.** Today
+  `requireApiKeyScope` (`src/lib/auth/apiKey.ts`) checks only the key's
+  hash, `revoked_at` and scopes; `api_keys.created_by` is attribution only,
+  so suspending a key's creator or removing their role leaves the key
+  working until someone revokes it by hand. Add a join to `users` that
+  requires the creator to be `Active` and still hold `ADMIN` (or, for a
+  `model_booking` key, the Model Booker role), plus a test for each. Held
+  back on staging deliberately (decided 2026-11-11): every
+  `migrate-legacy-data --reset` deletes the users, `created_by` becomes
+  NULL, and the check would kill every key on each reload.
