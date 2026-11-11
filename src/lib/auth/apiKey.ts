@@ -1,6 +1,12 @@
 import { randomBytes, createHash } from "node:crypto";
 import { pool } from "@/lib/db/pool";
 import type { ReportScope } from "@/lib/reporting/scopes";
+import { resolveAppEnv } from "@/lib/envStatus";
+
+// The seeded local-dev key: its raw value is in this public repo and a
+// migration inserts it into every database, so it only works in development.
+// Fails closed: an unset APP_ENV on a production build resolves to "production".
+const DEV_API_KEY = "dev-stats-api-key-do-not-use-in-production";
 
 /**
  * Design Doc §10 / ArchitectureDocument.md §9: Stats API keys are a
@@ -38,6 +44,10 @@ export async function requireApiKeyScope(request: Request, scope: ReportScope): 
   const match = /^Bearer (.+)$/.exec(authHeader);
   if (!match) {
     return { ok: false, status: 401, error: "Missing or malformed Authorization header." };
+  }
+
+  if (match[1] === DEV_API_KEY && resolveAppEnv() !== "development") {
+    return { ok: false, status: 401, error: "Invalid or revoked API key." };
   }
 
   const keyHash = hashApiKey(match[1]);
