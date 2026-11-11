@@ -1,5 +1,6 @@
 import { pool } from "../../src/lib/db/pool";
 import { generateSessionsForRule } from "../../src/lib/recurrence/generate";
+import { orgAddDays, orgDateOnly, orgDateParts, orgStartOfDay } from "../../src/lib/timezone";
 import { emptyReport, type MigrationReport } from "./types";
 
 interface RegularScheduleSlot {
@@ -60,10 +61,34 @@ export async function createRegularSchedule(): Promise<MigrationReport> {
   }
   const createdBy = adminResult.rows[0].id;
 
-  const startDate = new Date();
-  startDate.setHours(0, 0, 0, 0);
+  // The dump already carries the legacy system's own scheduled sessions,
+  // typically a month or so past the cutover. Starting every rule at the
+  // cutover duplicated each of those (found in the 2026-11-08 dump
+  // rehearsal: 20 same-instant legacy + generated pairs). Each rule now
+  // starts the day after legacy's last session in its own weekly slot,
+  // canceled ones included (legacy already decided that date), so the two
+  // never overlap. "In its slot" means same weekday, starting within 3 hours
+  // of the rule's start — not an exact time match, since legacy sometimes
+  // replaces a regular session with a different one nearby (e.g. a 6pm ELP
+  // in place of the 7pm Friday Long Pose).
+  const today = orgStartOfDay(new Date());
+  const legacyUpcoming = await pool.query<{ start_time: Date }>(
+    `SELECT start_time FROM sessions WHERE legacy_id IS NOT NULL AND start_time >= $1`,
+    [today],
+  );
 
   for (const slot of REGULAR_SCHEDULE_SLOTS) {
+    const [hour, minute] = slot.startTimeOfDay.split(":").map(Number);
+    const slotMinutes = hour * 60 + minute;
+    let lastLegacy: Date | null = null;
+    for (const row of legacyUpcoming.rows) {
+      const start = new Date(row.start_time);
+      const p = orgDateParts(start);
+      const inSlot = p.weekday === slot.dayOfWeek && Math.abs(p.hour * 60 + p.minute - slotMinutes) < 180;
+      if (inSlot && (!lastLegacy || start > lastLegacy)) lastLegacy = start;
+    }
+    const startDate = orgDateOnly(lastLegacy ? orgAddDays(orgStartOfDay(lastLegacy), 1) : today);
+
     const inserted = await pool.query<{ id: string }>(
       `INSERT INTO recurrence_rules
          (session_type, description, day_of_week, start_time_of_day, end_time_of_day,
