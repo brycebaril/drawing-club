@@ -83,6 +83,37 @@ test("VOL_MBR can mark a session as not requiring a model", async ({ page }) => 
   await expect(page.getByText(host.username)).toHaveCount(0);
 });
 
+test("a retired model isn't offered in the assign dropdown", async ({ page }) => {
+  const modelBooker = await createTestUser({ username: `e2emodelbookerret${Date.now()}` });
+  await pool.query(`INSERT INTO volunteer_roles (user_id, role) VALUES ($1, 'ModelBooker')`, [
+    modelBooker.id,
+  ]);
+
+  const activeName = `E2E Active Model ${Date.now()}`;
+  const retiredName = `E2E Retired Model ${Date.now()}`;
+  await pool.query(`INSERT INTO models (name, email) VALUES ($1, 'active@example.test')`, [activeName]);
+  await pool.query(
+    `INSERT INTO models (name, email, retired_at) VALUES ($1, 'retired@example.test', now())`,
+    [retiredName],
+  );
+
+  const startTime = new Date(Date.now() + 76 * 60 * 60 * 1000);
+  const sessionId = await createOneOffSessionAsAdmin(page, {
+    description: `model-retired-dropdown-test-${Date.now()}`,
+    startTime,
+    capacity: 10,
+  });
+  const host = await createTestUser({ username: `e2emodelrethost${Date.now()}` });
+  await pool.query(`UPDATE sessions SET host_user_id = $1 WHERE id = $2`, [host.id, sessionId]);
+
+  await loginAsUser(page, modelBooker);
+  await page.goto("/ops/model-booking");
+
+  const row = page.locator("tr", { hasText: host.username });
+  await expect(row.locator("option", { hasText: activeName })).toHaveCount(1);
+  await expect(row.locator("option", { hasText: retiredName })).toHaveCount(0);
+});
+
 test("a non-VOL_MBR hitting /ops/model-booking is denied", async ({ page }) => {
   // Unlike /ops/check-in (resource-scoped per session, so its denial can
   // only be enforced inside the page via notFound() — proxy.ts has no way

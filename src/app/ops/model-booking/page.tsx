@@ -52,7 +52,7 @@ export default async function ModelBookingPage({
     [],
   );
 
-  const modelsResult = await pool.query<ModelOption>(`SELECT id, name FROM models ORDER BY name`);
+  const modelsResult = await pool.query<ModelOption>(`SELECT id, name FROM models WHERE retired_at IS NULL ORDER BY name`);
 
   const rows = showAll
     ? sessionsResult.rows
