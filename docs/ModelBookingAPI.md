@@ -26,10 +26,41 @@ For the developer of the legacy Robobooker system, whose tooling keeps running m
 | :--- | :--- |
 | Base URL | `https://staging.d27yg9hidehduf.amplifyapp.com/api/model-booking` |
 | Data | Loaded from your 2026-11-08 export. It's a copy of real production data, so please treat it accordingly. |
-| API key | Sent to you separately. |
+| API key | Sent to you separately, or create your own (see [Access](#access)). |
 | Email | Staging doesn't send email; messages are only logged. |
 
 **Staging gets reloaded** from newer exports from time to time. A reload regenerates every UUID, so after one, re-pull `/models` and `/sessions` and re-match your records by `legacyId`, which stays stable. Your API key survives reloads. Models or assignments you create on staging do not; the reload replaces them with whatever the export contains.
+
+## Access
+
+### Getting a key
+
+Keys are created by an admin of the new app at `/admin/api-keys`, and the full key is shown only once. If your own account in the new app is an Admin (Robobooker admins were migrated as admins), you can create your own:
+
+1. Log in at `https://staging.d27yg9hidehduf.amplifyapp.com/auth/login` with your Robobooker email address (or your new-app username) and your Robobooker password.
+2. Admin accounts require MFA, so the first login walks you through setting up an authenticator app.
+3. Go to `/admin/api-keys` and create a key with **only** `model_booking` checked. Admins can create keys with other scopes too, but your tooling needs only this one.
+
+**After a staging reload** your password stays the same, since it comes from the Robobooker export, but you'll need to set up MFA again. API keys survive reloads.
+
+### What a key can and can't do
+
+| Can | Can't |
+| :--- | :--- |
+| Read upcoming sessions, canceled ones included | See or change members, bookings, tickets or payments |
+| Read the model roster, including contact details | Create, reschedule or cancel sessions |
+| Hire, update and retire models | Change a session's type, capacity or `modelRequired` |
+| Assign and unassign models | |
+
+That's roughly the new app's Model Booker role plus roster management. The API doesn't check user roles, because a key isn't tied to a person; access comes only from the key's `model_booking` scope. An admin can revoke a key at any time at `/admin/api-keys`.
+
+### Seeing your changes in the app
+
+Log in with an account that has the Model Booker role or is an Admin and open `/ops/model-booking`. It lists the next 60 days of sessions with their assigned models, and a "Needs a model" filter. Admins can also use `/admin/sessions`.
+
+### MCP
+
+There's no MCP server for this API. It's plain HTTP + JSON, so anything with an HTTP client can use it.
 
 ## Authentication
 
