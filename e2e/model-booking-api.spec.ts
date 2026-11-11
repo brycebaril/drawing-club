@@ -1,6 +1,7 @@
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { expect, test, type APIRequestContext } from "@playwright/test";
-import { pool } from "./helpers";
+import { findOpenSlotBase, pool, withSlotLock } from "./helpers";
+import { addDays, startOfDay } from "@/lib/sessions/shared";
 
 /** Inserts an API key directly (same hashing as src/lib/auth/apiKey.ts) and returns the raw value. */
 async function createKey(scopes: string[]): Promise<{ raw: string; name: string }> {
@@ -110,4 +111,122 @@ test("bad ids and bad bodies are 404/400, never 500", async ({ request }) => {
   expect(
     (await request.patch(`/api/model-booking/models/${randomUUID()}`, { headers: auth(key.raw), data: {} })).status(),
   ).toBe(404);
+});
+
+/**
+ * Inserts a session at 10:00 org time. Scheduled ones take an open Morning day
+ * 35-58 days out under the shared slot lock (same collision avoidance as every
+ * other dated spec); a canceled one occupies no slot, so it needs no lock.
+ */
+async function insertSession(opts: { status?: "Scheduled" | "Canceled"; legacyId?: string; dayOffset?: number } = {}) {
+  const insert = async (day: number) => {
+    const start = new Date(addDays(startOfDay(new Date()), day).getTime() + 10 * 60 * 60 * 1000);
+    const end = new Date(start.getTime() + 3 * 60 * 60 * 1000);
+    const result = await pool.query<{ id: string }>(
+      `INSERT INTO sessions (session_type, start_time, end_time, status, legacy_id, description)
+       VALUES ('R', $1, $2, $3, $4, $5) RETURNING id`,
+      [start, end, opts.status ?? "Scheduled", opts.legacyId ?? null, `e2e-model-booking-api-${Date.now()}`],
+    );
+    return result.rows[0].id;
+  };
+  if (opts.status === "Canceled") return insert(opts.dayOffset ?? 45);
+  return withSlotLock("Morning", async () => insert(await findOpenSlotBase(new Date(), "Morning", [0], 35, 58)));
+}
+
+interface FeedSession {
+  id: string;
+  legacyId: string | null;
+  status: string;
+  models: { id: string }[];
+}
+
+async function feedSession(request: APIRequestContext, raw: string, sessionId: string, query = "?days=120") {
+  const response = await request.get(`/api/model-booking/sessions${query}`, { headers: auth(raw) });
+  expect(response.status()).toBe(200);
+  return ((await response.json()) as FeedSession[]).find((s) => s.id === sessionId);
+}
+
+const assignmentUrl = (sessionId: string, modelId: string) =>
+  `/api/model-booking/sessions/${sessionId}/models/${modelId}`;
+
+test("assign is idempotent, supports several models, and unassign is idempotent", async ({ request }) => {
+  const key = await createKey(["model_booking"]);
+  const sessionId = await insertSession();
+  const m1 = await createModel(request, key.raw, { name: "E2E Assign One" });
+  const m2 = await createModel(request, key.raw, { name: "E2E Assign Two" });
+
+  const first = await request.put(assignmentUrl(sessionId, m1.id), { headers: auth(key.raw) });
+  expect(first.status()).toBe(200);
+  expect((await first.json()).created).toBe(true);
+  const again = await request.put(assignmentUrl(sessionId, m1.id), { headers: auth(key.raw) });
+  expect(again.status()).toBe(200);
+  expect((await again.json()).created).toBe(false);
+  expect((await request.put(assignmentUrl(sessionId, m2.id), { headers: auth(key.raw) })).status()).toBe(200);
+
+  const both = await feedSession(request, key.raw, sessionId);
+  expect(both!.models.map((m) => m.id).sort()).toEqual([m1.id, m2.id].sort());
+
+  expect((await request.delete(assignmentUrl(sessionId, m1.id), { headers: auth(key.raw) })).status()).toBe(204);
+  expect((await request.delete(assignmentUrl(sessionId, m1.id), { headers: auth(key.raw) })).status()).toBe(204);
+  const remaining = await feedSession(request, key.raw, sessionId);
+  expect(remaining!.models.map((m) => m.id)).toEqual([m2.id]);
+
+  const recorded = await pool.query<{ count: string }>(
+    `SELECT count(*) FROM system_audit_logs WHERE action_type = 'MODEL_ASSIGNMENT_RECORDED'
+     AND metadata->>'sessionId' = $1 AND metadata->>'modelId' = $2`,
+    [sessionId, m1.id],
+  );
+  expect(Number(recorded.rows[0].count)).toBe(1);
+});
+
+test("retired models and canceled sessions can't be assigned; retiring keeps existing assignments", async ({
+  request,
+}) => {
+  const key = await createKey(["model_booking"]);
+  const sessionId = await insertSession();
+  const otherSessionId = await insertSession();
+  const canceledId = await insertSession({ status: "Canceled" });
+  const model = await createModel(request, key.raw, { name: "E2E Retiring Model" });
+  const active = await createModel(request, key.raw, { name: "E2E Still Active Model" });
+
+  expect((await request.put(assignmentUrl(sessionId, model.id), { headers: auth(key.raw) })).status()).toBe(200);
+  await request.patch(`/api/model-booking/models/${model.id}`, { headers: auth(key.raw), data: { retired: true } });
+
+  const stillAssigned = await feedSession(request, key.raw, sessionId);
+  expect(stillAssigned!.models.map((m) => m.id)).toEqual([model.id]);
+
+  expect((await request.put(assignmentUrl(otherSessionId, model.id), { headers: auth(key.raw) })).status()).toBe(409);
+  expect((await request.put(assignmentUrl(canceledId, active.id), { headers: auth(key.raw) })).status()).toBe(409);
+  expect((await request.delete(assignmentUrl(sessionId, model.id), { headers: auth(key.raw) })).status()).toBe(204);
+});
+
+test("feed includes canceled sessions with legacyId and honours days", async ({ request }) => {
+  const key = await createKey(["model_booking"]);
+  const legacyId = `e2e-${Date.now()}`;
+  const canceledId = await insertSession({ status: "Canceled", legacyId, dayOffset: 45 });
+
+  const inDefault = await feedSession(request, key.raw, canceledId, "");
+  expect(inDefault).toMatchObject({ status: "Canceled", legacyId });
+  expect(await feedSession(request, key.raw, canceledId, "?days=30")).toBeUndefined();
+
+  for (const days of ["0", "121", "abc"]) {
+    const response = await request.get(`/api/model-booking/sessions?days=${days}`, { headers: auth(key.raw) });
+    expect(response.status()).toBe(400);
+  }
+});
+
+test("bad session/model ids are 404", async ({ request }) => {
+  const key = await createKey(["model_booking"]);
+  const sessionId = await insertSession({ status: "Canceled", dayOffset: 50 });
+  const model = await createModel(request, key.raw, { name: "E2E 404 Model" });
+
+  // Asserting the JSON error body, not just the status — a missing route also 404s (as an HTML page).
+  for (const response of [
+    await request.put(assignmentUrl("not-a-uuid", model.id), { headers: auth(key.raw) }),
+    await request.put(assignmentUrl(randomUUID(), model.id), { headers: auth(key.raw) }),
+    await request.delete(assignmentUrl(sessionId, randomUUID()), { headers: auth(key.raw) }),
+  ]) {
+    expect(response.status()).toBe(404);
+    expect(await response.json()).toHaveProperty("error");
+  }
 });
