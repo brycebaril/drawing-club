@@ -8,7 +8,7 @@ test("VOL_MBR assigns a model to an unassigned session and notifies the host", a
   ]);
 
   const modelName = `E2E Model ${Date.now()}`;
-  await pool.query(`INSERT INTO models (name, contact_info) VALUES ($1, $2)`, [
+  await pool.query(`INSERT INTO models (name, email) VALUES ($1, $2)`, [
     modelName,
     "model@example.test",
   ]);

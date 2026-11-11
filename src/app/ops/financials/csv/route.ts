@@ -42,7 +42,7 @@ export async function GET(request: Request): Promise<NextResponse> {
   }
 
   const result = await pool.query<ReportRow>(
-    `SELECT m.name AS model_name, m.contact_info, r.week_start_date, r.week_end_date,
+    `SELECT m.name AS model_name, NULLIF(concat_ws(' / ', m.email, m.phone), '') AS contact_info, r.week_start_date, r.week_end_date,
             r.sessions_worked, r.rate_applied, r.total_owed
      FROM model_payout_reports r
      JOIN models m ON m.id = r.model_id

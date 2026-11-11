@@ -178,11 +178,11 @@ test("check-in shows every model assigned to a session, not just the first", asy
   const modelOneName = `AlphaE2E${Date.now()}`;
   const modelTwoName = `BetaE2E${Date.now()}`;
   const modelOne = await pool.query<{ id: string }>(
-    `INSERT INTO models (name, contact_info) VALUES ($1, 'a@example.test') RETURNING id`,
+    `INSERT INTO models (name, email) VALUES ($1, 'a@example.test') RETURNING id`,
     [modelOneName],
   );
   const modelTwo = await pool.query<{ id: string }>(
-    `INSERT INTO models (name, contact_info) VALUES ($1, 'b@example.test') RETURNING id`,
+    `INSERT INTO models (name, email) VALUES ($1, 'b@example.test') RETURNING id`,
     [modelTwoName],
   );
   await pool.query(`INSERT INTO session_model_mapping (session_id, model_id) VALUES ($1, $2), ($1, $3)`, [

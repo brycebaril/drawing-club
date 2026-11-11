@@ -255,10 +255,10 @@ export async function migrateSessions(client: PoolClient): Promise<MigrationRepo
     const capacity = resolveCapacity(capacityExceptions, row.date, row.typeId, row.sessionTime) ?? 25;
 
     const insertResult = await client.query<{ id: string }>(
-      `INSERT INTO sessions (status, session_type, description, start_time, end_time, max_capacity, is_ticketed, host_user_id)
-       VALUES ($1, $2, $3, $4, $5, $6, true, $7)
+      `INSERT INTO sessions (status, session_type, description, start_time, end_time, max_capacity, is_ticketed, host_user_id, legacy_id)
+       VALUES ($1, $2, $3, $4, $5, $6, true, $7, $8)
        RETURNING id`,
-      [status, sessionType, description, startTime, endTime, capacity, hostUserId],
+      [status, sessionType, description, startTime, endTime, capacity, hostUserId, String(row.id)],
     );
     const newSessionId = insertResult.rows[0].id;
     legacySessionIdToNew.set(row.id, { id: newSessionId, startTime });
