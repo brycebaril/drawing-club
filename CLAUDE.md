@@ -141,7 +141,7 @@ Phases 1-8 are done, plus direct-ownership pass sharing, ops workspaces, the CMS
 
 ### Stats API reference (for a future Claude Code session)
 
-Base URL: `http://localhost:3000/api/stats/`. Auth: `Authorization: Bearer <key>` header. The seeded local-dev key (all scopes, **not valid outside a local dev DB seeded via `pnpm seed` after `pnpm migrate`**) is `dev-stats-api-key-do-not-use-in-production`.
+Base URL: `http://localhost:3000/api/stats/`. Auth: `Authorization: Bearer <key>` header. The seeded local-dev key (all scopes, **not valid outside a local dev DB seeded via `pnpm seed` after `pnpm migrate`**) is `dev-stats-api-key-do-not-use-in-production`. The migration still inserts it everywhere, so `requireApiKeyScope` rejects it whenever `resolveAppEnv()` isn't `development` (it was live on staging and production, with this public repo holding its value, until revoked there by hand on 2026-11-11).
 
 ```bash
 curl -s http://localhost:3000/api/stats/users        -H "Authorization: Bearer dev-stats-api-key-do-not-use-in-production"

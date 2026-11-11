@@ -10,7 +10,7 @@ export interface EnvStatus {
   isAnomalous: boolean;
 }
 
-function resolveAppEnv(): AppEnv {
+export function resolveAppEnv(): AppEnv {
   const raw = process.env.APP_ENV;
   if (raw === "development" || raw === "staging" || raw === "production") return raw;
   // Unset/unrecognized APP_ENV falls back to NODE_ENV, but never silently
