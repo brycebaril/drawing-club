@@ -120,6 +120,14 @@ describe("checkout fulfillment", () => {
     expect(await transactionsFor(paymentIntentId)).toEqual([]);
   });
 
+  it("doesn't ask Stripe about a wallet-return id that isn't a Checkout Session's", async () => {
+    const { fulfillReturnedCheckout } = await import("@/lib/payments/fulfillCheckout");
+
+    await fulfillReturnedCheckout("../customers", userId);
+
+    expect(stripeApi.checkout.sessions.retrieve).not.toHaveBeenCalled();
+  });
+
   it("grants nothing for a checkout that hasn't been paid", async () => {
     const paymentIntentId = `pi_${unique}_unpaid`;
 

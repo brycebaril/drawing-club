@@ -156,6 +156,7 @@ export async function fulfillPurchase(client: PoolClient, purchase: CheckoutPurc
  * the webhook. Never throws — if this fails the webhook still delivers it.
  */
 export async function fulfillReturnedCheckout(checkoutSessionId: string, viewerId: string): Promise<void> {
+  if (!/^cs_\w+$/.test(checkoutSessionId)) return; // From the URL, so anyone can put anything there.
   try {
     const session = await stripe.checkout.sessions.retrieve(checkoutSessionId);
     const purchase = paidPurchaseOf(session);
