@@ -83,6 +83,31 @@ async function prepareFulfillment(event: Stripe.Event): Promise<Fulfiller | null
       return (client) =>
         fulfillCheckoutSession(client, session, paymentIntentId, processingFee, netAmount);
     }
+    case "charge.updated": {
+      // Stripe records a charge's fee ~2s after checkout.session.completed,
+      // so that event's fetchChargeFees usually finds nothing; this event is
+      // Stripe saying the fee now exists.
+      const charge = event.data.object as Stripe.Charge;
+      const paymentIntentId = paymentIntentIdOf(charge.payment_intent);
+      const balanceTransactionId =
+        typeof charge.balance_transaction === "string" ? charge.balance_transaction : charge.balance_transaction?.id;
+      if (!paymentIntentId || !balanceTransactionId) return null;
+      // Skips the Stripe call for charges that aren't ours or already have a fee.
+      // ponytail: if this lands between the checkout handler's own fee lookup
+      // and its commit, the fee stays NULL; backfill from payouts if that shows up.
+      const pending = await pool.query(
+        `SELECT 1 FROM transactions WHERE gateway_ref_id = $1 AND processing_fee IS NULL`,
+        [paymentIntentId],
+      );
+      if (pending.rowCount === 0) return null;
+      const balanceTransaction = await stripe.balanceTransactions.retrieve(balanceTransactionId);
+      return (client) =>
+        client.query(
+          `UPDATE transactions SET processing_fee = $2, net_amount = $3
+           WHERE gateway_ref_id = $1 AND processing_fee IS NULL`,
+          [paymentIntentId, balanceTransaction.fee / 100, balanceTransaction.net / 100],
+        ).then(() => undefined);
+    }
     case "charge.refunded": {
       const charge = event.data.object as Stripe.Charge;
       return (client) => applyRefund(client, charge);

@@ -83,7 +83,7 @@ real AWS resources existing are filled in now, infra-dependent ones are
 | `NEXTAUTH_SECRET` | TBD — a new, distinct value generated with `openssl rand -base64 32`. Never reuse local dev/CI/staging's value. |
 | `NEXTAUTH_URL` | TBD — the real production URL (`https://lifedrawing.org` once the custom domain is wired, the Amplify default URL until then). |
 | `STRIPE_SECRET_KEY` / `STRIPE_PUBLISHABLE_KEY` | TBD — real live-mode keys, not staging's shared test-mode ones. |
-| `STRIPE_WEBHOOK_SECRET` | TBD — the signing secret for a webhook endpoint registered against this environment's own `/api/webhooks/stripe` URL. |
+| `STRIPE_WEBHOOK_SECRET` | TBD — the signing secret for a webhook endpoint registered against this environment's own `/api/webhooks/stripe` URL, subscribed to `checkout.session.completed`, `charge.updated`, `charge.refunded`, `charge.dispute.created`, `payout.paid`, `payout.failed`. |
 | `AWS_REGION` / `SES_FROM_EMAIL` | TBD — left unset until SES production access is granted (see the provisioning table above); the app runs correctly on the console-log fallback in the meantime. |
 | `S3_BUCKET_NAME` | TBD — this environment's own uploads bucket name. |
 | `JOB_TRIGGER_SECRET` | TBD — a new, distinct generated value. |

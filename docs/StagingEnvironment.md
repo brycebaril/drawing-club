@@ -173,7 +173,7 @@ for why this isn't Secrets Manager yet).
 | `NEXTAUTH_URL` | Amplify env var, set to the staging app's actual Amplify default URL. |
 | `STRIPE_SECRET_KEY` | Amplify env var — reuse the **same Stripe test-mode key** local dev already uses. Test mode is shared across dev/staging; only production needs a real live-mode key. |
 | `STRIPE_PUBLISHABLE_KEY` | Amplify env var — same test-mode key as above. |
-| `STRIPE_WEBHOOK_SECRET` | Amplify env var — the webhook signing secret for whichever Stripe webhook endpoint you point at staging's own `/api/webhooks/stripe` URL (a separate Stripe CLI/Dashboard-registered endpoint from local dev's, since it's a different URL). |
+| `STRIPE_WEBHOOK_SECRET` | Amplify env var — the webhook signing secret for whichever Stripe webhook endpoint you point at staging's own `/api/webhooks/stripe` URL (a separate Stripe CLI/Dashboard-registered endpoint from local dev's, since it's a different URL). Subscribe it to `checkout.session.completed`, `charge.updated`, `charge.refunded`, `charge.dispute.created`, `payout.paid`, `payout.failed`; the test-mode endpoint "drawing-club staging (Amplify)" already is. |
 | `AWS_REGION` | **Left unset** — SES is intentionally not provisioned for staging; this keeps the app on its console-log email fallback. |
 | `SES_FROM_EMAIL` | **Left unset**, same reason. |
 | `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` | Left unset — Amplify compute uses its own service role's IAM credentials for S3 access, not static keys. |
