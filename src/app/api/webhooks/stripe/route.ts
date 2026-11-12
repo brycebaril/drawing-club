@@ -3,9 +3,13 @@ import type Stripe from "stripe";
 import type { PoolClient } from "pg";
 import { pool } from "@/lib/db/pool";
 import { stripe } from "@/lib/stripe/client";
-import { writeAuditLog } from "@/lib/audit/log";
-import { isPurchasableItem } from "@/lib/payments/pricing";
-import { getSettingNumber } from "@/lib/settings";
+import {
+  fetchChargeFees,
+  fulfillPurchase,
+  paidPurchaseOf,
+  paymentIntentIdOf,
+  isOurCheckout,
+} from "@/lib/payments/fulfillCheckout";
 
 /**
  * Single entry point for all Stripe events (ArchitectureDocument.md §7).
@@ -76,12 +80,10 @@ type Fulfiller = (client: PoolClient) => Promise<void>;
 async function prepareFulfillment(event: Stripe.Event): Promise<Fulfiller | null> {
   switch (event.type) {
     case "checkout.session.completed": {
-      const session = event.data.object as Stripe.Checkout.Session;
-      const paymentIntentId = paymentIntentIdOf(session.payment_intent);
-      if (!paymentIntentId) return null;
-      const { processingFee, netAmount } = await fetchChargeFees(paymentIntentId);
-      return (client) =>
-        fulfillCheckoutSession(client, session, paymentIntentId, processingFee, netAmount);
+      const purchase = paidPurchaseOf(event.data.object as Stripe.Checkout.Session);
+      if (!purchase) return null;
+      const fees = await fetchChargeFees(purchase.paymentIntentId);
+      return (client) => fulfillPurchase(client, purchase, fees);
     }
     case "charge.updated": {
       // Stripe records a charge's fee ~2s after checkout.session.completed,
@@ -92,9 +94,8 @@ async function prepareFulfillment(event: Stripe.Event): Promise<Fulfiller | null
       const balanceTransactionId =
         typeof charge.balance_transaction === "string" ? charge.balance_transaction : charge.balance_transaction?.id;
       if (!paymentIntentId || !balanceTransactionId) return null;
-      // Skips the Stripe call for charges that aren't ours or already have a fee.
-      // ponytail: if this lands between the checkout handler's own fee lookup
-      // and its commit, the fee stays NULL; backfill from payouts if that shows up.
+      if (!(await transactionRecorded(paymentIntentId))) return null;
+      // Skips the Stripe call when the fee is already recorded.
       const pending = await pool.query(
         `SELECT 1 FROM transactions WHERE gateway_ref_id = $1 AND processing_fee IS NULL`,
         [paymentIntentId],
@@ -110,7 +111,17 @@ async function prepareFulfillment(event: Stripe.Event): Promise<Fulfiller | null
     }
     case "charge.refunded": {
       const charge = event.data.object as Stripe.Charge;
-      return (client) => applyRefund(client, charge);
+      const paymentIntentId = paymentIntentIdOf(charge.payment_intent);
+      if (!paymentIntentId || !(await transactionRecorded(paymentIntentId))) return null;
+      // amount_refunded is the charge's running total, so an older delivery
+      // arriving late must not lower it. No audit log: our admin refund action
+      // already logged the request with its actor; a Dashboard refund has none.
+      return (client) =>
+        client.query(
+          `UPDATE transactions SET refunded_amount = GREATEST(refunded_amount, $1), charge_status = 'Refunded'
+           WHERE gateway_ref_id = $2`,
+          [charge.amount_refunded / 100, paymentIntentId],
+        ).then(() => undefined);
     }
     case "charge.dispute.created": {
       const dispute = event.data.object as Stripe.Dispute;
@@ -118,8 +129,11 @@ async function prepareFulfillment(event: Stripe.Event): Promise<Fulfiller | null
       if (!chargeId) return null;
       const charge = await stripe.charges.retrieve(chargeId);
       const paymentIntentId = paymentIntentIdOf(charge.payment_intent);
-      if (!paymentIntentId) return null;
-      return (client) => applyDispute(client, paymentIntentId);
+      if (!paymentIntentId || !(await transactionRecorded(paymentIntentId))) return null;
+      return (client) =>
+        client.query(`UPDATE transactions SET charge_status = 'Disputed' WHERE gateway_ref_id = $1`, [
+          paymentIntentId,
+        ]).then(() => undefined);
     }
     case "payout.paid":
     case "payout.failed": {
@@ -133,141 +147,22 @@ async function prepareFulfillment(event: Stripe.Event): Promise<Fulfiller | null
   }
 }
 
-function paymentIntentIdOf(value: string | Stripe.PaymentIntent | null | undefined): string | null {
-  if (!value) return null;
-  return typeof value === "string" ? value : value.id;
-}
-
-async function fetchChargeFees(
-  paymentIntentId: string,
-): Promise<{ processingFee: number | null; netAmount: number | null }> {
-  const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId, {
-    expand: ["latest_charge.balance_transaction"],
-  });
-  const charge =
-    typeof paymentIntent.latest_charge === "string" || !paymentIntent.latest_charge
-      ? null
-      : paymentIntent.latest_charge;
-  const balanceTransaction =
-    charge && typeof charge.balance_transaction !== "string" && charge.balance_transaction
-      ? charge.balance_transaction
-      : null;
-  if (!balanceTransaction) return { processingFee: null, netAmount: null };
-  return { processingFee: balanceTransaction.fee / 100, netAmount: balanceTransaction.net / 100 };
-}
-
-async function fulfillCheckoutSession(
-  client: PoolClient,
-  session: Stripe.Checkout.Session,
-  paymentIntentId: string,
-  processingFee: number | null,
-  netAmount: number | null,
-): Promise<void> {
-  const userId = session.client_reference_id;
-  const item = session.metadata?.item;
-  if (!userId || !item || !isPurchasableItem(item)) return;
-
-  const amountPaid = (session.amount_total ?? 0) / 100;
-  const itemType: "SinglePass" | "PassPack" | "MembershipRenewal" =
-    item === "MembershipRenewal" ? "MembershipRenewal" : item === "SinglePass" ? "SinglePass" : "PassPack";
-
-  const transactionResult = await client.query<{ id: string }>(
-    `INSERT INTO transactions (user_id, gateway_ref_id, amount_paid, processing_fee, net_amount, charge_status, item_type)
-     VALUES ($1, $2, $3, $4, $5, 'Succeeded', $6)
-     RETURNING id`,
-    [userId, paymentIntentId, amountPaid, processingFee, netAmount, itemType],
-  );
-  const transactionId = transactionResult.rows[0].id;
-
-  if (item === "MembershipRenewal") {
-    const userRow = await client.query<{ membership_expires_at: Date | null }>(
-      `SELECT membership_expires_at FROM users WHERE id = $1 FOR UPDATE`,
-      [userId],
-    );
-    if (userRow.rowCount === 0) return;
-
-    // Renewing before expiry extends the current membership rather than
-    // resetting the clock to today.
-    const currentExpiry = userRow.rows[0].membership_expires_at;
-    const base = currentExpiry && new Date(currentExpiry) > new Date() ? new Date(currentExpiry) : new Date();
-    const validUntil = new Date(base);
-    validUntil.setFullYear(validUntil.getFullYear() + 1);
-
-    await client.query(
-      `INSERT INTO membership_history (user_id, transaction_id, valid_from, valid_until, granted_by)
-       VALUES ($1, $2, $3, $4, $5)`,
-      [userId, transactionId, base, validUntil, userId],
-    );
-    await client.query(`UPDATE users SET membership_expires_at = $1 WHERE id = $2`, [validUntil, userId]);
-
-    // Design Doc §6.2's membership-perk bonus passes — transferable, so a
-    // member actually has something to gift (the only other source is an
-    // admin manual grant). §6.6: bonus passes record effective_price $0.00.
-    const bonusPassCount = await getSettingNumber("MEMBERSHIP_BONUS_PASSES");
-    for (let i = 0; i < bonusPassCount; i++) {
-      await client.query(
-        `INSERT INTO passes (owner_id, status, is_transferable, effective_price, transaction_id)
-         VALUES ($1, 'Available', true, 0, $2)`,
-        [userId, transactionId],
-      );
-    }
-
-    await writeAuditLog(
-      {
-        actorId: userId,
-        actionType: "MEMBERSHIP_RENEWED",
-        targetUserId: userId,
-        metadata: { transactionId, amountPaid, validUntil: validUntil.toISOString(), bonusPassCount },
-      },
-      client,
-    );
-    return;
+/**
+ * Stripe doesn't order deliveries, so a charge event can beat its own
+ * checkout's fulfillment (or land while that is still retrying). For a charge
+ * from our Checkout, throwing makes Stripe redeliver this event once the
+ * transaction exists; any other charge on the account isn't ours to record.
+ */
+async function transactionRecorded(paymentIntentId: string): Promise<boolean> {
+  const found = await pool.query(`SELECT 1 FROM transactions WHERE gateway_ref_id = $1`, [paymentIntentId]);
+  if (found.rowCount) return true;
+  const sessions = await stripe.checkout.sessions.list({ payment_intent: paymentIntentId, limit: 1 });
+  if (sessions.data.some(isOurCheckout)) {
+    throw new Error(`No transaction for ${paymentIntentId} yet; Stripe will redeliver this event`);
   }
-
-  const passCount = Number(session.metadata?.passCount ?? "0");
-  const effectivePricePerPass = session.metadata?.effectivePricePerPass
-    ? Number(session.metadata.effectivePricePerPass)
-    : amountPaid;
-
-  for (let i = 0; i < passCount; i++) {
-    await client.query(
-      `INSERT INTO passes (owner_id, status, is_transferable, effective_price, transaction_id)
-       VALUES ($1, 'Available', false, $2, $3)`,
-      [userId, effectivePricePerPass, transactionId],
-    );
-  }
-
-  await writeAuditLog(
-    {
-      actorId: userId,
-      actionType: "PASS_PURCHASED",
-      targetUserId: userId,
-      metadata: { transactionId, item, passCount, amountPaid, effectivePricePerPass },
-    },
-    client,
-  );
+  return false;
 }
 
-async function applyRefund(client: PoolClient, charge: Stripe.Charge): Promise<void> {
-  const paymentIntentId = paymentIntentIdOf(charge.payment_intent);
-  if (!paymentIntentId) return;
-
-  await client.query(
-    `UPDATE transactions SET refunded_amount = $1, charge_status = 'Refunded' WHERE gateway_ref_id = $2`,
-    [charge.amount_refunded / 100, paymentIntentId],
-  );
-
-  // No audit log here: a refund initiated through our own admin UI is
-  // already logged at initiation time (src/app/admin/transactions/[id]/actions.ts)
-  // with a real actor. One issued directly from the Stripe Dashboard has no
-  // actor in our system to attribute it to.
-}
-
-async function applyDispute(client: PoolClient, paymentIntentId: string): Promise<void> {
-  await client.query(`UPDATE transactions SET charge_status = 'Disputed' WHERE gateway_ref_id = $1`, [
-    paymentIntentId,
-  ]);
-}
 
 async function fetchPaymentIntentIdsForPayout(payoutId: string): Promise<string[]> {
   // Capped at 100 — the payout batches this org deals with are far below

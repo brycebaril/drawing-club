@@ -37,9 +37,10 @@ function describeItem(item: PurchasableItem): string {
  * server-side from the viewer's current membership status and the
  * system_settings store — the client only ever picks *which* item, never
  * how much it costs. Fulfillment (creating passes / extending membership)
- * happens later, in src/app/api/webhooks/stripe/route.ts, once Stripe
- * confirms the charge — not here, since the user hasn't paid yet at the
- * point this action runs.
+ * happens later, once Stripe confirms the charge: on the buyer's return to
+ * /app/wallet and in the webhook, whichever comes first
+ * (src/lib/payments/fulfillCheckout.ts) — not here, since the user hasn't
+ * paid yet at the point this action runs.
  */
 export async function createCheckoutSessionAction(
   _prevState: CreateCheckoutSessionState,
@@ -78,6 +79,9 @@ export async function createCheckoutSessionAction(
     checkoutSession = await stripe.checkout.sessions.create(
       {
         mode: "payment",
+        // Card only: fulfillment grants tickets the moment checkout completes,
+        // which a delayed method (e.g. pre-authorized debit) would make unsafe.
+        payment_method_types: ["card"],
         line_items: [
           {
             price_data: {
@@ -96,7 +100,7 @@ export async function createCheckoutSessionAction(
           effectivePricePerPass:
             resolved.effectivePricePerPass !== null ? String(resolved.effectivePricePerPass) : "",
         },
-        success_url: `${baseUrl}/app/wallet?checkout=success`,
+        success_url: `${baseUrl}/app/wallet?checkout=success&session_id={CHECKOUT_SESSION_ID}`,
         cancel_url: `${baseUrl}/app/wallet?checkout=cancelled`,
       },
       // Unlike the refund key above, this can't be deterministic from

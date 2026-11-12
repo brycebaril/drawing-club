@@ -9,6 +9,7 @@ import { CancelTransferButton } from "./CancelTransferButton";
 import { AcceptDeclineButtons } from "./AcceptDeclineButtons";
 import { SiteNav } from "@/components/SiteNav";
 import { memberLabelWithUsername } from "@/lib/users/memberLabel";
+import { fulfillReturnedCheckout } from "@/lib/payments/fulfillCheckout";
 
 interface PassRow {
   id: string;
@@ -34,7 +35,7 @@ interface IncomingTransferRow {
 export default async function WalletPage({
   searchParams,
 }: {
-  searchParams: Promise<{ checkout?: string }>;
+  searchParams: Promise<{ checkout?: string; session_id?: string }>;
 }) {
   const session = await auth();
   if (!session?.user?.id) redirect("/auth/login?redirect=/app/wallet");
@@ -42,7 +43,11 @@ export default async function WalletPage({
   const ctx = await getUserAuthContext(session.user.id);
   if (!ctx) redirect("/auth/login");
 
-  const { checkout } = await searchParams;
+  const { checkout, session_id: checkoutSessionId } = await searchParams;
+  // Before the queries below, so the purchase shows on this very render.
+  if (checkout === "success" && checkoutSessionId) {
+    await fulfillReturnedCheckout(checkoutSessionId, ctx.id);
+  }
 
   const passResult = await pool.query<PassRow>(
     `SELECT id, status, effective_price, is_transferable FROM passes
@@ -79,7 +84,7 @@ export default async function WalletPage({
         <h1>Wallet</h1>
         {checkout === "success" && (
           <p role="status">
-            Payment received — your purchase is being processed and will appear below shortly.
+            Payment received — thank you. If your purchase isn&apos;t below yet, it will be within a minute.
           </p>
         )}
         {checkout === "cancelled" && <p role="status">Checkout cancelled — nothing was charged.</p>}
