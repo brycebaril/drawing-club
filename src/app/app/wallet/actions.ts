@@ -81,7 +81,7 @@ export async function createCheckoutSessionAction(
         line_items: [
           {
             price_data: {
-              currency: "usd",
+              currency: "cad", // The org and its Stripe account are Canadian.
               product_data: { name: describeItem(item) },
               unit_amount: Math.round(resolved.totalPrice * 100),
             },
